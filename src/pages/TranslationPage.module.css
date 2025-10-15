@@ -1,0 +1,66 @@
+.translation {
+  min-height: 100vh;
+  background: var(--neutral-100);
+  color: var(--neutral-800);
+  display: flex;
+  flex-direction: column;
+}
+
+
+
+.content {
+  display: grid;
+  grid-template-columns: 20% 70%;
+  gap: 2rem;
+  padding: 2rem 5%; /* 左右各5%的空白，总共10% */
+  margin: 0; /* 移除auto居中，直接占满容器 */
+  flex: 1;
+  width: 100%;
+  max-width: none; /* 移除最大宽度限制 */
+}
+
+.loadingContainer {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--neutral-100);
+  color: var(--neutral-600);
+  gap: 1rem;
+}
+
+.loadingContainer button {
+  background: var(--primary-blue);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.loadingContainer button:hover {
+  background: var(--primary-blue-light);
+}
+
+/* 响应式设计 */
+@media (max-width: 1024px) {
+  .content {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    padding: 1.5rem 3%; /* 小屏幕减少左右空白 */
+  }
+}
+
+@media (max-width: 768px) {
+  .content {
+    padding: 1rem 2%; /* 手机端更少的左右空白 */
+    gap: 1rem;
+  }
+}
+
+
+
+
+

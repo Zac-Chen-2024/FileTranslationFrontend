@@ -1,0 +1,65 @@
+.notification {
+  position: fixed;
+  top: 90px; /* Header高度70px + 20px间距 */
+  right: 0.75rem;
+  background: white;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  box-shadow: var(--shadow-lg);
+  border-left: 4px solid var(--accent-green);
+  transform: translateX(100%);
+  opacity: 0;
+  transition: all 0.3s ease;
+  z-index: 999; /* 低于Header的z-index: 1000 */
+  max-width: 220px;
+  min-width: 200px;
+}
+
+[data-theme="dark"] .notification {
+  background: var(--neutral-50);
+  color: var(--neutral-900);
+}
+
+.notification.show {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.notification.error {
+  border-left-color: var(--accent-red);
+}
+
+.notification.warning {
+  border-left-color: var(--secondary-gold);
+}
+
+.title {
+  font-weight: 600;
+  color: var(--neutral-800);
+  margin-bottom: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.message {
+  color: var(--neutral-600);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .notification {
+    top: 1rem;
+    right: 1rem;
+    left: 1rem;
+    max-width: none;
+    transform: translateY(-100%);
+  }
+  
+  .notification.show {
+    transform: translateY(0);
+  }
+}
+
+
+

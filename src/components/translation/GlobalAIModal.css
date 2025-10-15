@@ -1,0 +1,354 @@
+/* 全局AI助手模态框 */
+.global-ai-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(2px);
+}
+
+.global-ai-modal {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  max-width: 800px;
+  width: 90%;
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.global-ai-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e0e0e0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.global-ai-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: white;
+  font-weight: 600;
+}
+
+.global-ai-close {
+  background: none;
+  border: none;
+  font-size: 28px;
+  cursor: pointer;
+  color: white;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background 0.2s;
+  padding: 0;
+  line-height: 1;
+}
+
+.global-ai-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.global-ai-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* 指令输入 */
+.instruction-input {
+  margin-bottom: 20px;
+}
+
+.instruction-input label {
+  display: block;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.instruction-input textarea {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  transition: border-color 0.2s;
+  line-height: 1.5;
+}
+
+.instruction-input textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* 文本计数信息 */
+.text-count-info {
+  margin-bottom: 20px;
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  text-align: center;
+  color: #666;
+  font-size: 13px;
+}
+
+/* 提交按钮 */
+.global-submit-btn {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.global-submit-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.global-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 建议列表 */
+.suggestions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.suggestions-header h4 {
+  margin: 0;
+  font-size: 16px;
+  color: #333;
+}
+
+.changes-count {
+  color: #667eea;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.no-changes {
+  color: #4caf50;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.suggestions-list {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-bottom: 20px;
+}
+
+.suggestion-item {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 12px;
+  background: white;
+  transition: box-shadow 0.2s;
+}
+
+.suggestion-item:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.suggestion-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 600;
+  color: #333;
+  font-size: 13px;
+}
+
+.checkbox-label input[type="checkbox"] {
+  margin-right: 8px;
+  cursor: pointer;
+}
+
+.change-note {
+  color: #667eea;
+  font-size: 12px;
+  font-style: italic;
+}
+
+.suggestion-comparison {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.suggestion-original,
+.suggestion-revised {
+  padding: 10px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.suggestion-original {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+}
+
+.suggestion-revised {
+  background: #e8f5e9;
+  border: 1px solid #4caf50;
+}
+
+.suggestion-original label,
+.suggestion-revised label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.suggestion-original label {
+  color: #666;
+}
+
+.suggestion-revised label {
+  color: #2e7d32;
+}
+
+.suggestion-original p,
+.suggestion-revised p {
+  margin: 0;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.suggestion-arrow {
+  display: flex;
+  align-items: center;
+  font-size: 18px;
+  color: #667eea;
+  font-weight: bold;
+}
+
+/* 操作按钮 */
+.suggestions-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  padding-top: 12px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.apply-btn,
+.cancel-btn {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.apply-btn {
+  background: #4caf50;
+  color: white;
+}
+
+.apply-btn:hover:not(:disabled) {
+  background: #45a049;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+}
+
+.apply-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cancel-btn {
+  background: #6c757d;
+  color: white;
+}
+
+.cancel-btn:hover {
+  background: #5a6268;
+  transform: translateY(-2px);
+}
+
+/* 滚动条美化 */
+.global-ai-body::-webkit-scrollbar,
+.suggestions-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.global-ai-body::-webkit-scrollbar-track,
+.suggestions-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.global-ai-body::-webkit-scrollbar-thumb,
+.suggestions-list::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.global-ai-body::-webkit-scrollbar-thumb:hover,
+.suggestions-list::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .global-ai-modal {
+    width: 95%;
+    max-height: 90vh;
+  }
+
+  .suggestion-comparison {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+  }
+
+  .suggestion-arrow {
+    justify-content: center;
+    transform: rotate(90deg);
+  }
+}

@@ -1,0 +1,330 @@
+/* === 日间模式 (Light Theme) === */
+[data-theme="light"], :root {
+  /* 主色调 - 深蓝专业色系 */
+  --primary-dark: #1e3a8a;      /* 深蓝色 - 主要按钮、链接 */
+  --primary: #3b82f6;           /* 蓝色 - 次要按钮 */
+  --primary-light: #dbeafe;     /* 浅蓝色 - 背景色 */
+
+  /* 中性色系 - 沉稳大气 */
+  --neutral-900: #111827;       /* 深灰 - 主要文字 */
+  --neutral-700: #374151;       /* 中灰 - 次要文字 */
+  --neutral-500: #6b7280;       /* 灰色 - 辅助文字 */
+  --neutral-200: #e5e7eb;       /* 浅灰 - 边框 */
+  --neutral-100: #f3f4f6;       /* 极浅灰 - 背景 */
+  --neutral-50: #f9fafb;        /* 白灰 - 卡片背景 */
+  --white: #ffffff;             /* 纯白 - 主背景 */
+
+  /* 状态色系 */
+  --success: #059669;           /* 深绿 - 成功状态 */
+  --success-light: #d1fae5;     /* 浅绿 - 成功背景 */
+  --warning: #d97706;           /* 橙色 - 警告状态 */
+  --warning-light: #fed7aa;     /* 浅橙 - 警告背景 */
+  --error: #dc2626;             /* 红色 - 错误状态 */
+  --error-light: #fecaca;       /* 浅红 - 错误背景 */
+
+  /* 向后兼容的旧变量 */
+  --primary-blue: #1e40af;
+  --primary-blue-light: #3b82f6;
+  --primary-blue-dark: #1e3a8a;
+  --secondary-gold: #f59e0b;
+  --secondary-gold-light: #fbbf24;
+  --accent-green: #10b981;
+  --accent-red: #ef4444;
+
+  /* 阴影 */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+/* === 夜间模式 (Dark Theme) - 专业深空蓝色系 === */
+[data-theme="dark"] {
+  /* 主色调 - 深空蓝强调色 */
+  --primary-dark: #0075FF;      /* 皇家蓝 - 点击/激活状态 */
+  --primary: #3391FF;           /* 天空蓝 - 主要按钮、链接、图标 */
+  --primary-light: #66B2FF;     /* 亮天蓝 - 悬浮状态 */
+
+  /* 中性色系 - 深空灰色调 */
+  --neutral-900: #E0E0E0;       /* 亮灰色 - 主要文字 */
+  --neutral-700: #A0A0A0;       /* 中灰色 - 次要文字 */
+  --neutral-500: #6E6E6E;       /* 暗灰色 - 禁用/占位符 */
+  --neutral-200: #2C2C2C;       /* 石墨灰 - 边框 */
+  --neutral-100: #1a1a1a;       /* 深灰 - 卡片背景 */
+  --neutral-50: #1E1E1E;        /* 碳灰 - 悬浮菜单、弹窗 */
+  --white: #121212;             /* 墨黑 - 主背景 */
+
+  /* 状态色系 (专业深空蓝配色) */
+  --success: #4CAF50;           /* 森林绿 - 成功状态 */
+  --success-light: #1B5E20;     /* 深森林绿 - 成功背景 */
+  --warning: #FFC107;           /* 琥珀黄 - 警告状态 */
+  --warning-light: #F57F17;     /* 深琥珀 - 警告背景 */
+  --error: #F44336;             /* 番茄红 - 错误状态 */
+  --error-light: #B71C1C;       /* 深红 - 错误背景 */
+
+  /* 向后兼容的旧变量 */
+  --primary-blue: #3391FF;
+  --primary-blue-light: #66B2FF;
+  --primary-blue-dark: #0075FF;
+  --secondary-gold: #FFC107;
+  --secondary-gold-light: #FFD54F;
+  --accent-green: #4CAF50;
+  --accent-red: #F44336;
+
+  /* 阴影 (深空主题优化) */
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.5);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.6), 0 4px 6px -4px rgb(0 0 0 / 0.5);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.7), 0 8px 10px -6px rgb(0 0 0 / 0.6);
+}
+
+/* 重置样式 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* 主题过渡动画 */
+* {
+  transition: background-color 0.3s ease, 
+              color 0.3s ease, 
+              border-color 0.3s ease,
+              box-shadow 0.3s ease;
+}
+
+/* 基础样式 */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  background: var(--white);
+  color: var(--neutral-900);
+  min-height: 100vh;
+  line-height: 1.6;
+  overflow-x: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.5);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--primary-blue), var(--primary-blue-dark));
+  border-radius: 4px;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--primary-blue-dark), var(--primary-blue));
+}
+
+/* 动画 */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes float {
+  0%, 100% { 
+    transform: translateY(0px); 
+  }
+  50% { 
+    transform: translateY(-10px); 
+  }
+}
+
+@keyframes spin {
+  0% { 
+    transform: rotate(0deg); 
+  }
+  100% { 
+    transform: rotate(360deg); 
+  }
+}
+
+/* 通用工具类 */
+.animate-fade-in {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.loading-spinner {
+  border: 3px solid var(--neutral-300);
+  border-top: 3px solid var(--primary-blue);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto;
+}
+
+/* 响应式工具类 */
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.grid {
+  display: grid;
+}
+
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.gap-1 { gap: 0.25rem; }
+.gap-2 { gap: 0.5rem; }
+.gap-3 { gap: 0.75rem; }
+.gap-4 { gap: 1rem; }
+.gap-6 { gap: 1.5rem; }
+.gap-8 { gap: 2rem; }
+
+.p-2 { padding: 0.5rem; }
+.p-4 { padding: 1rem; }
+.p-6 { padding: 1.5rem; }
+.p-8 { padding: 2rem; }
+
+.m-2 { margin: 0.5rem; }
+.m-4 { margin: 1rem; }
+.m-6 { margin: 1.5rem; }
+.m-8 { margin: 2rem; }
+
+.mb-2 { margin-bottom: 0.5rem; }
+.mb-4 { margin-bottom: 1rem; }
+.mb-6 { margin-bottom: 1.5rem; }
+.mb-8 { margin-bottom: 2rem; }
+
+.text-center { text-align: center; }
+.text-left { text-align: left; }
+.text-right { text-align: right; }
+
+.font-bold { font-weight: 700; }
+.font-semibold { font-weight: 600; }
+.font-medium { font-weight: 500; }
+
+.text-sm { font-size: 0.875rem; }
+.text-base { font-size: 1rem; }
+.text-lg { font-size: 1.125rem; }
+.text-xl { font-size: 1.25rem; }
+.text-2xl { font-size: 1.5rem; }
+.text-3xl { font-size: 1.875rem; }
+.text-4xl { font-size: 2.25rem; }
+
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+.min-h-screen { min-height: 100vh; }
+
+.rounded { border-radius: 0.25rem; }
+.rounded-md { border-radius: 0.375rem; }
+.rounded-lg { border-radius: 0.5rem; }
+.rounded-xl { border-radius: 0.75rem; }
+
+.shadow-sm { box-shadow: var(--shadow-sm); }
+.shadow-md { box-shadow: var(--shadow-md); }
+.shadow-lg { box-shadow: var(--shadow-lg); }
+.shadow-xl { box-shadow: var(--shadow-xl); }
+
+.bg-white { background-color: white; }
+.bg-primary { background-color: var(--primary-blue); }
+.bg-success { background-color: var(--accent-green); }
+.bg-warning { background-color: var(--secondary-gold); }
+.bg-error { background-color: var(--accent-red); }
+
+.text-white { color: white; }
+.text-primary { color: var(--primary-blue); }
+.text-success { color: var(--accent-green); }
+.text-warning { color: var(--secondary-gold); }
+.text-error { color: var(--accent-red); }
+
+.border { border: 1px solid var(--neutral-200); }
+.border-primary { border: 1px solid var(--primary-blue); }
+
+.cursor-pointer { cursor: pointer; }
+.cursor-not-allowed { cursor: not-allowed; }
+
+.transition { transition: all 0.3s ease; }
+
+.opacity-50 { opacity: 0.5; }
+.opacity-75 { opacity: 0.75; }
+
+.hidden { display: none; }
+.block { display: block; }
+
+/* 响应式媒体查询 */
+@media (max-width: 768px) {
+  .container {
+    padding: 0 0.5rem;
+  }
+  
+  .md\:hidden {
+    display: none;
+  }
+  
+  .md\:block {
+    display: block;
+  }
+  
+  .md\:flex {
+    display: flex;
+  }
+  
+  .md\:grid-cols-1 {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 768px) {
+  .md\:grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  
+  .md\:grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  
+  .md\:flex-row {
+    flex-direction: row;
+  }
+}
+
+@media (min-width: 1024px) {
+  .lg\:grid-cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+
+
