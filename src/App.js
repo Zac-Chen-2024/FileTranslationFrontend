@@ -24,7 +24,7 @@ function App() {
   return (
     <AppProvider>
       <NotificationProvider>
-        <Router>
+        <Router basename="/FileTranslationFrontend">
         <div className="App">
           <Routes>
             {/* 公开路由 */}
