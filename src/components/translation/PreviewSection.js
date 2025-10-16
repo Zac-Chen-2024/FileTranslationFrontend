@@ -88,8 +88,8 @@ const PreviewSection = () => {
     // 立即检查一次
     checkTranslationStatus();
     
-    // 每15秒检查一次（每分钟4次）
-    const interval = setInterval(checkTranslationStatus, 15000);
+    // 每3秒检查一次，以便更及时地看到进度更新
+    const interval = setInterval(checkTranslationStatus, 3000);
     setPollingInterval(interval);
   }, [currentMaterial, actions, pollingInterval]);
   
@@ -418,6 +418,8 @@ const ComparisonView = ({ material, onSelectResult }) => {
   const [pdfPages, setPdfPages] = React.useState([]);
   const [currentPageIndex, setCurrentPageIndex] = React.useState(0);
   const [isLoadingPages, setIsLoadingPages] = React.useState(false);
+  const [pdfSessionProgress, setPdfSessionProgress] = React.useState(null); // PDF整体进度
+  const isChangingPageRef = React.useRef(false); // 标记是否正在切换页面
 
   // 加载PDF会话的所有页面
   React.useEffect(() => {
@@ -425,6 +427,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
       // 检查当前material是否是PDF页面
       if (!material.pdfSessionId) {
         setPdfPages([]);
+        setPdfSessionProgress(null);
         return;
       }
 
@@ -438,10 +441,40 @@ const ComparisonView = ({ material, onSelectResult }) => {
 
         setPdfPages(sessionPages);
 
-        // 设置当前页面索引
-        const currentIndex = sessionPages.findIndex(p => p.id === material.id);
-        if (currentIndex !== -1) {
-          setCurrentPageIndex(currentIndex);
+        // 计算PDF Session的整体进度
+        if (sessionPages.length > 0) {
+          const totalPages = sessionPages.length;
+          const totalProgress = sessionPages.reduce((sum, page) => sum + (page.processingProgress || 0), 0);
+          const avgProgress = Math.round(totalProgress / totalPages);
+
+          // 确定整体状态
+          const allTranslated = sessionPages.every(p => p.status === '翻译完成' && p.processingProgress >= 66);
+          const someTranslating = sessionPages.some(p => p.processingStep === 'translating');
+
+          setPdfSessionProgress({
+            progress: avgProgress,
+            allTranslated: allTranslated,
+            someTranslating: someTranslating
+          });
+
+          console.log('PDF Session进度:', {
+            totalPages,
+            avgProgress,
+            allTranslated,
+            someTranslating,
+            pageProgress: sessionPages.map(p => ({ id: p.id, progress: p.processingProgress, status: p.status }))
+          });
+        }
+
+        // 设置当前页面索引（只在不是主动切换页面时更新，避免翻页循环）
+        if (!isChangingPageRef.current) {
+          const currentIndex = sessionPages.findIndex(p => p.id === material.id);
+          if (currentIndex !== -1) {
+            setCurrentPageIndex(currentIndex);
+          }
+        } else {
+          // 切换页面操作完成，重置标志
+          isChangingPageRef.current = false;
         }
       } catch (error) {
         console.error('加载PDF页面失败:', error);
@@ -456,6 +489,9 @@ const ComparisonView = ({ material, onSelectResult }) => {
   // 切换到指定页面
   const handlePageChange = async (newIndex) => {
     if (newIndex < 0 || newIndex >= pdfPages.length) return;
+
+    // 设置切换页面标志，防止useEffect重新设置索引
+    isChangingPageRef.current = true;
 
     // 自动保存当前页面的编辑（如果有的话）
     if (window.currentFabricEditor && window.currentFabricEditor.generateBothVersions) {
@@ -879,9 +915,12 @@ const ComparisonView = ({ material, onSelectResult }) => {
         });
         setLlmRegions(updatedRegions);
         llmTriggeredRef.current[materialId] = true; // 标记已处理
-      } else if (!llmTriggeredRef.current[materialId] && regions.length > 0) {
-        // 只在第一次且regions不为空时触发LLM翻译
-        console.log('⚡ 首次触发LLM翻译 - Material:', materialId);
+      } else if (!llmTriggeredRef.current[materialId] &&
+                 regions.length > 0 &&
+                 (material.processingProgress >= 66 ||
+                  (pdfSessionProgress && pdfSessionProgress.progress >= 66))) {
+        // 只在百度翻译完成（进度>=66%）时触发LLM翻译
+        console.log('⚡ 首次触发LLM翻译 - Material:', materialId, '进度:', material.processingProgress, 'PDF进度:', pdfSessionProgress?.progress);
         llmTriggeredRef.current[materialId] = true; // 立即设置flag，防止重复触发
         handleLLMTranslate(regions);
       } else {
@@ -895,7 +934,73 @@ const ComparisonView = ({ material, onSelectResult }) => {
     } catch (e) {
       console.error('解析翻译数据失败:', e);
     }
-  }, [material?.id, material?.translationTextInfo]); // 移除 llmTranslationResult 依赖，避免重复触发
+  }, [material?.id, material?.translationTextInfo, material?.processingProgress, pdfSessionProgress?.progress]); // 添加进度依赖
+
+  // 当PDF所有页面翻译完成时，自动为所有页面触发LLM
+  React.useEffect(() => {
+    // 只有当是PDF多页 && 整体进度达到66% && 所有页面翻译完成时才执行
+    if (!material.pdfSessionId || !pdfSessionProgress || pdfSessionProgress.progress < 66) {
+      return;
+    }
+
+    if (!pdfSessionProgress.allTranslated) {
+      return; // 还有页面未翻译完成
+    }
+
+    console.log('🚀 PDF所有页面翻译完成，检查是否需要为其他页面触发LLM');
+
+    // 遍历所有PDF页面，为未触发LLM的页面触发
+    pdfPages.forEach(async (page) => {
+      // 跳过已经触发过LLM的页面
+      if (llmTriggeredRef.current[page.id]) {
+        console.log(`⊘ 页面 ${page.pdfPageNumber} 已触发过LLM，跳过`);
+        return;
+      }
+
+      // 跳过没有翻译结果的页面
+      if (!page.translationTextInfo) {
+        console.log(`⊘ 页面 ${page.pdfPageNumber} 没有翻译结果，跳过`);
+        return;
+      }
+
+      // 如果已经有LLM结果，也跳过
+      if (page.llmTranslationResult) {
+        console.log(`⊘ 页面 ${page.pdfPageNumber} 已有LLM结果，跳过`);
+        llmTriggeredRef.current[page.id] = true;
+        return;
+      }
+
+      // 为这个页面触发LLM
+      try {
+        console.log(`⚡ 为页面 ${page.pdfPageNumber} (ID: ${page.id}) 触发LLM翻译`);
+        llmTriggeredRef.current[page.id] = true; // 立即标记，防止重复
+
+        const token = localStorage.getItem('auth_token');
+        const response = await fetch(`/api/materials/${page.id}/llm-translate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log(`✓ 页面 ${page.pdfPageNumber} LLM翻译完成`);
+
+          // 更新materials列表中的这个页面
+          actions.updateMaterial(page.id, {
+            llmTranslationResult: data.llm_translations,
+            processingProgress: 100 // LLM完成后设置为100%
+          });
+        } else {
+          console.error(`✗ 页面 ${page.pdfPageNumber} LLM翻译失败:`, await response.text());
+        }
+      } catch (error) {
+        console.error(`✗ 页面 ${page.pdfPageNumber} LLM翻译出错:`, error);
+      }
+    });
+  }, [pdfSessionProgress?.allTranslated, pdfSessionProgress?.progress, pdfPages]); // 监听整体翻译完成状态
 
   // LLM翻译（完全按照Reference的方式）
   const handleLLMTranslate = async (regions) => {
@@ -1001,7 +1106,11 @@ const ComparisonView = ({ material, onSelectResult }) => {
     llmLoading,
     material: material?.id,
     materialType: material?.type,
-    hasTranslationInfo: !!material.translationTextInfo
+    hasTranslationInfo: !!material.translationTextInfo,
+    // 🔍 加载界面条件检查
+    status: material?.status,
+    processingStep: material?.processingStep,
+    shouldShowLoading: llmLoading || material?.status === '处理中' || material?.processingStep === 'uploaded' || material?.processingStep === 'translating' || (material?.processingStep === 'translated' && !material?.translationTextInfo)
   });
 
   // ========== Reference项目完整复刻：一进来就显示编辑器 ==========
@@ -1055,14 +1164,14 @@ const ComparisonView = ({ material, onSelectResult }) => {
                   onClick={handleRotateImage}
                   title="旋转图片90度并重新翻译"
                 >
-                  🔄 旋转
+                  旋转
                 </button>
                 <button
                   className={styles.retranslateButton}
                   onClick={handleRetranslateCurrentImage}
                   title="重新翻译当前图片"
                 >
-                  🔁 重新翻译
+                  重新翻译
                 </button>
                 <button
                   className={styles.saveEditButton}
@@ -1135,8 +1244,9 @@ const ComparisonView = ({ material, onSelectResult }) => {
           </div>
 
             <div className={styles.llmEditorContent}>
-            {/* 显示翻译进行中状态 - 只在百度翻译阶段显示进度条,完成后直接显示编辑器 */}
-            {material.status === '处理中' || material.processingStep === 'uploaded' || material.processingStep === 'translating' || (material.processingStep === 'translated' && !material.translationTextInfo) ? (
+            {/* 显示翻译进行中状态 - 包括所有三个阶段：上传、百度翻译、AI优化 */}
+            {/* 只有在进度未完成时才显示加载界面，避免已完成的页面闪现进度条 */}
+            {(material.processingProgress < 100 || !material.llmTranslationResult) && (llmLoading || material.status === '处理中' || material.processingStep === 'uploaded' || material.processingStep === 'translating' || (material.processingStep === 'translated' && !material.translationTextInfo)) ? (
               <div className={styles.processingContainer}>
                 <div className={styles.processingContent}>
                   <div className={styles.processingIconWrapper}>
@@ -1148,27 +1258,28 @@ const ComparisonView = ({ material, onSelectResult }) => {
                   </div>
                   <h3 className={styles.processingTitle}>
                     {material.processingStep === 'uploaded' && '正在准备翻译...'}
-                    {material.processingStep === 'translating' && '正在翻译中...'}
-                    {!material.processingStep && '处理中...'}
+                    {(material.processingStep === 'translating' || (pdfSessionProgress && pdfSessionProgress.someTranslating)) && '正在翻译中...'}
+                    {llmLoading && '正在AI优化中...'}
+                    {!material.processingStep && !llmLoading && '处理中...'}
                   </h3>
                   <div className={styles.processingSteps}>
-                    <div className={`${styles.processingStep} ${material.processingProgress >= 33 ? styles.active : ''}`}>
+                    <div className={`${styles.processingStep} ${(pdfSessionProgress ? pdfSessionProgress.progress >= 33 : material.processingProgress >= 33) ? styles.active : ''}`}>
                       <div className={styles.stepIcon}>
-                        {material.processingProgress >= 33 ? '✓' : '1'}
+                        {(pdfSessionProgress ? pdfSessionProgress.progress >= 33 : material.processingProgress >= 33) ? '✓' : '1'}
                       </div>
                       <span>上传完成</span>
                     </div>
                     <div className={styles.stepLine}></div>
-                    <div className={`${styles.processingStep} ${material.processingProgress >= 66 ? styles.active : material.processingStep === 'translating' ? styles.current : ''}`}>
+                    <div className={`${styles.processingStep} ${(pdfSessionProgress ? pdfSessionProgress.progress >= 66 : material.processingProgress >= 66) ? styles.active : (material.processingStep === 'translating' || (pdfSessionProgress && pdfSessionProgress.someTranslating)) ? styles.current : ''}`}>
                       <div className={styles.stepIcon}>
-                        {material.processingProgress >= 66 ? '✓' : '2'}
+                        {(pdfSessionProgress ? pdfSessionProgress.progress >= 66 : material.processingProgress >= 66) ? '✓' : '2'}
                       </div>
                       <span>百度翻译</span>
                     </div>
                     <div className={styles.stepLine}></div>
-                    <div className={`${styles.processingStep} ${material.processingProgress === 100 ? styles.active : ''}`}>
+                    <div className={`${styles.processingStep} ${(pdfSessionProgress ? pdfSessionProgress.progress === 100 : material.processingProgress === 100) ? styles.active : llmLoading ? styles.current : ''}`}>
                       <div className={styles.stepIcon}>
-                        {material.processingProgress === 100 ? '✓' : '3'}
+                        {(pdfSessionProgress ? pdfSessionProgress.progress === 100 : material.processingProgress === 100) ? '✓' : '3'}
                       </div>
                       <span>AI优化</span>
                     </div>
@@ -1177,10 +1288,10 @@ const ComparisonView = ({ material, onSelectResult }) => {
                     <div className={styles.progressBar}>
                       <div
                         className={styles.progressFill}
-                        style={{ width: `${material.processingProgress || 0}%` }}
+                        style={{ width: `${pdfSessionProgress ? pdfSessionProgress.progress : (llmLoading && material.processingProgress < 66 ? 66 : (material.processingProgress || 0))}%` }}
                       ></div>
                     </div>
-                    <span className={styles.progressText}>{material.processingProgress || 0}%</span>
+                    <span className={styles.progressText}>{pdfSessionProgress ? pdfSessionProgress.progress : (llmLoading && material.processingProgress < 66 ? 66 : (material.processingProgress || 0))}%</span>
                   </div>
                   <p className={styles.processingTip}>请稍候，翻译完成后会自动刷新显示</p>
                 </div>
@@ -1240,14 +1351,6 @@ const ComparisonView = ({ material, onSelectResult }) => {
                   }
                 }}
               />
-            ) : llmLoading ? (
-              /* LLM翻译中：显示加载状态 */
-              <div className={styles.llmLoadingContainer}>
-                <div className={styles.llmLoadingContent}>
-                  <div className={styles.llmLoadingIcon}>⏳</div>
-                  <p>正在使用ChatGPT优化翻译...</p>
-                </div>
-              </div>
             ) : (
               /* LLM翻译完成：显示可编辑的结果 */
               <FabricImageEditor
