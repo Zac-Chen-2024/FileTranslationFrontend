@@ -3,6 +3,9 @@ import FabricImageEditor from '../components/translation/FabricImageEditor';
 import previewStyles from '../components/translation/PreviewSection.module.css';
 import './PDFTestPage.css';
 
+// API URL配置
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5010';
+
 /**
  * PDF多页编辑测试页面
  * 使用现有的FabricImageEditor组件
@@ -40,7 +43,7 @@ const PDFTestPage = () => {
     formData.append('pdf_file', file);
 
     try {
-      const response = await fetch('/api/pdf/split-pages', {
+      const response = await fetch(`${API_URL}/api/pdf/split-pages`, {
         method: 'POST',
         body: formData
       });
@@ -169,7 +172,7 @@ const PDFTestPage = () => {
       const token = localStorage.getItem('auth_token');
 
       // 调用百度翻译API
-      const translateResponse = await fetch('/api/api-translate', {
+      const translateResponse = await fetch(`${API_URL}/api/api-translate`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -246,7 +249,7 @@ const PDFTestPage = () => {
           formData.append('final_image', editData.finalBlob, `final_page_${idx + 1}.png`);
           formData.append('pdf_session_id', pdfData.pdf_session_id);
 
-          const uploadResponse = await fetch('/api/pdf/save-page-edit', {
+          const uploadResponse = await fetch(`${API_URL}/api/pdf/save-page-edit`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${token}`
@@ -281,7 +284,7 @@ const PDFTestPage = () => {
       // 3. 调用合并API
       showNotification('正在合并PDF...', 'info');
 
-      const mergeResponse = await fetch('/api/pdf/merge-pages', {
+      const mergeResponse = await fetch(`${API_URL}/api/pdf/merge-pages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

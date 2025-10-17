@@ -6,6 +6,9 @@ import Header from '../components/common/Header';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import styles from './DashboardPage.module.css'; // 复用 DashboardPage 的样式
 
+// API URL配置
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5010';
+
 const ArchivedClientsPage = () => {
   const navigate = useNavigate();
   const { state, actions } = useApp();
@@ -37,7 +40,7 @@ const ArchivedClientsPage = () => {
     try {
       setLoading(true);
       // 通过添加查询参数获取包含归档客户的列表
-      const response = await fetch('/api/clients?include_archived=true', {
+      const response = await fetch(`${API_URL}/api/clients?include_archived=true`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
           'Content-Type': 'application/json',

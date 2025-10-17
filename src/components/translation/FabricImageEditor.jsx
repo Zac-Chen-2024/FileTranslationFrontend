@@ -56,19 +56,30 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
   // 检查 Fabric.js 是否已加载
   useEffect(() => {
+    let isMounted = true; // ✅ 跟踪组件是否已挂载
+    
     const checkFabric = () => {
+      if (!isMounted) return; // ✅ 如果组件已卸载，停止递归
+      
       if (window.fabric) {
         console.log('Fabric.js loaded from CDN');
-        setFabricLoaded(true);
+        if (isMounted) { // ✅ 卸载后不更新 state
+          setFabricLoaded(true);
+        }
       } else {
         console.log('Waiting for Fabric.js...');
         setTimeout(checkFabric, 100);
       }
     };
     checkFabric();
+    
+    return () => {
+      isMounted = false; // ✅ Cleanup: 标记组件已卸载
+    };
   }, []);
 
   // 初始化 Fabric.js canvas
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!fabricLoaded) return;
     if (!canvasRef.current) return;
@@ -318,6 +329,11 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       canvas.dispose();
     };
   }, [fabricLoaded]);
+  // 注意：此 useEffect 使用了多个函数（updateAIButton, saveHistory, handleUndo等）
+  // 但这些函数不应加入依赖项，因为：
+  // 1. Canvas 只应在 fabricLoaded 时初始化一次
+  // 2. 事件监听器注册后不需要重新注册
+  // 3. 如果加入依赖项会导致每次函数更新时重建整个 canvas
   
   // 记录上一次的图片URL
   const previousImageSrcRef = useRef(null);

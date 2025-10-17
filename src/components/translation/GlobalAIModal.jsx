@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import './GlobalAIModal.css';
 
+// API URL配置
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5010';
+
 const GlobalAIModal = ({ isOpen, onClose, allTextboxes, onApply }) => {
   const [instruction, setInstruction] = useState('');
   const [loading, setLoading] = useState(false);
@@ -22,7 +25,7 @@ const GlobalAIModal = ({ isOpen, onClose, allTextboxes, onApply }) => {
       const texts = allTextboxes.map(tb => tb.text);
       const token = localStorage.getItem('auth_token');
 
-      const response = await fetch('/api/ai-global-optimize', {
+      const response = await fetch(`${API_URL}/api/ai-global-optimize`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

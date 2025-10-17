@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import './AIAssistantModal.css';
 
+// API URL配置
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5010';
+
 const AIAssistantModal = ({
   isOpen,
   onClose,
@@ -31,7 +34,7 @@ const AIAssistantModal = ({
       const texts = selectedTextboxes.map(tb => tb.text);
       const token = localStorage.getItem('auth_token');
 
-      const response = await fetch('/api/ai-revise-text', {
+      const response = await fetch(`${API_URL}/api/ai-revise-text`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

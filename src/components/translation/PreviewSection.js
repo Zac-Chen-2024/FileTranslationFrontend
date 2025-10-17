@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useApp } from '../../contexts/AppContext';
 import { materialAPI } from '../../services/api';
 import LaTeXEditModal from '../modals/LaTeXEditModal';
@@ -7,6 +7,9 @@ import LLMTranslationPanel from './LLMTranslationPanel';
 import FabricImageEditor from './FabricImageEditor';
 import styles from './PreviewSection.module.css';
 
+// API URL配置
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5010';
+
 const PreviewSection = () => {
   const { state, actions } = useApp();
   const { currentMaterial } = state;
@@ -14,19 +17,21 @@ const PreviewSection = () => {
   const [showLatexEditorV2, setShowLatexEditorV2] = useState(false);
   const [forceRefresh, setForceRefresh] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [pollingInterval, setPollingInterval] = useState(null);
+  // ✅ 使用 useRef 存储轮询 interval，避免循环依赖
+  const pollingIntervalRef = useRef(null);
   const [latestRequestId, setLatestRequestId] = useState(null);
 
   // 监听currentMaterial变化，强制刷新预览
+  // 注意：只在材料 ID 变化时强制刷新，避免状态更新导致多次刷新
   useEffect(() => {
-    console.log('PreviewSection: currentMaterial 变化:', currentMaterial);
+    console.log('PreviewSection: currentMaterial ID 变化:', currentMaterial?.id);
     setForceRefresh(prev => prev + 1);
-  }, [currentMaterial?.id, currentMaterial?.translatedImagePath, currentMaterial?.status]);
+  }, [currentMaterial?.id]); // 只监听 ID，移除 status 和 translatedImagePath
 
   // 开始轮询检查翻译状态
   const startPolling = useCallback(() => {
-    if (pollingInterval) {
-      clearInterval(pollingInterval);
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
     }
     
     const checkTranslationStatus = async () => {
@@ -90,15 +95,15 @@ const PreviewSection = () => {
     
     // 每3秒检查一次，以便更及时地看到进度更新
     const interval = setInterval(checkTranslationStatus, 3000);
-    setPollingInterval(interval);
-  }, [currentMaterial, actions, pollingInterval]);
+    pollingIntervalRef.current = interval;
+  }, [currentMaterial, actions]); // ✅ 移除 pollingInterval 依赖
   
   const stopPolling = useCallback(() => {
-    if (pollingInterval) {
-      clearInterval(pollingInterval);
-      setPollingInterval(null);
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
     }
-  }, [pollingInterval]);
+  }, []); // ✅ 无需依赖项，因为使用 ref
   
   // 当材料正在翻译时，开始轮询
   useEffect(() => {
@@ -121,7 +126,7 @@ const PreviewSection = () => {
     return () => {
       stopPolling();
     };
-  }, [currentMaterial?.id, currentMaterial?.status, currentMaterial?.processingProgress]); // 添加进度依赖
+  }, [currentMaterial?.id, currentMaterial?.status, startPolling, stopPolling]); // ✅ 添加函数依赖
 
   // 手动刷新功能
   const handleRefresh = async () => {
@@ -506,7 +511,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
           formData.append('edited_regions', JSON.stringify(result.edited.regions || []));
 
           const token = localStorage.getItem('auth_token');
-          const response = await fetch(`/api/materials/${material.id}/save-edited-image`, {
+          const response = await fetch(`${API_URL}/api/materials/${material.id}/save-edited-image`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` },
             body: formData
@@ -883,6 +888,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
   }, [material?.hasEditedVersion, material?.editedImagePath, material?.editedRegions]);
 
   // 解析百度翻译结果
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     if (!material || !material.translationTextInfo) {
       console.log('跳过：没有material或translationTextInfo');
@@ -937,6 +943,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
   }, [material?.id, material?.translationTextInfo, material?.processingProgress, pdfSessionProgress?.progress]); // 添加进度依赖
 
   // 当PDF所有页面翻译完成时，自动为所有页面触发LLM
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     // 只有当是PDF多页 && 整体进度达到66% && 所有页面翻译完成时才执行
     if (!material.pdfSessionId || !pdfSessionProgress || pdfSessionProgress.progress < 66) {
@@ -976,7 +983,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
         llmTriggeredRef.current[page.id] = true; // 立即标记，防止重复
 
         const token = localStorage.getItem('auth_token');
-        const response = await fetch(`/api/materials/${page.id}/llm-translate`, {
+        const response = await fetch(`${API_URL}/api/materials/${page.id}/llm-translate`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1011,7 +1018,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
 
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`/api/materials/${material.id}/llm-translate`, {
+      const response = await fetch(`${API_URL}/api/materials/${material.id}/llm-translate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1075,7 +1082,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
     // 如果有已保存的编辑图片，编辑器应该加载编辑后的图片作为底图
     // 添加防护：确保不是空的data URI
     if (savedEditedImage && savedEditedImage !== 'data:,' && !savedEditedImage.startsWith('data:')) {
-      const url = `/download/image/${savedEditedImage}`;
+      const url = `${API_URL}/download/image/${savedEditedImage}`;
       console.log('✅ 编辑器加载已保存的编辑图片:', url, 'editedImagePath:', savedEditedImage);
       return url;
     }
@@ -1088,10 +1095,11 @@ const ComparisonView = ({ material, onSelectResult }) => {
 
     // 否则使用原始图片
     if (material.filePath) {
-      // 添加时间戳参数强制刷新图片缓存（特别是旋转后）
-      const timestamp = material.updatedAt ? new Date(material.updatedAt).getTime() : Date.now();
-      const url = `/download/image/${material.filePath}?t=${timestamp}`;
-      console.log('✅ 编辑器加载原始图片:', url, 'filePath:', material.filePath);
+      // 使用 rotationCount 作为缓存键，只在旋转时刷新
+      // 这样可以避免因 updatedAt 频繁变化导致图片重复加载
+      const cacheKey = material.rotationCount || 0;
+      const url = `${API_URL}/download/image/${material.filePath}?v=${cacheKey}`;
+      console.log('✅ 编辑器加载原始图片:', url, 'filePath:', material.filePath, 'rotation:', cacheKey);
       return url;
     }
 
@@ -1195,7 +1203,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
                       formData.append('edited_regions', JSON.stringify(result.edited.regions || []));
 
                       const token = localStorage.getItem('auth_token');
-                      const response = await fetch(`/api/materials/${material.id}/save-edited-image`, {
+                      const response = await fetch(`${API_URL}/api/materials/${material.id}/save-edited-image`, {
                         method: 'POST',
                         headers: {
                           'Authorization': `Bearer ${token}`
@@ -1311,7 +1319,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
                     formData.append('edited_regions', JSON.stringify(currentRegions || []));
 
                     const token = localStorage.getItem('auth_token');
-                    const response = await fetch(`/api/materials/${material.id}/save-edited-image`, {
+                    const response = await fetch(`${API_URL}/api/materials/${material.id}/save-edited-image`, {
                       method: 'POST',
                       headers: {
                         'Authorization': `Bearer ${token}`
@@ -1366,7 +1374,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
                     formData.append('edited_regions', JSON.stringify(currentRegions || llmRegions));
 
                     const token = localStorage.getItem('auth_token');
-                    const response = await fetch(`/api/materials/${material.id}/save-edited-image`, {
+                    const response = await fetch(`${API_URL}/api/materials/${material.id}/save-edited-image`, {
                       method: 'POST',
                       headers: {
                         'Authorization': `Bearer ${token}`
@@ -1451,7 +1459,7 @@ const SinglePreview = ({ material }) => {
     status: material?.status,
     hasTranslationResult: hasTranslationResult,
     isTranslating: isTranslating,
-    previewUrl: material?.translatedImagePath ? `/preview/translated/${material.translatedImagePath}` : null
+    previewUrl: material?.translatedImagePath ? `${API_URL}/preview/translated/${material.translatedImagePath}` : null
   });
 
   useEffect(() => {
@@ -1518,7 +1526,7 @@ const SinglePreview = ({ material }) => {
       // URL编码文件名，处理空格等特殊字符
       const encodedFilename = encodeURIComponent(material.translatedImagePath);
       // 使用完整的后端URL，绕过React Router
-      window.open(`http://localhost:5010/preview/translated/${encodedFilename}`, '_blank');
+      window.open(`${API_URL}/preview/translated/${encodedFilename}`, '_blank');
     }
   };
 
@@ -1566,7 +1574,7 @@ const SinglePreview = ({ material }) => {
     // 对文件名进行URL编码，处理空格等特殊字符
     const encodedFilename = encodeURIComponent(material.translatedImagePath);
     // 使用完整的后端URL，绕过React Router的通配符路由
-    const previewUrl = `http://localhost:5010/preview/translated/${encodedFilename}`;
+    const previewUrl = `${API_URL}/preview/translated/${encodedFilename}`;
 
     console.log('📄 PDF预览URL:', previewUrl);
     console.log('📄 完整材料信息:', material);
@@ -1666,7 +1674,7 @@ const LatexPdfPreview = ({ material }) => {
     
     // 构建预览URL
     const encodedFileName = encodeURIComponent(pdfFileName);
-    return `/preview/poster/${encodedFileName}`;
+    return `${API_URL}/preview/poster/${encodedFileName}`;
   }, [latexResult]);
 
   const handlePdfLoad = () => {

@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import FabricImageEditor from './FabricImageEditor';
 import './LLMTranslationPanel.css';
 
+// API URL配置
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5010';
+
 const LLMTranslationPanel = ({ material, onTranslationComplete }) => {
   const [loading, setLoading] = useState(false);
   const [llmTranslations, setLlmTranslations] = useState(null);
@@ -10,6 +13,7 @@ const LLMTranslationPanel = ({ material, onTranslationComplete }) => {
   const [error, setError] = useState(null);
 
   // 自动触发LLM翻译
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (material && material.translationTextInfo) {
       // 如果已有LLM翻译结果，直接使用
@@ -21,7 +25,7 @@ const LLMTranslationPanel = ({ material, onTranslationComplete }) => {
         handleLLMTranslate();
       }
     }
-  }, [material?.id]); // 只在material.id变化时触发
+  }, [material?.id]); // 只在material.id变化时触发，不需要handleLLMTranslate和material依赖
 
   const buildLLMRegions = (llmTranslations, baiduTextInfo) => {
     if (!llmTranslations || !baiduTextInfo || !baiduTextInfo.regions) {
@@ -55,7 +59,7 @@ const LLMTranslationPanel = ({ material, onTranslationComplete }) => {
       setError(null);
 
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/materials/${material.id}/llm-translate`, {
+      const response = await fetch(`${API_URL}/api/materials/${material.id}/llm-translate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

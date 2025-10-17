@@ -3,6 +3,9 @@ import { useApp } from '../../contexts/AppContext';
 import { materialAPI } from '../../services/api';
 import styles from './TranslationComparison.module.css';
 
+// API URL配置
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5010';
+
 const TranslationComparison = () => {
   const { state, actions } = useApp();
   const { currentMaterial } = state;
@@ -134,7 +137,7 @@ const TranslationComparison = () => {
                 </div>
                 <button 
                   className={styles.previewBtn}
-                  onClick={() => window.open(`/preview/latex/${currentMaterial.id}.pdf`, '_blank')}
+                  onClick={() => window.open(`${API_URL}/preview/latex/${currentMaterial.id}.pdf`, '_blank')}
                 >
                   预览PDF
                 </button>

@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { useApp } from '../../contexts/AppContext';
 import { useNotifications } from '../../contexts/NotificationContext';
 import styles from './GlobalUploadProgress.module.css';
@@ -8,7 +8,8 @@ const GlobalUploadProgress = () => {
   const { uploadStatus } = state;
   const { addTranslationCompleteNotification } = useNotifications();
   const [notifyEnabled, setNotifyEnabled] = useState(false);
-  const [translationPollingInterval, setTranslationPollingInterval] = useState(null);
+  // ✅ 使用 useRef 而不是 state 存储轮询 interval，避免循环依赖
+  const translationPollingIntervalRef = useRef(null);
 
   const progressPercentage = uploadStatus.total > 0 ? 
     Math.round((uploadStatus.current / uploadStatus.total) * 100) : 0;
@@ -115,8 +116,8 @@ const GlobalUploadProgress = () => {
 
   // 开始轮询翻译状态
   const startTranslationPolling = useCallback((clientId, notifyOnComplete = false) => {
-    if (translationPollingInterval) {
-      clearInterval(translationPollingInterval);
+    if (translationPollingIntervalRef.current) {
+      clearInterval(translationPollingIntervalRef.current);
     }
     
     let pollCount = 0;
@@ -207,15 +208,15 @@ const GlobalUploadProgress = () => {
     
     // 每15秒检查一次（每分钟4次）
     const interval = setInterval(checkTranslationStatus, 15000);
-    setTranslationPollingInterval(interval);
-  }, [actions, state, addTranslationCompleteNotification, translationPollingInterval]);
+    translationPollingIntervalRef.current = interval;
+  }, [actions, state, addTranslationCompleteNotification]); // ✅ 移除 translationPollingInterval 依赖
   
   const stopTranslationPolling = useCallback(() => {
-    if (translationPollingInterval) {
-      clearInterval(translationPollingInterval);
-      setTranslationPollingInterval(null);
+    if (translationPollingIntervalRef.current) {
+      clearInterval(translationPollingIntervalRef.current);
+      translationPollingIntervalRef.current = null;
     }
-  }, [translationPollingInterval]);
+  }, []); // ✅ 无需依赖项，因为使用 ref
   
   // 组件卸载时清理轮询
   useEffect(() => {
