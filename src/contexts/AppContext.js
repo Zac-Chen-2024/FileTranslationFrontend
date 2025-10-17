@@ -465,30 +465,51 @@ export const AppProvider = ({ children }) => {
 
   // ✅ WebSocket 事件处理函数
   const handleMaterialUpdated = useCallback((data) => {
-    console.log('📡 收到材料更新事件:', data);
+    console.log('📡 [WebSocket] 收到材料更新事件');
+    console.log(`   材料ID: ${data.material_id}`);
+    if (data.status) console.log(`   状态: ${data.status}`);
+    if (data.progress !== undefined) console.log(`   进度: ${data.progress}%`);
+    if (data.translated_path) console.log(`   翻译路径: ${data.translated_path}`);
+    if (data.translation_info) console.log(`   翻译区域数: ${data.translation_info.regions?.length || 0}`);
     
     // 更新材料状态
     if (data.material_id) {
       const updates = {};
-      if (data.status) updates.status = data.status;
-      if (data.progress !== undefined) updates.processingProgress = data.progress;
-      if (data.translated_path) updates.translatedImagePath = data.translated_path;
-      if (data.translation_info) updates.translationTextInfo = data.translation_info;
+      if (data.status) {
+        updates.status = data.status;
+        console.log(`✓ 材料状态更新为: ${data.status}`);
+      }
+      if (data.progress !== undefined) {
+        updates.processingProgress = data.progress;
+        console.log(`✓ 处理进度更新为: ${data.progress}%`);
+      }
+      if (data.translated_path) {
+        updates.translatedImagePath = data.translated_path;
+        console.log(`✓ 翻译图片已生成`);
+      }
+      if (data.translation_info) {
+        updates.translationTextInfo = data.translation_info;
+        console.log(`✓ 翻译文本信息已更新`);
+      }
       
       actions.updateMaterial(data.material_id, updates);
       
       // 如果是当前查看的材料，也更新
       if (state.currentMaterial?.id === data.material_id) {
+        console.log(`✓ 当前查看的材料已同步更新`);
         actions.setCurrentMaterial({
           ...state.currentMaterial,
           ...updates
         });
       }
     }
-  }, [state.currentMaterial]);
+  }, [state.currentMaterial, actions]);
 
   const handleLLMCompleted = useCallback((data) => {
-    console.log('📡 收到LLM完成事件:', data);
+    console.log('📡 [WebSocket] 收到LLM优化完成事件');
+    console.log(`   材料ID: ${data.material_id}`);
+    console.log(`   优化进度: ${data.progress || 100}%`);
+    console.log(`   优化区域数: ${data.translations?.length || 0}`);
     
     if (data.material_id) {
       actions.updateMaterial(data.material_id, {
@@ -497,6 +518,7 @@ export const AppProvider = ({ children }) => {
       });
       
       if (state.currentMaterial?.id === data.material_id) {
+        console.log(`✓ LLM优化结果已应用到当前材料`);
         actions.setCurrentMaterial({
           ...state.currentMaterial,
           processingProgress: data.progress || 100,
@@ -504,30 +526,42 @@ export const AppProvider = ({ children }) => {
         });
       }
       
-      actions.showNotification('LLM优化完成', '翻译优化已完成', 'success');
+      actions.showNotification('LLM优化完成', `成功优化 ${data.translations?.length || 0} 个翻译区域`, 'success');
     }
-  }, [state.currentMaterial]);
+  }, [state.currentMaterial, actions]);
 
   const handleTranslationStarted = useCallback((data) => {
-    console.log('📡 收到翻译开始事件:', data);
+    console.log('🚀 [WebSocket] 收到翻译开始事件');
+    console.log(`   客户端ID: ${data.client_id}`);
+    console.log(`   材料ID: ${data.material_id}`);
+    console.log(`   消息: ${data.message}`);
     actions.showNotification('翻译开始', data.message || '正在翻译...', 'info');
-  }, []);
+  }, [actions]);
 
   const handleTranslationCompleted = useCallback((data) => {
-    console.log('📡 收到翻译完成事件:', data);
+    console.log('✅ [WebSocket] 收到翻译完成事件');
+    console.log(`   客户端ID: ${data.client_id}`);
+    console.log(`   消息: ${data.message}`);
+    if (data.success_count !== undefined) console.log(`   成功: ${data.success_count} 个`);
+    if (data.failed_count !== undefined) console.log(`   失败: ${data.failed_count} 个`);
     actions.showNotification('翻译完成', data.message || '翻译已完成', 'success');
-  }, []);
+  }, [actions]);
 
   const handleMaterialError = useCallback((data) => {
-    console.log('📡 收到材料错误事件:', data);
+    console.log('❌ [WebSocket] 收到材料错误事件');
+    console.log(`   客户端ID: ${data.client_id}`);
+    console.log(`   材料ID: ${data.material_id}`);
+    console.log(`   错误信息: ${data.error}`);
+    
     if (data.material_id) {
+      console.log(`✗ 材料 ${data.material_id} 翻译失败: ${data.error}`);
       actions.updateMaterial(data.material_id, {
         status: '翻译失败',
         translationError: data.error
       });
     }
     actions.showNotification('翻译失败', data.error || '翻译过程中发生错误', 'error');
-  }, []);
+  }, [actions]);
 
   // ✅ 监听当前客户端变化，加入对应房间
   useEffect(() => {
