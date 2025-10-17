@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useApp } from '../../contexts/AppContext';
 import { useNotifications } from '../../contexts/NotificationContext';
 import styles from './GlobalUploadProgress.module.css';
@@ -8,8 +8,6 @@ const GlobalUploadProgress = () => {
   const { uploadStatus } = state;
   const { addTranslationCompleteNotification } = useNotifications();
   const [notifyEnabled, setNotifyEnabled] = useState(false);
-  // ✅ 使用 useRef 而不是 state 存储轮询 interval，避免循环依赖
-  const translationPollingIntervalRef = useRef(null);
 
   const progressPercentage = uploadStatus.total > 0 ? 
     Math.round((uploadStatus.current / uploadStatus.total) * 100) : 0;
@@ -99,9 +97,8 @@ const GlobalUploadProgress = () => {
               addTranslationCompleteNotification(clientName, materialNames);
             }
           } else {
-            // 方案2: 没有直接结果，开始轮询
-            console.log('API未返回直接结果，开始轮询翻译状态...');
-            startTranslationPolling(currentClient.cid, notifyEnabled);
+            // WebSocket 会自动推送翻译进度和结果，无需轮询
+            console.log('等待 WebSocket 推送翻译结果...');
           }
         } catch (error) {
           console.error('翻译API调用失败:', error);
@@ -113,117 +110,6 @@ const GlobalUploadProgress = () => {
       }
     }
   }, [isComplete, state, actions, notifyEnabled, addTranslationCompleteNotification]);
-
-  // 开始轮询翻译状态
-  const startTranslationPolling = useCallback((clientId, notifyOnComplete = false) => {
-    if (translationPollingIntervalRef.current) {
-      clearInterval(translationPollingIntervalRef.current);
-    }
-    
-    let pollCount = 0;
-    const maxPolls = 8; // 最多轮询8次，总共约120秒（2分钟）
-    
-    const checkTranslationStatus = async () => {
-      try {
-        const { materialAPI } = await import('../../services/api');
-        const response = await materialAPI.getMaterials(clientId);
-        
-        if (response.materials) {
-          const materials = response.materials;
-          // 查找仍在等待翻译的材料
-          const translatingMaterials = materials.filter(
-            m => m.status === '正在翻译' || m.status === '已上传'
-          );
-          const completedMaterials = materials.filter(m => m.status === '翻译完成');
-          const failedMaterials = materials.filter(m => m.status === '翻译失败');
-          
-          // 更新材料列表
-          actions.setMaterials(materials);
-          
-          // 更新当前选中的材料
-          if (state.currentMaterial) {
-            const updatedCurrentMaterial = materials.find(
-              m => m.id === state.currentMaterial.id
-            );
-            if (updatedCurrentMaterial && 
-                updatedCurrentMaterial.status !== state.currentMaterial.status) {
-              actions.setCurrentMaterial(updatedCurrentMaterial);
-            }
-          }
-          
-          console.log(
-            `轮询 #${pollCount + 1}: ` +
-            `翻译中 ${translatingMaterials.length}个, ` +
-            `完成 ${completedMaterials.length}个, ` +
-            `失败 ${failedMaterials.length}个`
-          );
-          
-          // 如果没有正在翻译的材料或达到最大轮询次数，停止轮询
-          if (translatingMaterials.length === 0 || pollCount >= maxPolls - 1) {
-            console.log('翻译轮询结束：完成', completedMaterials.length, '个，失败', failedMaterials.length, '个');
-            stopTranslationPolling();
-            
-            if (completedMaterials.length > 0) {
-              actions.showNotification(
-                '翻译完成', 
-                `成功翻译 ${completedMaterials.length} 个文件` +
-                (failedMaterials.length > 0 ? `，${failedMaterials.length} 个失败` : ''), 
-                'success'
-              );
-              
-              // 如果用户启用了通知，发送通知
-              if (notifyOnComplete) {
-                const clientName = state.currentClient?.name || '客户';
-                addTranslationCompleteNotification(clientName, '翻译材料');
-              }
-            } else if (failedMaterials.length > 0) {
-              actions.showNotification(
-                '翻译失败', 
-                `${failedMaterials.length} 个文件翻译失败`, 
-                'error'
-              );
-            }
-            
-            // 移除超时警告，轮询完成即可
-          }
-        }
-        
-        pollCount++;
-      } catch (error) {
-        console.error('轮询翻译状态失败:', error);
-        pollCount++;
-        if (pollCount >= 5) { // 连续失败5次后停止
-          stopTranslationPolling();
-          actions.showNotification(
-            '状态更新失败', 
-            '无法获取翻译状态，请手动刷新', 
-            'error'
-          );
-        }
-      }
-    };
-    
-    // 立即检查一次
-    checkTranslationStatus();
-    
-    // 每15秒检查一次（每分钟4次）
-    const interval = setInterval(checkTranslationStatus, 15000);
-    translationPollingIntervalRef.current = interval;
-  }, [actions, state, addTranslationCompleteNotification]); // ✅ 移除 translationPollingInterval 依赖
-  
-  const stopTranslationPolling = useCallback(() => {
-    if (translationPollingIntervalRef.current) {
-      clearInterval(translationPollingIntervalRef.current);
-      translationPollingIntervalRef.current = null;
-    }
-  }, []); // ✅ 无需依赖项，因为使用 ref
-  
-  // 组件卸载时清理轮询
-  useEffect(() => {
-    return () => {
-      stopTranslationPolling();
-    };
-  }, [stopTranslationPolling]);
 
   // 手动关闭进度框
   const handleManualClose = useCallback(() => {

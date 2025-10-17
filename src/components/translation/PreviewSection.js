@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useApp } from '../../contexts/AppContext';
 import { materialAPI } from '../../services/api';
 import LaTeXEditModal from '../modals/LaTeXEditModal';
@@ -17,8 +17,6 @@ const PreviewSection = () => {
   const [showLatexEditorV2, setShowLatexEditorV2] = useState(false);
   const [forceRefresh, setForceRefresh] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  // ✅ 使用 useRef 存储轮询 interval，避免循环依赖
-  const pollingIntervalRef = useRef(null);
   const [latestRequestId, setLatestRequestId] = useState(null);
 
   // 监听currentMaterial变化，强制刷新预览
@@ -28,105 +26,7 @@ const PreviewSection = () => {
     setForceRefresh(prev => prev + 1);
   }, [currentMaterial?.id]); // 只监听 ID，移除 status 和 translatedImagePath
 
-  // 开始轮询检查翻译状态
-  const startPolling = useCallback(() => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-    }
-    
-    const checkTranslationStatus = async () => {
-      if (!currentMaterial ||
-          currentMaterial.status === '已确认' ||
-          currentMaterial.status === '翻译失败' ||
-          (currentMaterial.status === '翻译完成' && currentMaterial.processingProgress === 100)) {
-        stopPolling();
-        return;
-      }
-      
-      try {
-        const { materialAPI } = await import('../../services/api');
-        // 获取所有材料的最新状态
-        const response = await materialAPI.getMaterials(currentMaterial.clientId);
-        if (response.materials) {
-          // 查找当前正在查看的材料
-          const viewedMaterial = response.materials.find(m => m.id === currentMaterial.id);
-
-          if (viewedMaterial) {
-            // 检查状态或进度是否有变化
-            const statusChanged = viewedMaterial.status !== currentMaterial.status;
-            const progressChanged = viewedMaterial.processingProgress !== currentMaterial.processingProgress;
-
-            if (statusChanged || progressChanged) {
-              console.log(`材料更新 - 状态: ${currentMaterial.status} -> ${viewedMaterial.status}, 进度: ${currentMaterial.processingProgress} -> ${viewedMaterial.processingProgress}`);
-
-              // 更新当前查看的材料数据，但不改变选择
-              const updatedCurrentMaterial = {
-                ...currentMaterial,
-                ...viewedMaterial,
-                // 保留UI状态
-                selectedResult: currentMaterial.selectedResult
-              };
-
-              actions.setCurrentMaterial(updatedCurrentMaterial);
-
-              // 只有当100%完成或失败时才停止轮询
-              if ((viewedMaterial.status === '翻译完成' && viewedMaterial.processingProgress === 100) ||
-                  viewedMaterial.status === '翻译失败') {
-                console.log('处理已完成，停止轮询');
-                stopPolling();
-              }
-            }
-          }
-          
-          // 更新材料列表中所有材料的状态，但不改变当前选择
-          response.materials.forEach(material => {
-            if (material.id !== currentMaterial.id) {
-              actions.updateMaterial(material.id, material);
-            }
-          });
-        }
-      } catch (error) {
-        console.error('轮询翻译状态失败:', error);
-      }
-    };
-    
-    // 立即检查一次
-    checkTranslationStatus();
-    
-    // 每3秒检查一次，以便更及时地看到进度更新
-    const interval = setInterval(checkTranslationStatus, 3000);
-    pollingIntervalRef.current = interval;
-  }, [currentMaterial, actions]); // ✅ 移除 pollingInterval 依赖
-  
-  const stopPolling = useCallback(() => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
-  }, []); // ✅ 无需依赖项，因为使用 ref
-  
-  // 当材料正在翻译时，开始轮询
-  useEffect(() => {
-    // 只要材料在处理中就轮询（包括翻译和LLM优化阶段）
-    const needsPolling = currentMaterial &&
-      (currentMaterial.status === '正在翻译' ||
-       currentMaterial.status === '翻译中' ||
-       currentMaterial.status === '处理中' ||
-       currentMaterial.status === '翻译完成' && currentMaterial.processingProgress < 100 ||
-       (currentMaterial.status === '已上传' && !currentMaterial.translatedImagePath));
-    
-    if (needsPolling) {
-      console.log(`开始轮询材料: ${currentMaterial.name}, 状态: ${currentMaterial.status}`);
-      startPolling();
-    } else {
-      console.log(`停止轮询，材料状态: ${currentMaterial?.status}`);
-      stopPolling();
-    }
-    
-    return () => {
-      stopPolling();
-    };
-  }, [currentMaterial?.id, currentMaterial?.status, startPolling, stopPolling]); // ✅ 添加函数依赖
+  // ✅ WebSocket 已接管所有状态更新，移除轮询逻辑
 
   // 手动刷新功能
   const handleRefresh = async () => {
