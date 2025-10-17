@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
+import wsService from '../services/websocket';
 
 // 初始状态
 const initialState = {
@@ -450,6 +451,115 @@ export const AppProvider = ({ children }) => {
       dispatch({ type: ActionTypes.CLOSE_CONFIRM_DIALOG });
     },
   };
+
+  // ✅ WebSocket 初始化
+  useEffect(() => {
+    console.log('[WebSocket] 初始化连接');
+    wsService.connect();
+    
+    return () => {
+      console.log('[WebSocket] 断开连接');
+      wsService.disconnect();
+    };
+  }, []);
+
+  // ✅ WebSocket 事件处理函数
+  const handleMaterialUpdated = useCallback((data) => {
+    console.log('📡 收到材料更新事件:', data);
+    
+    // 更新材料状态
+    if (data.material_id) {
+      const updates = {};
+      if (data.status) updates.status = data.status;
+      if (data.progress !== undefined) updates.processingProgress = data.progress;
+      if (data.translated_path) updates.translatedImagePath = data.translated_path;
+      if (data.translation_info) updates.translationTextInfo = data.translation_info;
+      
+      actions.updateMaterial(data.material_id, updates);
+      
+      // 如果是当前查看的材料，也更新
+      if (state.currentMaterial?.id === data.material_id) {
+        actions.setCurrentMaterial({
+          ...state.currentMaterial,
+          ...updates
+        });
+      }
+    }
+  }, [state.currentMaterial]);
+
+  const handleLLMCompleted = useCallback((data) => {
+    console.log('📡 收到LLM完成事件:', data);
+    
+    if (data.material_id) {
+      actions.updateMaterial(data.material_id, {
+        processingProgress: data.progress || 100,
+        llmTranslationResult: data.translations
+      });
+      
+      if (state.currentMaterial?.id === data.material_id) {
+        actions.setCurrentMaterial({
+          ...state.currentMaterial,
+          processingProgress: data.progress || 100,
+          llmTranslationResult: data.translations
+        });
+      }
+      
+      actions.showNotification('LLM优化完成', '翻译优化已完成', 'success');
+    }
+  }, [state.currentMaterial]);
+
+  const handleTranslationStarted = useCallback((data) => {
+    console.log('📡 收到翻译开始事件:', data);
+    actions.showNotification('翻译开始', data.message || '正在翻译...', 'info');
+  }, []);
+
+  const handleTranslationCompleted = useCallback((data) => {
+    console.log('📡 收到翻译完成事件:', data);
+    actions.showNotification('翻译完成', data.message || '翻译已完成', 'success');
+  }, []);
+
+  const handleMaterialError = useCallback((data) => {
+    console.log('📡 收到材料错误事件:', data);
+    if (data.material_id) {
+      actions.updateMaterial(data.material_id, {
+        status: '翻译失败',
+        translationError: data.error
+      });
+    }
+    actions.showNotification('翻译失败', data.error || '翻译过程中发生错误', 'error');
+  }, []);
+
+  // ✅ 监听当前客户端变化，加入对应房间
+  useEffect(() => {
+    if (state.currentClient?.cid && wsService.isConnected()) {
+      const clientId = state.currentClient.cid;
+      console.log(`[WebSocket] 加入客户端房间: ${clientId}`);
+      
+      wsService.joinClient(clientId);
+      
+      // 监听事件
+      wsService.on('translation_started', handleTranslationStarted);
+      wsService.on('material_updated', handleMaterialUpdated);
+      wsService.on('translation_completed', handleTranslationCompleted);
+      wsService.on('material_error', handleMaterialError);
+      wsService.on('llm_started', handleMaterialUpdated); // LLM 开始也是材料更新
+      wsService.on('llm_completed', handleLLMCompleted);
+      wsService.on('llm_error', handleMaterialError);
+      
+      return () => {
+        console.log(`[WebSocket] 离开客户端房间: ${clientId}`);
+        wsService.leaveClient(clientId);
+        wsService.off('translation_started', handleTranslationStarted);
+        wsService.off('material_updated', handleMaterialUpdated);
+        wsService.off('translation_completed', handleTranslationCompleted);
+        wsService.off('material_error', handleMaterialError);
+        wsService.off('llm_started', handleMaterialUpdated);
+        wsService.off('llm_completed', handleLLMCompleted);
+        wsService.off('llm_error', handleMaterialError);
+      };
+    }
+  }, [state.currentClient?.cid, handleTranslationStarted, handleMaterialUpdated, 
+      handleTranslationCompleted, handleMaterialError, handleLLMCompleted]);
 
   const value = {
     state,
