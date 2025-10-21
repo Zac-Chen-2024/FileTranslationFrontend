@@ -376,17 +376,24 @@
   top: 0.25rem;
   right: 2rem;
   color: var(--accent-green);
-  font-weight: bold;
-  font-size: 0.8rem;
   background: white;
   border-radius: 50%;
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow: var(--shadow-sm);
   z-index: 5;
+  border: 1.5px solid var(--accent-green);
+}
+
+[data-theme="dark"] .confirmedIcon {
+  background: var(--neutral-100);
+}
+
+.confirmedIcon svg {
+  display: block;
 }
 
 .emptyState {
@@ -396,9 +403,20 @@
 }
 
 .emptyIcon {
-  font-size: 3rem;
   margin-bottom: 1rem;
-  opacity: 0.5;
+  opacity: 0.4;
+  color: var(--neutral-400);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+[data-theme="dark"] .emptyIcon {
+  color: var(--neutral-500);
+}
+
+.emptyIcon svg {
+  display: block;
 }
 
 .emptyTitle {
