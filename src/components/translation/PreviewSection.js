@@ -597,6 +597,30 @@ const ComparisonView = ({ material, onSelectResult }) => {
     }
   }, [material, actions]);
 
+  // 手动开始翻译（针对已上传但未翻译的材料）
+  const handleStartTranslation = useCallback(async () => {
+    if (!material || !material.clientId) return;
+
+    try {
+      actions.showNotification('开始翻译', '正在启动翻译任务...', 'info');
+
+      const { materialAPI } = await import('../../services/api');
+      await materialAPI.startTranslation(material.clientId);
+
+      const pageCount = pdfPages.length > 0 ? pdfPages.length : 0;
+      actions.showNotification(
+        '翻译已启动',
+        pageCount > 0
+          ? `正在翻译PDF的${pageCount}页，请稍候...`
+          : '正在翻译图片，请稍候...',
+        'success'
+      );
+    } catch (error) {
+      console.error('启动翻译失败:', error);
+      actions.showNotification('启动失败', error.message || '无法启动翻译', 'error');
+    }
+  }, [material, pdfPages.length, actions]);
+
   const handleRetryTranslation = useCallback(async (translationType) => {
     if (!material) return;
 
@@ -1182,7 +1206,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
                       <div className={styles.stepIcon}>
                         {(pdfSessionProgress ? pdfSessionProgress.progress >= 66 : material.processingProgress >= 66) ? '✓' : '2'}
                       </div>
-                      <span>百度翻译</span>
+                      <span>机器学习翻译</span>
                     </div>
                     <div className={styles.stepLine}></div>
                     <div className={`${styles.processingStep} ${(pdfSessionProgress ? pdfSessionProgress.progress === 100 : material.processingProgress === 100) ? styles.active : llmLoading ? styles.current : ''}`}>
@@ -1202,6 +1226,30 @@ const ComparisonView = ({ material, onSelectResult }) => {
                     <span className={styles.progressText}>{pdfSessionProgress ? pdfSessionProgress.progress : (llmLoading && material.processingProgress < 66 ? 66 : (material.processingProgress || 0))}%</span>
                   </div>
                   <p className={styles.processingTip}>请稍候，翻译完成后会自动刷新显示</p>
+                </div>
+              </div>
+            ) : material.status === '已上传' && !material.translationTextInfo ? (
+              /* 已上传但未开始翻译 - 显示开始翻译按钮 */
+              <div className={styles.uploadedContainer}>
+                <div className={styles.uploadedContent}>
+                  <div className={styles.uploadedIcon}>
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                      <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                  </div>
+                  <h3 className={styles.uploadedTitle}>文件已就绪</h3>
+                  {pdfPages.length > 0 ? (
+                    <p className={styles.uploadedDescription}>PDF已拆分为 {pdfPages.length} 页，点击下方按钮开始翻译</p>
+                  ) : (
+                    <p className={styles.uploadedDescription}>图片已上传，点击下方按钮开始翻译</p>
+                  )}
+                  <button
+                    className={styles.startTranslationBtn}
+                    onClick={handleStartTranslation}
+                  >
+                    开始翻译{pdfPages.length > 0 ? `（共${pdfPages.length}页）` : ''}
+                  </button>
                 </div>
               </div>
             ) : !material.translationTextInfo ? (

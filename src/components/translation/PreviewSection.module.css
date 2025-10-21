@@ -1345,3 +1345,80 @@
 [data-theme="dark"] .processingTip {
   color: var(--neutral-400);
 }
+
+/* 已上传状态样式 */
+.uploadedContainer {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(5, 150, 105, 0.05) 100%);
+  border-radius: 12px;
+  padding: 3rem;
+}
+
+.uploadedContent {
+  text-align: center;
+  max-width: 500px;
+}
+
+.uploadedIcon {
+  margin-bottom: 1.5rem;
+  display: inline-block;
+}
+
+.uploadedIcon svg {
+  width: 64px;
+  height: 64px;
+  color: var(--accent-green);
+}
+
+.uploadedTitle {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--neutral-800);
+  margin: 0 0 1rem 0;
+}
+
+.uploadedDescription {
+  font-size: 1rem;
+  color: var(--neutral-600);
+  margin: 0 0 2rem 0;
+  line-height: 1.6;
+}
+
+.startTranslationBtn {
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: white;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.startTranslationBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+}
+
+.startTranslationBtn:active {
+  transform: translateY(0);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+[data-theme="dark"] .uploadedContainer {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%);
+}
+
+[data-theme="dark"] .uploadedTitle {
+  color: var(--neutral-200);
+}
+
+[data-theme="dark"] .uploadedDescription {
+  color: var(--neutral-400);
+}
