@@ -1,11 +1,11 @@
 {
   "files": {
-    "main.css": "/FileTranslationFrontend/static/css/main.9bac2ec4.css",
-    "main.js": "/FileTranslationFrontend/static/js/main.af6ef2b5.js",
+    "main.css": "/FileTranslationFrontend/static/css/main.cd138b86.css",
+    "main.js": "/FileTranslationFrontend/static/js/main.4c200ff2.js",
     "index.html": "/FileTranslationFrontend/index.html"
   },
   "entrypoints": [
-    "static/css/main.9bac2ec4.css",
-    "static/js/main.af6ef2b5.js"
+    "static/css/main.cd138b86.css",
+    "static/js/main.4c200ff2.js"
   ]
 }
