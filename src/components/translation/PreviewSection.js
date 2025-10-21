@@ -1088,23 +1088,41 @@ const ComparisonView = ({ material, onSelectResult }) => {
                 </div>
               )}
             </div>
-            {/* 旋转、重新翻译和保存修改按钮 - 始终显示（除非正在加载） */}
+            {/* 旋转、开始翻译、重新翻译和保存修改按钮 */}
             {!llmLoading && (
               <div style={{ display: 'flex', gap: '10px' }}>
+                {/* 旋转按钮 - 始终显示 */}
                 <button
                   className={styles.rotateButton}
                   onClick={handleRotateImage}
-                  title="旋转图片90度并重新翻译"
+                  title="旋转图片90度"
                 >
                   旋转
                 </button>
-                <button
-                  className={styles.retranslateButton}
-                  onClick={handleRetranslateCurrentImage}
-                  title="重新翻译当前图片"
-                >
-                  重新翻译
-                </button>
+
+                {/* 开始翻译按钮 - 只在status='已上传'时显示 */}
+                {material.status === '已上传' && !material.translationTextInfo && (
+                  <button
+                    className={styles.startTranslationBtn}
+                    onClick={handleStartTranslation}
+                    title="开始翻译并优化"
+                  >
+                    开始翻译{pdfPages.length > 0 ? `（${pdfPages.length}页）` : ''}
+                  </button>
+                )}
+
+                {/* 重新翻译按钮 - 只在已有翻译结果时显示 */}
+                {material.translationTextInfo && (
+                  <button
+                    className={styles.retranslateButton}
+                    onClick={handleRetranslateCurrentImage}
+                    title="重新翻译当前图片"
+                  >
+                    重新翻译
+                  </button>
+                )}
+
+                {/* 保存修改按钮 - 始终显示 */}
                 <button
                   className={styles.saveEditButton}
                   onClick={async () => {
@@ -1177,9 +1195,8 @@ const ComparisonView = ({ material, onSelectResult }) => {
 
             <div className={styles.llmEditorContent}>
             {/* 显示翻译进行中状态 - 包括所有三个阶段：上传、百度翻译、AI优化 */}
-            {/* 只有在进度未完成时才显示加载界面，避免已完成的页面闪现进度条 */}
-            {/* ✅ 修复：processingStep='uploaded'且status='已上传'时，不显示加载界面，而是显示"开始翻译"按钮 */}
-            {(material.processingProgress < 100 || !material.llmTranslationResult) && (llmLoading || material.status === '处理中' || (material.processingStep === 'uploaded' && material.status !== '已上传') || material.processingStep === 'translating' || (material.processingStep === 'translated' && !material.translationTextInfo)) ? (
+            {/* 只有在真正翻译进行中时才显示加载界面 */}
+            {(llmLoading || material.status === '处理中' || (material.processingStep === 'uploaded' && material.status !== '已上传') || material.processingStep === 'translating' || (material.processingStep === 'translated' && !material.translationTextInfo)) ? (
               <div className={styles.processingContainer}>
                 <div className={styles.processingContent}>
                   <div className={styles.processingIconWrapper}>
@@ -1229,32 +1246,8 @@ const ComparisonView = ({ material, onSelectResult }) => {
                   <p className={styles.processingTip}>请稍候，翻译完成后会自动刷新显示</p>
                 </div>
               </div>
-            ) : material.status === '已上传' && !material.translationTextInfo ? (
-              /* 已上传但未开始翻译 - 显示开始翻译按钮 */
-              <div className={styles.uploadedContainer}>
-                <div className={styles.uploadedContent}>
-                  <div className={styles.uploadedIcon}>
-                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                      <polyline points="22 4 12 14.01 9 11.01"/>
-                    </svg>
-                  </div>
-                  <h3 className={styles.uploadedTitle}>文件已就绪</h3>
-                  {pdfPages.length > 0 ? (
-                    <p className={styles.uploadedDescription}>PDF已拆分为 {pdfPages.length} 页，点击下方按钮开始翻译</p>
-                  ) : (
-                    <p className={styles.uploadedDescription}>图片已上传，点击下方按钮开始翻译</p>
-                  )}
-                  <button
-                    className={styles.startTranslationBtn}
-                    onClick={handleStartTranslation}
-                  >
-                    开始翻译{pdfPages.length > 0 ? `（共${pdfPages.length}页）` : ''}
-                  </button>
-                </div>
-              </div>
             ) : !material.translationTextInfo ? (
-              /* 没有翻译结果时，显示空的编辑器（例如旋转后） */
+              /* ✅ 没有翻译结果时（包括status='已上传'），显示原图编辑器供用户预览和旋转 */
               <FabricImageEditor
                 imageSrc={getImageUrl()}
                 regions={[]} // 空regions，只显示原图
