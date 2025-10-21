@@ -1178,7 +1178,8 @@ const ComparisonView = ({ material, onSelectResult }) => {
             <div className={styles.llmEditorContent}>
             {/* 显示翻译进行中状态 - 包括所有三个阶段：上传、百度翻译、AI优化 */}
             {/* 只有在进度未完成时才显示加载界面，避免已完成的页面闪现进度条 */}
-            {(material.processingProgress < 100 || !material.llmTranslationResult) && (llmLoading || material.status === '处理中' || material.processingStep === 'uploaded' || material.processingStep === 'translating' || (material.processingStep === 'translated' && !material.translationTextInfo)) ? (
+            {/* ✅ 修复：processingStep='uploaded'且status='已上传'时，不显示加载界面，而是显示"开始翻译"按钮 */}
+            {(material.processingProgress < 100 || !material.llmTranslationResult) && (llmLoading || material.status === '处理中' || (material.processingStep === 'uploaded' && material.status !== '已上传') || material.processingStep === 'translating' || (material.processingStep === 'translated' && !material.translationTextInfo)) ? (
               <div className={styles.processingContainer}>
                 <div className={styles.processingContent}>
                   <div className={styles.processingIconWrapper}>
