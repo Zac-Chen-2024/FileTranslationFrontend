@@ -491,16 +491,13 @@ export const AppProvider = ({ children }) => {
         updates.translationTextInfo = data.translation_info;
         console.log(`✓ 翻译文本信息已更新`);
       }
-      
+
+      // ✅ 只需调用updateMaterial，Reducer会自动同步更新currentMaterial
       actions.updateMaterial(data.material_id, updates);
-      
-      // 如果是当前查看的材料，也更新
+
+      // ✅ Reducer已处理currentMaterial同步（Line 158-160），无需手动再次更新
       if (state.currentMaterial?.id === data.material_id) {
-        console.log(`✓ 当前查看的材料已同步更新`);
-        actions.setCurrentMaterial({
-          ...state.currentMaterial,
-          ...updates
-        });
+        console.log(`✓ 当前材料已自动同步更新（通过Reducer）`);
       }
     }
   }, [state.currentMaterial, actions]);
@@ -510,22 +507,19 @@ export const AppProvider = ({ children }) => {
     console.log(`   材料ID: ${data.material_id}`);
     console.log(`   优化进度: ${data.progress || 100}%`);
     console.log(`   优化区域数: ${data.translations?.length || 0}`);
-    
+
     if (data.material_id) {
+      // ✅ 只需调用updateMaterial，Reducer会自动同步更新currentMaterial
       actions.updateMaterial(data.material_id, {
         processingProgress: data.progress || 100,
         llmTranslationResult: data.translations
       });
-      
+
+      // ✅ Reducer已处理currentMaterial同步（Line 158-160），无需手动再次更新
       if (state.currentMaterial?.id === data.material_id) {
-        console.log(`✓ LLM优化结果已应用到当前材料`);
-        actions.setCurrentMaterial({
-          ...state.currentMaterial,
-          processingProgress: data.progress || 100,
-          llmTranslationResult: data.translations
-        });
+        console.log(`✓ LLM优化结果已自动同步更新（通过Reducer）`);
       }
-      
+
       actions.showNotification('LLM优化完成', `成功优化 ${data.translations?.length || 0} 个翻译区域`, 'success');
     }
   }, [state.currentMaterial, actions]);
