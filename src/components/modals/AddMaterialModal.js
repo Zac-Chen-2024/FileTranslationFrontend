@@ -238,18 +238,9 @@ const AddMaterialModal = () => {
       
       // 重置表单
       resetForm();
-      
-      // 如果添加的是网页材料，自动开始翻译
-      if (uploadMethod === 'url' && currentClient) {
-        setTimeout(() => {
-          actions.showNotification('开始翻译', '正在自动翻译网页材料...', 'info');
-          materialAPI.startTranslation(currentClient.cid).then(() => {
-            console.log('批量翻译已启动');
-          }).catch((error) => {
-            console.error('启动翻译失败:', error);
-          });
-        }, 1000); // 延迟1秒开始翻译，让用户看到添加成功的通知
-      }
+
+      // ✅ 移除自动翻译逻辑 - 用户需要手动点击"开始翻译"按钮
+      // 无论是网页、图片还是PDF，都等待用户手动触发翻译
       
     } catch (error) {
       actions.showNotification('添加失败', error.message || '添加材料时出现错误', 'error');
