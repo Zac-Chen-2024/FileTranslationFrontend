@@ -137,6 +137,9 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     const syncMaskWithTextbox = (textbox) => {
       if (!textbox || textbox.type !== 'textbox') return;
 
+      const canvas = fabricCanvasRef.current;
+      if (!canvas) return;
+
       // 同步背景矩形（bgRect）
       if (textbox.bgRect) {
         textbox.bgRect.set({
@@ -149,6 +152,13 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           angle: textbox.angle
         });
         textbox.bgRect.setCoords();
+
+        // 确保遮罩在文本框下层
+        const textIndex = canvas.getObjects().indexOf(textbox);
+        const maskIndex = canvas.getObjects().indexOf(textbox.bgRect);
+        if (maskIndex > textIndex) {
+          canvas.moveTo(textbox.bgRect, textIndex - 1);
+        }
       }
 
       // 同步模糊背景（blurBackground）
@@ -161,6 +171,13 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           angle: textbox.angle
         });
         textbox.blurBackground.setCoords();
+
+        // 确保模糊背景在文本框下层
+        const textIndex = canvas.getObjects().indexOf(textbox);
+        const blurIndex = canvas.getObjects().indexOf(textbox.blurBackground);
+        if (blurIndex > textIndex) {
+          canvas.moveTo(textbox.blurBackground, textIndex - 1);
+        }
       }
     };
 

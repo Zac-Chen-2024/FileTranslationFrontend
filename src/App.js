@@ -1,7 +1,8 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppProvider } from './contexts/AppContext';
 import { NotificationProvider } from './contexts/NotificationContext';
+import { VERSION, BUILD_TIME, BUILD_NUMBER } from './version';
 
 // 页面组件
 import WelcomePage from './pages/WelcomePage';
@@ -20,11 +21,30 @@ import GlobalUploadProgress from './components/common/GlobalUploadProgress';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import GlobalConfirmDialog from './components/common/GlobalConfirmDialog';
 
+// 版本信息显示组件
+function VersionLogger() {
+  const location = useLocation();
+
+  useEffect(() => {
+    console.log('%c📦 文书翻译平台', 'color: #2196F3; font-size: 20px; font-weight: bold;');
+    console.log('%c版本信息', 'color: #4CAF50; font-size: 14px; font-weight: bold;');
+    console.log(`  版本号: v${VERSION}`);
+    console.log(`  构建时间: ${BUILD_TIME}`);
+    console.log(`  构建编号: ${BUILD_NUMBER}`);
+    console.log(`  当前页面: ${location.pathname}`);
+    console.log(`  环境: ${process.env.NODE_ENV}`);
+    console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #999;');
+  }, [location.pathname]);
+
+  return null;
+}
+
 function App() {
   return (
     <AppProvider>
       <NotificationProvider>
         <Router basename="/FileTranslationFrontend">
+          <VersionLogger />
         <div className="App">
           <Routes>
             {/* 公开路由 */}
