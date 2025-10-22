@@ -39,9 +39,11 @@ const SignUpPage = () => {
       actions.setUser(response.user);
       actions.showNotification('注册成功', '欢迎使用智能文书翻译平台！', 'success');
       navigate('/dashboard');
-      
+
     } catch (error) {
-      actions.showNotification('注册失败', error.message || '注册过程中出现错误', 'error');
+      console.error('注册错误:', error);
+      const errorMsg = error.message || '注册过程中出现错误';
+      actions.showNotification('注册失败', errorMsg, 'error');
     } finally {
       setLoading(false);
     }

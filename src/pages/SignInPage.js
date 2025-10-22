@@ -27,13 +27,15 @@ const SignInPage = () => {
     try {
       // 直接使用真实API登录
       const response = await authAPI.signin(formData.email, formData.password);
-      
+
       actions.setUser(response.user);
       actions.showNotification('登录成功', '欢迎回来！', 'success');
       navigate('/dashboard');
-      
+
     } catch (error) {
-      actions.showNotification('登录失败', error.message || '请检查邮箱和密码', 'error');
+      console.error('登录错误:', error);
+      const errorMsg = error.message || '请检查邮箱和密码';
+      actions.showNotification('登录失败', errorMsg, 'error');
     } finally {
       setLoading(false);
     }

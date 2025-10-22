@@ -398,43 +398,23 @@ const ComparisonView = ({ material, onSelectResult }) => {
     // 设置切换页面标志，防止useEffect重新设置索引
     isChangingPageRef.current = true;
 
-    // 自动保存当前页面的编辑（如果有的话）
-    if (window.currentFabricEditor && window.currentFabricEditor.generateBothVersions) {
+    // ✅ 重构：自动保存当前页面的编辑（只保存regions）
+    if (window.currentFabricEditor && window.currentFabricEditor.getCurrentRegions) {
       try {
         actions.showNotification('保存中', '正在保存当前页面...', 'info');
 
-        const result = await window.currentFabricEditor.generateBothVersions();
-        if (result) {
-          const formData = new FormData();
-          formData.append('edited_image', result.edited.blob, `edited_${material.name}.jpg`);
-          formData.append('final_image', result.final.blob, `final_${material.name}.jpg`);
-          formData.append('edited_regions', JSON.stringify(result.edited.regions || []));
+        const currentRegions = window.currentFabricEditor.getCurrentRegions();
+        if (currentRegions && currentRegions.length > 0) {
+          const { materialAPI } = await import('../../services/api');
+          const response = await materialAPI.saveRegions(material.id, currentRegions);
 
-          const token = localStorage.getItem('auth_token');
-          const response = await fetch(`${API_URL}/api/materials/${material.id}/save-edited-image`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}` },
-            body: formData
-          });
-
-          if (!response.ok) {
-            throw new Error('保存编辑后的图片失败');
-          }
-
-          const data = await response.json();
-
-          // 验证返回的路径不是data URI
-          if (!data.edited_image_path || !data.final_image_path ||
-              data.edited_image_path.startsWith('data:') ||
-              data.final_image_path.startsWith('data:')) {
-            throw new Error('后端返回了无效的图片路径');
+          if (!response.success) {
+            throw new Error(response.error || '保存失败');
           }
 
           actions.updateMaterial(material.id, {
-            editedImagePath: data.edited_image_path,
-            finalImagePath: data.final_image_path,
-            hasEditedVersion: true,
-            editedRegions: data.material?.editedRegions || result.edited.regions || []
+            editedRegions: currentRegions,
+            hasEditedVersion: true
           });
 
           actions.showNotification('保存成功', `第 ${currentPageIndex + 1} 页已保存`, 'success');
@@ -785,31 +765,17 @@ const ComparisonView = ({ material, onSelectResult }) => {
     }
   }, [material?.id]);
 
-  // 检查是否有已保存的编辑图片和regions
+  // ✅ 重构：只检查是否有已保存的regions，不再加载编辑后的图片
   React.useEffect(() => {
-    if (material?.hasEditedVersion && material?.editedImagePath) {
-      // 验证editedImagePath不是无效的data URI
-      if (material.editedImagePath === 'data:,' || material.editedImagePath.startsWith('data:')) {
-        console.error('❌ 材料的editedImagePath是无效的data URI:', material.editedImagePath);
-        // 清除无效的标志
-        actions.updateMaterial(material.id, {
-          editedImagePath: null,
-          hasEditedVersion: false
-        });
-        return;
-      }
-
-      // 如果材料有已保存的编辑版本，设置显示标志
-      setSavedEditedImage(material.editedImagePath);
-      console.log('检测到已保存的编辑图片:', material.editedImagePath);
-
-      // 如果有保存的regions，恢复它们
-      if (material?.editedRegions) {
-        setSavedRegions(material.editedRegions);
-        console.log('恢复已保存的regions:', material.editedRegions);
-      }
+    if (material?.hasEditedVersion && material?.editedRegions) {
+      // 恢复已保存的regions
+      setSavedRegions(material.editedRegions);
+      console.log('✅ 重构：恢复已保存的regions，编辑器将从原图+regions重建:', material.editedRegions.length, '个区域');
+    } else {
+      // 清空saved regions
+      setSavedRegions([]);
     }
-  }, [material?.hasEditedVersion, material?.editedImagePath, material?.editedRegions]);
+  }, [material?.hasEditedVersion, material?.editedRegions, material?.id]);
 
   // 解析百度翻译结果
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -999,31 +965,16 @@ const ComparisonView = ({ material, onSelectResult }) => {
     }
   };
 
-  // 获取图片URL - 用于编辑器的底图
+  // ✅ 重构：获取图片URL - 始终从原图加载
   const getImageUrl = () => {
     if (!material) return null;
 
-    // 如果有已保存的编辑图片，编辑器应该加载编辑后的图片作为底图
-    // 添加防护：确保不是空的data URI
-    if (savedEditedImage && savedEditedImage !== 'data:,' && !savedEditedImage.startsWith('data:')) {
-      const url = `${API_URL}/download/image/${savedEditedImage}`;
-      console.log('✅ 编辑器加载已保存的编辑图片:', url, 'editedImagePath:', savedEditedImage);
-      return url;
-    }
-
-    // 如果savedEditedImage是无效的，记录警告并清除它
-    if (savedEditedImage && (savedEditedImage === 'data:,' || savedEditedImage.startsWith('data:'))) {
-      console.warn('⚠️ 检测到无效的editedImagePath (data URI)，已忽略:', savedEditedImage);
-      setSavedEditedImage(null); // 清除无效值
-    }
-
-    // 否则使用原始图片
+    // ✅ 重构：始终使用原始图片作为底图，配合保存的regions重建
     if (material.filePath) {
       // 使用 rotationCount 作为缓存键，只在旋转时刷新
-      // 这样可以避免因 updatedAt 频繁变化导致图片重复加载
       const cacheKey = material.rotationCount || 0;
       const url = `${API_URL}/download/image/${material.filePath}?v=${cacheKey}`;
-      console.log('✅ 编辑器加载原始图片:', url, 'filePath:', material.filePath, 'rotation:', cacheKey);
+      console.log('✅ 重构：编辑器始终从原图加载:', url, 'filePath:', material.filePath, 'rotation:', cacheKey);
       return url;
     }
 
@@ -1127,62 +1078,36 @@ const ComparisonView = ({ material, onSelectResult }) => {
                   className={styles.saveEditButton}
                   onClick={async () => {
                   // 保存两个版本的图片：不带文字版本和带文字版本
-                  if (window.currentFabricEditor && window.currentFabricEditor.generateBothVersions) {
+                  // ✅ 重构：只保存regions数据，不保存图片
+                  if (window.currentFabricEditor && window.currentFabricEditor.getCurrentRegions) {
                     try {
-                      actions.showNotification('保存中', '正在生成图片...', 'info');
+                      actions.showNotification('保存中', '正在保存编辑...', 'info');
 
-                      // 调用新的generateBothVersions函数一次性生成两个版本
-                      const result = await window.currentFabricEditor.generateBothVersions();
+                      // 获取当前的regions数据
+                      const currentRegions = window.currentFabricEditor.getCurrentRegions();
 
-                      if (!result) {
-                        throw new Error('生成图片失败');
+                      if (!currentRegions || currentRegions.length === 0) {
+                        throw new Error('没有可保存的编辑内容');
                       }
 
-                      // 上传两个版本到后端
-                      const formData = new FormData();
-                      formData.append('edited_image', result.edited.blob, `edited_${material.name}.jpg`);
-                      formData.append('final_image', result.final.blob, `final_${material.name}.jpg`);
-                      formData.append('edited_regions', JSON.stringify(result.edited.regions || []));
+                      // 只发送regions数据到后端
+                      const { materialAPI } = await import('../../services/api');
+                      const response = await materialAPI.saveRegions(material.id, currentRegions);
 
-                      const token = localStorage.getItem('auth_token');
-                      const response = await fetch(`${API_URL}/api/materials/${material.id}/save-edited-image`, {
-                        method: 'POST',
-                        headers: {
-                          'Authorization': `Bearer ${token}`
-                        },
-                        body: formData
-                      });
-
-                      if (!response.ok) {
-                        throw new Error('保存编辑后的图片失败');
-                      }
-
-                      const data = await response.json();
-
-                      // 验证返回的路径
-                      if (!data.edited_image_path || !data.final_image_path ||
-                          data.edited_image_path.startsWith('data:') ||
-                          data.final_image_path.startsWith('data:')) {
-                        throw new Error('后端返回了无效的图片路径');
+                      if (!response.success) {
+                        throw new Error(response.error || '保存失败');
                       }
 
                       // 更新材料数据
                       actions.updateMaterial(material.id, {
-                        editedImagePath: data.edited_image_path,
-                        finalImagePath: data.final_image_path,
-                        hasEditedVersion: true,
-                        editedRegions: data.material?.editedRegions || result.edited.regions || []
+                        editedRegions: currentRegions,
+                        hasEditedVersion: true
                       });
 
-                      // 更新本地状态
-                      setSavedEditedImage(data.edited_image_path);
-                      setEditedImageData(result.edited.url);
-                      setEditedImageBlob(result.edited.blob);
-
-                      actions.showNotification('保存成功', '编辑已保存，导出时将使用带文字的完整版本', 'success');
+                      actions.showNotification('保存成功', '编辑已保存', 'success');
                     } catch (error) {
-                      console.error('保存编辑图片失败:', error);
-                      actions.showNotification('保存失败', error.message || '无法保存编辑后的图片', 'error');
+                      console.error('保存编辑失败:', error);
+                      actions.showNotification('保存失败', error.message || '无法保存编辑', 'error');
                     }
                   }
                 }}
@@ -1256,49 +1181,29 @@ const ComparisonView = ({ material, onSelectResult }) => {
                 exposeHandlers={true}
                 onExport={async (url, blob, currentRegions, includeText) => {
                   try {
-                    // 创建FormData上传编辑后的图片和regions到后端
-                    const formData = new FormData();
-                    formData.append('edited_image', blob, `edited_${material.name}.jpg`);
-                    formData.append('edited_regions', JSON.stringify(currentRegions || []));
-
-                    const token = localStorage.getItem('auth_token');
-                    const response = await fetch(`${API_URL}/api/materials/${material.id}/save-edited-image`, {
-                      method: 'POST',
-                      headers: {
-                        'Authorization': `Bearer ${token}`
-                      },
-                      body: formData
-                    });
-
-                    if (!response.ok) {
-                      throw new Error('保存编辑后的图片失败');
+                    // ✅ 重构：只保存regions数据
+                    if (!currentRegions || currentRegions.length === 0) {
+                      actions.showNotification('提示', '没有可保存的编辑内容', 'warning');
+                      return;
                     }
 
-                    const data = await response.json();
+                    const { materialAPI } = await import('../../services/api');
+                    const response = await materialAPI.saveRegions(material.id, currentRegions);
 
-                    // 更新材料数据，包括后端返回的 editedRegions
+                    if (!response.success) {
+                      throw new Error(response.error || '保存失败');
+                    }
+
+                    // 更新材料数据
                     actions.updateMaterial(material.id, {
-                      editedImageData: url,
-                      editedImageBlob: blob,
-                      editedImagePath: data.edited_image_path,
-                      hasEditedVersion: true,
-                      editedRegions: data.material?.editedRegions || currentRegions || []
+                      editedRegions: currentRegions,
+                      hasEditedVersion: true
                     });
-
-                    // 更新本地状态，显示已保存的图片
-                    setSavedEditedImage(data.edited_image_path);
-                    setEditedImageData(url);
-                    setEditedImageBlob(blob);
-
-                    // 同步更新 material 对象（用于直接访问）
-                    if (material) {
-                      material.editedRegions = data.material?.editedRegions || currentRegions || [];
-                    }
 
                     actions.showNotification('保存成功', '编辑已保存，导出时将使用编辑后的版本', 'success');
                   } catch (error) {
-                    console.error('保存编辑图片失败:', error);
-                    actions.showNotification('保存失败', error.message || '无法保存编辑后的图片', 'error');
+                    console.error('保存编辑失败:', error);
+                    actions.showNotification('保存失败', error.message || '无法保存编辑', 'error');
                   }
                 }}
               />
@@ -1311,52 +1216,30 @@ const ComparisonView = ({ material, onSelectResult }) => {
                 exposeHandlers={true}
                 onExport={async (url, blob, currentRegions, includeText) => {
                   try {
-                    // 创建FormData上传编辑后的图片和regions到后端
-                    const formData = new FormData();
-                    formData.append('edited_image', blob, `edited_${material.name}.jpg`);
-                    formData.append('edited_regions', JSON.stringify(currentRegions || llmRegions));
-
-                    const token = localStorage.getItem('auth_token');
-                    const response = await fetch(`${API_URL}/api/materials/${material.id}/save-edited-image`, {
-                      method: 'POST',
-                      headers: {
-                        'Authorization': `Bearer ${token}`
-                      },
-                      body: formData
-                    });
-
-                    if (!response.ok) {
-                      throw new Error('保存编辑后的图片失败');
+                    // ✅ 重构：只保存regions数据
+                    const regionsToSave = currentRegions || llmRegions;
+                    if (!regionsToSave || regionsToSave.length === 0) {
+                      actions.showNotification('提示', '没有可保存的编辑内容', 'warning');
+                      return;
                     }
 
-                    const data = await response.json();
+                    const { materialAPI } = await import('../../services/api');
+                    const response = await materialAPI.saveRegions(material.id, regionsToSave);
 
-                    // 更新材料数据，包括后端返回的编辑图片路径和 editedRegions
+                    if (!response.success) {
+                      throw new Error(response.error || '保存失败');
+                    }
+
+                    // 更新材料数据
                     actions.updateMaterial(material.id, {
-                      editedImageData: url,
-                      editedImageBlob: blob,
-                      editedImagePath: data.edited_image_path,
-                      hasEditedVersion: true,
-                      editedRegions: data.material?.editedRegions || currentRegions || llmRegions
+                      editedRegions: regionsToSave,
+                      hasEditedVersion: true
                     });
 
-                    // 更新本地状态，显示已保存的图片
-                    setSavedEditedImage(data.edited_image_path);
-                    // 不立即更新 savedRegions，避免编辑器重新初始化
-                    // setSavedRegions(currentRegions || llmRegions);
-                    setEditedImageData(url);
-                    setEditedImageBlob(blob);
-
-                    // 同步更新 material 对象（用于直接访问）
-                    if (material) {
-                      material.editedRegions = data.material?.editedRegions || currentRegions || llmRegions;
-                    }
-
-                    // 显示保存成功提示
                     actions.showNotification('保存成功', '编辑已保存，导出时将使用编辑后的版本', 'success');
                   } catch (error) {
-                    console.error('保存编辑图片失败:', error);
-                    actions.showNotification('保存失败', error.message || '无法保存编辑后的图片', 'error');
+                    console.error('保存编辑失败:', error);
+                    actions.showNotification('保存失败', error.message || '无法保存编辑', 'error');
                   }
                 }}
               />

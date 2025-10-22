@@ -34,13 +34,24 @@ api.interceptors.response.use(
     return response.data;
   },
   (error) => {
-    if (error.response?.status === 401) {
+    // 只在非登录/注册页面且401错误时才自动重定向
+    const isAuthPage = window.location.pathname.includes('/signin') ||
+                       window.location.pathname.includes('/signup');
+
+    if (error.response?.status === 401 && !isAuthPage) {
       // 未授权，清除本地存储并重定向到登录页
       localStorage.removeItem('auth_token');
       localStorage.removeItem('user_info');
       window.location.href = '/signin';
     }
-    return Promise.reject(error);
+
+    // 返回更友好的错误信息
+    const errorMessage = error.response?.data?.message ||
+                        error.response?.data?.error ||
+                        error.message ||
+                        '请求失败';
+
+    return Promise.reject(new Error(errorMessage));
   }
 );
 
@@ -236,6 +247,15 @@ export const materialAPI = {
   // 旋转材料图片并重新翻译
   rotateMaterial: async (materialId) => {
     return await api.post(`/api/materials/${materialId}/rotate`, {}, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  },
+
+  // ✅ 重构：只保存regions数据
+  saveRegions: async (materialId, regions) => {
+    return await api.post(`/api/materials/${materialId}/save-regions`, { regions }, {
       headers: {
         'Content-Type': 'application/json',
       },
