@@ -1194,9 +1194,9 @@ const ComparisonView = ({ material, onSelectResult }) => {
           </div>
 
             <div className={styles.llmEditorContent}>
-            {/* 显示翻译进行中状态 - 包括所有三个阶段：上传、百度翻译、AI优化 */}
+            {/* 显示翻译进行中状态 - 包括所有阶段：拆分、上传、百度翻译、AI优化 */}
             {/* 只有在真正翻译进行中时才显示加载界面 */}
-            {(llmLoading || material.status === '处理中' || (material.processingStep === 'uploaded' && material.status !== '已上传') || material.processingStep === 'translating' || (material.processingStep === 'translated' && !material.translationTextInfo)) ? (
+            {(llmLoading || material.status === '处理中' || material.status === '拆分中' || material.processingStep === 'splitting' || (material.processingStep === 'uploaded' && material.status !== '已上传') || material.processingStep === 'translating' || (material.processingStep === 'translated' && !material.translationTextInfo)) ? (
               <div className={styles.processingContainer}>
                 <div className={styles.processingContent}>
                   <div className={styles.processingIconWrapper}>
@@ -1207,10 +1207,11 @@ const ComparisonView = ({ material, onSelectResult }) => {
                     </div>
                   </div>
                   <h3 className={styles.processingTitle}>
+                    {(material.status === '拆分中' || material.processingStep === 'splitting') && '正在拆分PDF页面...'}
                     {material.processingStep === 'uploaded' && '正在准备翻译...'}
                     {(material.processingStep === 'translating' || (pdfSessionProgress && pdfSessionProgress.someTranslating)) && '正在翻译中...'}
                     {llmLoading && '正在AI优化中...'}
-                    {!material.processingStep && !llmLoading && '处理中...'}
+                    {!material.processingStep && !llmLoading && !material.status === '拆分中' && '处理中...'}
                   </h3>
                   <div className={styles.processingSteps}>
                     <div className={`${styles.processingStep} ${(pdfSessionProgress ? pdfSessionProgress.progress >= 33 : material.processingProgress >= 33) ? styles.active : ''}`}>
