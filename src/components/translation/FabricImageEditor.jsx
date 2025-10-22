@@ -1363,8 +1363,8 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           evented: !newMode
         });
       } else if (obj.type === 'rect' || obj.type === 'image') {
-        // 检查是否是遮罩层（bgRect或blurBackground）
-        const isMask = obj.isBlurBackground || (obj.regionIndex !== undefined) || obj.mergedIndexes;
+        // 检查是否是遮罩层（bgRect、blurBackground或自定义遮罩）
+        const isMask = obj.isBlurBackground || (obj.regionIndex !== undefined) || obj.mergedIndexes || obj.isCustomMask;
         if (isMask) {
           // 在遮罩编辑模式下，让遮罩可选择和可编辑
           obj.set({
