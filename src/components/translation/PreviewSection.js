@@ -1077,8 +1077,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
                 <button
                   className={styles.saveEditButton}
                   onClick={async () => {
-                  // 保存两个版本的图片：不带文字版本和带文字版本
-                  // ✅ 重构：只保存regions数据，不保存图片
+                  // ✅ 重构：只保存regions数据（最终图片在确认时生成）
                   if (window.currentFabricEditor && window.currentFabricEditor.getCurrentRegions) {
                     try {
                       actions.showNotification('保存中', '正在保存编辑...', 'info');

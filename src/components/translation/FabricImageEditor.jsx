@@ -2461,13 +2461,63 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     });
   };
 
+  // ✅ 新增：只生成最终版本（带文字和遮罩）
+  const generateFinalImage = () => {
+    return new Promise((resolve) => {
+      const canvas = fabricCanvasRef.current;
+      if (!canvas) {
+        resolve(null);
+        return;
+      }
+
+      // 保存当前缩放和尺寸
+      const currentZoom = canvas.getZoom();
+      const currentWidth = canvas.getWidth();
+      const currentHeight = canvas.getHeight();
+
+      // 重置缩放为1:1
+      canvas.setZoom(1);
+      canvas.setDimensions({
+        width: imageRef.current.width,
+        height: imageRef.current.height
+      });
+      canvas.renderAll();
+
+      // 生成带文字的版本
+      const finalDataURL = canvas.toDataURL({
+        format: 'jpeg',
+        quality: 0.95,
+        multiplier: 1
+      });
+
+      // 恢复原始缩放和尺寸
+      canvas.setZoom(currentZoom);
+      canvas.setDimensions({
+        width: currentWidth,
+        height: currentHeight
+      });
+      canvas.renderAll();
+
+      // 转换为blob
+      fetch(finalDataURL)
+        .then(res => res.blob())
+        .then(blob => {
+          resolve({
+            url: finalDataURL,
+            blob: blob
+          });
+        });
+    });
+  };
+
   // 暴露必要的函数到全局或组件ref
   useEffect(() => {
     if (exposeHandlers) {
       window.currentFabricEditor = {
         handleExport,
         generateBothVersions,
-        getCurrentRegions  // ✅ 暴露getCurrentRegions函数
+        getCurrentRegions,  // ✅ 暴露getCurrentRegions函数
+        generateFinalImage  // ✅ 暴露生成最终图片函数
       };
     }
     return () => {

@@ -40,18 +40,35 @@ const TranslationComparison = () => {
 
   const handleConfirmResult = async () => {
     if (!currentMaterial || !selectedType) return;
-    
+
     setIsConfirming(true);
     try {
+      // ✅ 新增：如果有编辑过，生成并上传最终图片（用于导出）
+      if (currentMaterial.hasEditedVersion && window.currentFabricEditor && window.currentFabricEditor.generateFinalImage) {
+        actions.showNotification('生成中', '正在生成最终图片...', 'info');
+
+        try {
+          const finalImage = await window.currentFabricEditor.generateFinalImage();
+
+          if (finalImage && finalImage.blob) {
+            await materialAPI.saveFinalImage(currentMaterial.id, finalImage.blob);
+            console.log('✓ 最终图片已生成并上传，用于导出');
+          }
+        } catch (imageError) {
+          console.warn('生成最终图片失败，但继续确认流程:', imageError);
+          // 不阻止确认流程，继续执行
+        }
+      }
+
       // 调用Phase 1新增的确认API端点
       await materialAPI.confirmMaterial(currentMaterial.id);
-      
+
       // 更新本地状态
       actions.updateMaterial(currentMaterial.id, {
         confirmed: true,
         status: '已确认'
       });
-      
+
       actions.showNotification('确认成功', `${currentMaterial.name} 翻译结果已确认`, 'success');
     } catch (error) {
       actions.showNotification('确认失败', error.message || '确认翻译结果失败', 'error');

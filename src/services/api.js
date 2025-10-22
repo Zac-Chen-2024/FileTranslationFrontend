@@ -261,6 +261,18 @@ export const materialAPI = {
       },
     });
   },
+
+  // ✅ 新增：保存最终图片（用于导出）
+  saveFinalImage: async (materialId, imageBlob) => {
+    const formData = new FormData();
+    formData.append('final_image', imageBlob, `final_${materialId}.jpg`);
+
+    return await api.post(`/api/materials/${materialId}/save-final-image`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
 };
 
 export const translationAPI = {
