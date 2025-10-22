@@ -133,10 +133,61 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       setAiButtonPosition(null);
     });
 
-    // 监听对象移动/缩放，更新AI按钮位置
-    canvas.on('object:moving', updateAIButtonFromCanvas);
-    canvas.on('object:rotating', updateAIButtonFromCanvas);
-    canvas.on('object:scaling', updateAIButtonFromCanvas);
+    // 同步遮罩位置和大小到文本框
+    const syncMaskWithTextbox = (textbox) => {
+      if (!textbox || textbox.type !== 'textbox') return;
+
+      // 同步背景矩形（bgRect）
+      if (textbox.bgRect) {
+        textbox.bgRect.set({
+          left: textbox.left,
+          top: textbox.top,
+          width: textbox.width * textbox.scaleX,
+          height: textbox.height * textbox.scaleY,
+          scaleX: 1,
+          scaleY: 1,
+          angle: textbox.angle
+        });
+        textbox.bgRect.setCoords();
+      }
+
+      // 同步模糊背景（blurBackground）
+      if (textbox.blurBackground) {
+        textbox.blurBackground.set({
+          left: textbox.left,
+          top: textbox.top,
+          scaleX: (textbox.width * textbox.scaleX) / textbox.blurBackground.width,
+          scaleY: (textbox.height * textbox.scaleY) / textbox.blurBackground.height,
+          angle: textbox.angle
+        });
+        textbox.blurBackground.setCoords();
+      }
+    };
+
+    // 监听对象移动/缩放，更新AI按钮位置并同步遮罩
+    canvas.on('object:moving', (e) => {
+      updateAIButtonFromCanvas();
+      if (e.target && e.target.type === 'textbox') {
+        syncMaskWithTextbox(e.target);
+        canvas.renderAll();
+      }
+    });
+
+    canvas.on('object:rotating', (e) => {
+      updateAIButtonFromCanvas();
+      if (e.target && e.target.type === 'textbox') {
+        syncMaskWithTextbox(e.target);
+        canvas.renderAll();
+      }
+    });
+
+    canvas.on('object:scaling', (e) => {
+      updateAIButtonFromCanvas();
+      if (e.target && e.target.type === 'textbox') {
+        syncMaskWithTextbox(e.target);
+        canvas.renderAll();
+      }
+    });
 
     // 监听文本选中事件，更新加粗/斜体按钮状态
     canvas.on('text:selection:changed', (e) => {
@@ -219,13 +270,16 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           scaleY: 1
         });
 
-        // 注释掉遮罩同步更新，让遮罩保持在原始位置
-        // if (data.obj.bgRect) {
-        //   data.obj.bgRect.set({
-        //     width: newWidth,
-        //     left: newLeft
-        //   });
-        // }
+        // ✅ 恢复遮罩同步更新，让遮罩跟随文本框
+        if (data.obj.bgRect) {
+          data.obj.bgRect.set({
+            width: newWidth,
+            height: data.obj.height,
+            left: newLeft,
+            top: data.originalTop
+          });
+          data.obj.bgRect.setCoords();
+        }
 
         // 同步更新模糊背景
         if (data.obj.blurBackground) {
@@ -2390,12 +2444,13 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     });
   };
 
-  // 暴露handleExport和generateBothVersions到全局或组件ref
+  // 暴露必要的函数到全局或组件ref
   useEffect(() => {
     if (exposeHandlers) {
       window.currentFabricEditor = {
         handleExport,
-        generateBothVersions
+        generateBothVersions,
+        getCurrentRegions  // ✅ 暴露getCurrentRegions函数
       };
     }
     return () => {
