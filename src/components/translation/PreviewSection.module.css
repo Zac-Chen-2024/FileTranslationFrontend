@@ -1130,12 +1130,56 @@
   white-space: nowrap;
 }
 
+/* 页面选择下拉菜单 */
+.pdfPageSelect {
+  padding: 0.4rem 0.8rem;
+  padding-right: 2rem;
+  background: white;
+  color: var(--primary-blue);
+  border: 2px solid var(--primary-blue);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2'%3e%3cpath d='M6 9l6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 1.2rem;
+  min-width: 100px;
+}
+
+.pdfPageSelect:hover {
+  background-color: rgba(59, 130, 246, 0.05);
+  border-color: var(--primary-blue-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+}
+
+.pdfPageSelect:focus {
+  outline: none;
+  border-color: var(--primary-blue-dark);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
 [data-theme="dark"] .pdfNavigation {
   background: rgba(59, 130, 246, 0.2);
 }
 
 [data-theme="dark"] .pdfPageInfo {
   color: #4a9eff;
+}
+
+[data-theme="dark"] .pdfPageSelect {
+  background: var(--dark-bg-secondary);
+  color: #4a9eff;
+  border-color: #4a9eff;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234a9eff' stroke-width='2'%3e%3cpath d='M6 9l6 6 6-6'/%3e%3c/svg%3e");
+}
+
+[data-theme="dark"] .pdfPageSelect:hover {
+  background-color: rgba(74, 158, 255, 0.1);
 }
 
 /* 翻译处理中显示样式 */

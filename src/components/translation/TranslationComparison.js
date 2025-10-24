@@ -43,20 +43,29 @@ const TranslationComparison = () => {
 
     setIsConfirming(true);
     try {
-      // ✅ 新增：如果有编辑过，生成并上传最终图片（用于导出）
-      if (currentMaterial.hasEditedVersion && window.currentFabricEditor && window.currentFabricEditor.generateFinalImage) {
-        actions.showNotification('生成中', '正在生成最终图片...', 'info');
-
+      // ✅ 确认前为当前页面保存regions并生成最终图片
+      if (window.currentFabricEditor && window.currentFabricEditor.getCurrentRegions) {
         try {
-          const finalImage = await window.currentFabricEditor.generateFinalImage();
+          actions.showNotification('保存中', '正在保存当前页面编辑...', 'info');
 
-          if (finalImage && finalImage.blob) {
-            await materialAPI.saveFinalImage(currentMaterial.id, finalImage.blob);
-            console.log('✓ 最终图片已生成并上传，用于导出');
+          const currentRegions = window.currentFabricEditor.getCurrentRegions();
+          if (currentRegions && currentRegions.length > 0) {
+            // 1. 保存 regions
+            const response = await materialAPI.saveRegions(currentMaterial.id, currentRegions);
+
+            if (response.success) {
+              // 2. 生成并上传最终图片
+              if (window.currentFabricEditor.generateFinalImage) {
+                const finalImage = await window.currentFabricEditor.generateFinalImage();
+                if (finalImage && finalImage.blob) {
+                  await materialAPI.saveFinalImage(currentMaterial.id, finalImage.blob);
+                  console.log('✓ 当前页面最终图片已生成并上传');
+                }
+              }
+            }
           }
-        } catch (imageError) {
-          console.warn('生成最终图片失败，但继续确认流程:', imageError);
-          // 不阻止确认流程，继续执行
+        } catch (saveError) {
+          console.warn('保存当前页面失败，但继续确认:', saveError);
         }
       }
 

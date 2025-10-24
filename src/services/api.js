@@ -3,7 +3,7 @@ import axios from 'axios';
 // 创建 axios 实例
 const api = axios.create({
   baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5010',
-  timeout: 30000,
+  timeout: 120000,  // 增加到120秒，对于大多数操作应该足够
   headers: {
     'Content-Type': 'application/json',
   },
@@ -343,8 +343,10 @@ export const exportAPI = {
   // 导出客户材料
   exportClientMaterials: async (clientId, filename = 'export.zip') => {
     // 使用原生axios来获取完整的响应对象
+    // 移除超时限制，因为导出可能需要较长时间
     const response = await api.get(`/api/clients/${clientId}/export`, {
       responseType: 'blob',
+      timeout: 0,  // 0表示没有超时限制
     });
     
     // 创建下载链接

@@ -91,7 +91,85 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     });
     
     fabricCanvasRef.current = canvas;
-    
+
+    // 添加自定义控制点用于个体旋转
+    const individualRotateIcon = 'data:image/svg+xml;base64,' + btoa(`
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2v4m0 0a8 8 0 11-5.657 2.343M12 6a8 8 0 105.657 2.343" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/>
+        <path d="M16 2l-4 4 4 4" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    `);
+
+    // 自定义个体旋转控制
+    fabric.Object.prototype.controls.individualRotate = new fabric.Control({
+      x: 0.5,
+      y: -0.5,
+      offsetY: -30,
+      offsetX: 30,
+      cursorStyle: 'crosshair',
+      actionHandler: function(_, transform, x, y) {
+        const activeObject = transform.target;
+        if (activeObject.type !== 'activeSelection') return false;
+
+        // 获取鼠标角度
+        const center = activeObject.getCenterPoint();
+        const angle = Math.atan2(y - center.y, x - center.x) * 180 / Math.PI + 90;
+
+        // 计算角度差
+        if (!activeObject.__individualRotateStart) {
+          activeObject.__individualRotateStart = angle;
+          activeObject.__originalAngles = activeObject.getObjects().map(obj => ({
+            obj: obj,
+            angle: obj.angle || 0
+          }));
+        }
+
+        const angleDiff = angle - activeObject.__individualRotateStart;
+
+        // 应用旋转到每个对象
+        activeObject.__originalAngles.forEach(data => {
+          data.obj.set({
+            angle: (data.angle + angleDiff) % 360
+          });
+
+          // 同步遮罩
+          if (data.obj.type === 'textbox' && data.obj.bgRect) {
+            data.obj.bgRect.set({
+              angle: (data.angle + angleDiff) % 360
+            });
+          }
+        });
+
+        canvas.renderAll();
+        return true;
+      },
+      actionName: 'individualRotating',
+      render: function(ctx, left, top, _, fabricObject) {
+        // 只对多选显示此控制点
+        if (fabricObject.type !== 'activeSelection') return;
+
+        const textboxes = fabricObject.getObjects().filter(obj => obj.type === 'textbox');
+        if (textboxes.length < 2) return;
+
+        const img = new Image();
+        img.src = individualRotateIcon;
+        if (img.complete) {
+          ctx.save();
+          ctx.translate(left, top);
+          ctx.drawImage(img, -10, -10, 20, 20);
+          ctx.restore();
+        } else {
+          // 如果图标未加载，绘制一个简单的圆形
+          ctx.save();
+          ctx.fillStyle = '#3b82f6';
+          ctx.beginPath();
+          ctx.arc(left, top, 8, 0, 2 * Math.PI);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+    });
+
     // 事件监听
     canvas.on('selection:created', (e) => {
       const selected = e.selected || [];
@@ -142,22 +220,33 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
       // 同步背景矩形（bgRect）
       if (textbox.bgRect) {
-        textbox.bgRect.set({
-          left: textbox.left,
-          top: textbox.top,
-          width: textbox.width * textbox.scaleX,
-          height: textbox.height * textbox.scaleY,
-          scaleX: 1,
-          scaleY: 1,
-          angle: textbox.angle
-        });
-        textbox.bgRect.setCoords();
+        // 如果遮罩被手动编辑过，不自动同步
+        if (textbox.bgRect.manuallyEdited) {
+          // 只确保层级关系正确，不改变位置和大小
+          const textIndex = canvas.getObjects().indexOf(textbox);
+          const maskIndex = canvas.getObjects().indexOf(textbox.bgRect);
+          if (maskIndex > textIndex) {
+            canvas.moveTo(textbox.bgRect, textIndex - 1);
+          }
+        } else {
+          // 未手动编辑的遮罩，自动同步到文本框
+          textbox.bgRect.set({
+            left: textbox.left,
+            top: textbox.top,
+            width: textbox.width * textbox.scaleX,
+            height: textbox.height * textbox.scaleY,
+            scaleX: 1,
+            scaleY: 1,
+            angle: textbox.angle
+          });
+          textbox.bgRect.setCoords();
 
-        // 确保遮罩在文本框下层
-        const textIndex = canvas.getObjects().indexOf(textbox);
-        const maskIndex = canvas.getObjects().indexOf(textbox.bgRect);
-        if (maskIndex > textIndex) {
-          canvas.moveTo(textbox.bgRect, textIndex - 1);
+          // 确保遮罩在文本框下层
+          const textIndex = canvas.getObjects().indexOf(textbox);
+          const maskIndex = canvas.getObjects().indexOf(textbox.bgRect);
+          if (maskIndex > textIndex) {
+            canvas.moveTo(textbox.bgRect, textIndex - 1);
+          }
         }
       }
 
@@ -184,6 +273,13 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     // 监听对象移动/缩放，更新AI按钮位置并同步遮罩
     canvas.on('object:moving', (e) => {
       updateAIButtonFromCanvas();
+
+      // 在遮罩编辑模式下移动遮罩时，标记为手动编辑
+      if (maskEditMode && e.target && e.target.type === 'rect' &&
+          (e.target.isBlurBackground || e.target === e.target.associatedTextbox?.bgRect)) {
+        e.target.manuallyEdited = true;
+      }
+
       if (e.target && e.target.type === 'textbox') {
         syncMaskWithTextbox(e.target);
         canvas.renderAll();
@@ -192,14 +288,25 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
     canvas.on('object:rotating', (e) => {
       updateAIButtonFromCanvas();
-      if (e.target && e.target.type === 'textbox') {
-        syncMaskWithTextbox(e.target);
+
+      const activeObject = e.target;
+
+      // 处理单个文本框旋转
+      if (activeObject && activeObject.type === 'textbox') {
+        syncMaskWithTextbox(activeObject);
         canvas.renderAll();
       }
     });
 
     canvas.on('object:scaling', (e) => {
       updateAIButtonFromCanvas();
+
+      // 在遮罩编辑模式下缩放遮罩时，标记为手动编辑
+      if (maskEditMode && e.target && e.target.type === 'rect' &&
+          (e.target.isBlurBackground || e.target === e.target.associatedTextbox?.bgRect)) {
+        e.target.manuallyEdited = true;
+      }
+
       if (e.target && e.target.type === 'textbox') {
         syncMaskWithTextbox(e.target);
         canvas.renderAll();
@@ -236,16 +343,24 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       const textboxes = activeObject.getObjects().filter(obj => obj.type === 'textbox');
       if (textboxes.length < 2) return;
 
-      // 保存每个文本框的原始宽度和中心X坐标
+      // 保存每个文本框的原始宽度和中心X坐标，以及遮罩的原始位置
       scalingData = {
         initialScaleX: activeObject.scaleX || 1,
         selectionWidth: activeObject.width || 1,
+        groupMatrix: activeObject.calcTransformMatrix(), // 保存初始的组变换矩阵
         textboxes: textboxes.map(tb => ({
           obj: tb,
           originalWidth: tb.width,
           originalCenterX: tb.left + (tb.width / 2),
           originalLeft: tb.left,
-          originalTop: tb.top
+          originalTop: tb.top,
+          // 保存遮罩的原始绝对位置
+          maskOriginalPos: tb.bgRect ? {
+            left: tb.bgRect.left,
+            top: tb.bgRect.top,
+            width: tb.bgRect.width,
+            height: tb.bgRect.height
+          } : null
         }))
       };
     });
@@ -256,11 +371,25 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       // 更新AI按钮位置
       updateAIButtonFromCanvas();
 
-      // 检查是否是ActiveSelection且是从右侧控制点拖拽
-      if (!activeObject || activeObject.type !== 'activeSelection' || !scalingData) return;
+      // 检查是否是ActiveSelection
+      if (!activeObject || activeObject.type !== 'activeSelection') return;
 
-      // 检查是否是右侧中点控制（mr = middle-right）
+      // 获取控制点类型
       const transform = activeObject.__corner;
+
+      // 检查是否是右侧中点控制（mr = middle-right）并且有scalingData
+      if (transform === 'mr' && scalingData) {
+        // 使用特殊的右侧中点处理逻辑（下面的代码会处理）
+        // 这里不做处理，让后面的代码处理
+      } else {
+        // 对于其他控制点，禁用缩放（只允许右侧中点）
+        activeObject.lockScalingX = true;
+        activeObject.lockScalingY = true;
+        return;
+      }
+
+      // 原有的右侧控制点特殊处理逻辑
+      if (!scalingData) return;
       if (transform !== 'mr') return;
 
       // 只处理文本框
@@ -287,15 +416,12 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           scaleY: 1
         });
 
-        // ✅ 恢复遮罩同步更新，让遮罩跟随文本框
+        // ✅ 修复遮罩同步 - 不使用变换矩阵，而是暂时隐藏遮罩
         if (data.obj.bgRect) {
+          // 在缩放过程中暂时隐藏遮罩，避免飞走
           data.obj.bgRect.set({
-            width: newWidth,
-            height: data.obj.height,
-            left: newLeft,
-            top: data.originalTop
+            visible: false
           });
-          data.obj.bgRect.setCoords();
         }
 
         // 同步更新模糊背景
@@ -326,17 +452,84 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     });
 
     canvas.on('mouse:up', () => {
+      // 清理个体旋转数据
+      const activeObject = canvas.getActiveObject();
+      if (activeObject && activeObject.type === 'activeSelection') {
+        activeObject.__individualRotateStart = null;
+        activeObject.__originalAngles = null;
+      }
+
       // 清除缩放数据
       if (scalingData) {
         console.log('多选宽度调整完成');
+
+        // 缩放结束后，重新同步所有背景遮罩的位置
+        const activeObject = canvas.getActiveObject();
+        if (activeObject && activeObject.type === 'activeSelection') {
+          const textboxes = activeObject.getObjects().filter(obj => obj.type === 'textbox');
+
+          // 获取ActiveSelection的变换矩阵
+          const groupMatrix = activeObject.calcTransformMatrix();
+
+          textboxes.forEach(textbox => {
+            if (textbox.bgRect) {
+              // 计算文本框在画布上的绝对位置
+              const point = fabric.util.transformPoint(
+                { x: textbox.left, y: textbox.top },
+                groupMatrix
+              );
+
+              // 恢复遮罩的可见性并更新位置
+              textbox.bgRect.set({
+                left: point.x,
+                top: point.y,
+                width: textbox.width,
+                height: textbox.height,
+                scaleX: 1,
+                scaleY: 1,
+                angle: activeObject.angle || 0,
+                visible: true  // 恢复可见性
+              });
+              textbox.bgRect.setCoords();
+            }
+          });
+
+          canvas.renderAll();
+        }
+
         scalingData = null;
       }
     });
 
-    // 监听对象修改事件以保存历史
-    canvas.on('object:modified', () => {
+    // 监听对象修改事件以保存历史和同步遮罩
+    canvas.on('object:modified', (e) => {
       if (!isHistoryOperationRef.current) {
         saveHistory();
+      }
+
+      // 修改完成后同步遮罩位置
+      const modifiedObject = e.target;
+      if (modifiedObject) {
+        // 检查是否在遮罩编辑模式下修改了遮罩
+        if (maskEditMode && modifiedObject.type === 'rect' &&
+            (modifiedObject.isBlurBackground || modifiedObject === modifiedObject.associatedTextbox?.bgRect)) {
+          // 标记此遮罩为手动编辑过
+          modifiedObject.manuallyEdited = true;
+          console.log('标记遮罩为手动编辑:', modifiedObject);
+        }
+
+        if (modifiedObject.type === 'textbox' && modifiedObject.bgRect) {
+          syncMaskWithTextbox(modifiedObject);
+        } else if (modifiedObject.type === 'activeSelection') {
+          // 多选修改完成后，同步所有文本框的遮罩
+          const textboxes = modifiedObject.getObjects().filter(obj => obj.type === 'textbox');
+          textboxes.forEach(textbox => {
+            if (textbox.bgRect) {
+              syncMaskWithTextbox(textbox);
+            }
+          });
+        }
+        canvas.renderAll();
       }
     });
 
@@ -634,17 +827,24 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       let bgRect = null;
       if (!region.isMerged) {
         // 非合并文本：创建透明背景矩形
+        // 如果有手动编辑过的遮罩位置，使用保存的位置
+        const maskLeft = region.maskManuallyEdited ? region.maskX : minX;
+        const maskTop = region.maskManuallyEdited ? region.maskY : minY;
+        const maskWidth = region.maskManuallyEdited ? region.maskWidth : width;
+        const maskHeight = region.maskManuallyEdited ? region.maskHeight : height;
+
         bgRect = new window.fabric.Rect({
-          left: minX,
-          top: minY,
-          width: width,
-          height: height,
+          left: maskLeft,
+          top: maskTop,
+          width: maskWidth,
+          height: maskHeight,
           fill: 'transparent',
           stroke: 'transparent',
           strokeWidth: 0,
           selectable: false,
           evented: false,
-          regionIndex: index
+          regionIndex: index,
+          manuallyEdited: region.maskManuallyEdited || false
         });
       } else {
         // 合并文本：创建模糊背景
@@ -707,9 +907,10 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           // 只有非合并的文本才添加到背景矩形数组
           backgroundRectsRef.current.push(bgRect);
         }
-        // 保存引用
+        // 建立双向关联
         text.bgRect = bgRect;
         bgRect.textObj = text;
+        bgRect.associatedTextbox = text; // 新增：确保双向关联
         bgRects.push(bgRect);
       }
 
@@ -1507,23 +1708,53 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     let objectsToDelete = [];
     let masksToDelete = [];
 
-    // 处理单选和多选
+    // 在遮罩编辑模式下，优先处理遮罩删除
+    if (maskEditMode) {
+      // 处理多选
+      if (activeObject.type === 'activeSelection') {
+        const selectedMasks = activeObject.getObjects().filter(obj => {
+          return obj.type === 'rect' && (obj.isBlurBackground || obj.regionIndex !== undefined ||
+                 obj.mergedIndexes || obj.isCustomMask || obj === obj.associatedTextbox?.bgRect);
+        });
+
+        selectedMasks.forEach(mask => {
+          canvas.remove(mask);
+        });
+
+        if (selectedMasks.length > 0) {
+          canvas.discardActiveObject();
+          canvas.renderAll();
+          saveHistory();
+          console.log(`删除了 ${selectedMasks.length} 个遮罩层`);
+          return;
+        }
+      }
+      // 处理单选遮罩
+      else if (activeObject.type === 'rect' || activeObject.type === 'image') {
+        const isMask = activeObject.isBlurBackground || activeObject.regionIndex !== undefined ||
+                      activeObject.mergedIndexes || activeObject.isCustomMask ||
+                      activeObject === activeObject.associatedTextbox?.bgRect;
+        if (isMask) {
+          // 如果是关联的bgRect，断开关联
+          if (activeObject.associatedTextbox) {
+            activeObject.associatedTextbox.bgRect = null;
+          }
+          canvas.remove(activeObject);
+          canvas.renderAll();
+          saveHistory();
+          console.log('删除遮罩层');
+          return;
+        }
+      }
+    }
+
+    // 处理文本框删除
     if (activeObject.type === 'activeSelection') {
       // 多选
       objectsToDelete = activeObject.getObjects().filter(obj => obj.type === 'textbox');
     } else if (activeObject.type === 'textbox') {
       // 单选文本框
       objectsToDelete = [activeObject];
-    } else if (maskEditMode && (activeObject.type === 'rect' || activeObject.type === 'image')) {
-      // 在遮罩编辑模式下删除遮罩
-      const isMask = activeObject.isBlurBackground || activeObject.regionIndex !== undefined || activeObject.mergedIndexes || activeObject.isCustomMask;
-      if (isMask) {
-        canvas.remove(activeObject);
-        canvas.renderAll();
-        saveHistory();
-        console.log('删除遮罩层');
-        return;
-      }
     }
 
     if (objectsToDelete.length === 0) return;
@@ -2281,7 +2512,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         // 处理所有文本框，包括原始的和合并的
         if (obj.regionId !== undefined) {
           // 原始文本框
-          currentRegions.push({
+          const regionData = {
             id: obj.regionId,
             src: obj.originalText || obj.text,
             dst: obj.text,
@@ -2295,7 +2526,18 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
             textAlign: obj.textAlign,
             lineHeight: obj.lineHeight,
             fill: obj.fill
-          });
+          };
+
+          // 如果有手动编辑过的遮罩，保存遮罩的位置和大小
+          if (obj.bgRect && obj.bgRect.manuallyEdited) {
+            regionData.maskManuallyEdited = true;
+            regionData.maskX = obj.bgRect.left;
+            regionData.maskY = obj.bgRect.top;
+            regionData.maskWidth = obj.bgRect.width * obj.bgRect.scaleX;
+            regionData.maskHeight = obj.bgRect.height * obj.bgRect.scaleY;
+          }
+
+          currentRegions.push(regionData);
         } else {
           // 合并的文本框（没有regionId）
           currentRegions.push({

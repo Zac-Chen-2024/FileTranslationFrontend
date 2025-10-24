@@ -166,8 +166,11 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
         sessionMaterial.status = pages[0].status;
       }
 
-      // 使用第一页的翻译路径
-      const firstPage = pages.find(p => p.translatedImagePath) || pages[0];
+      // 对页面按页码排序
+      pages.sort((a, b) => a.pdfPageNumber - b.pdfPageNumber);
+
+      // 始终使用第一页（按页码顺序）
+      const firstPage = pages[0];
       sessionMaterial.translatedImagePath = firstPage.translatedImagePath;
       sessionMaterial.currentPage = firstPage; // 保存第一页供点击时使用
     });

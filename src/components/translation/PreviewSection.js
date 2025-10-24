@@ -325,6 +325,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
   const [isLoadingPages, setIsLoadingPages] = React.useState(false);
   const [pdfSessionProgress, setPdfSessionProgress] = React.useState(null); // PDF整体进度
   const isChangingPageRef = React.useRef(false); // 标记是否正在切换页面
+  const previousPdfSessionId = React.useRef(null); // 记录上一个PDF Session ID
 
   // 加载PDF会话的所有页面
   React.useEffect(() => {
@@ -333,6 +334,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
       if (!material.pdfSessionId) {
         setPdfPages([]);
         setPdfSessionProgress(null);
+        previousPdfSessionId.current = null;
         return;
       }
 
@@ -371,11 +373,27 @@ const ComparisonView = ({ material, onSelectResult }) => {
           });
         }
 
-        // 设置当前页面索引（只在不是主动切换页面时更新，避免翻页循环）
-        if (!isChangingPageRef.current) {
+        // ✅ 检测到新的PDF Session：强制重置到第一页
+        const isNewPdfSession = previousPdfSessionId.current !== null &&
+                                previousPdfSessionId.current !== material.pdfSessionId;
+
+        if (isNewPdfSession) {
+          console.log('🔄 检测到新的PDF Session，重置到第一页');
+          setCurrentPageIndex(0);
+          previousPdfSessionId.current = material.pdfSessionId;
+        }
+        // 设置当前页面索引（非新Session且非手动切换）
+        else if (!isChangingPageRef.current) {
           const currentIndex = sessionPages.findIndex(p => p.id === material.id);
           if (currentIndex !== -1) {
             setCurrentPageIndex(currentIndex);
+            // 首次加载时记录PDF Session ID
+            if (previousPdfSessionId.current === null) {
+              previousPdfSessionId.current = material.pdfSessionId;
+            }
+          } else {
+            // 如果找不到当前页面，默认显示第一页
+            setCurrentPageIndex(0);
           }
         } else {
           // 切换页面操作完成，重置标志
@@ -398,7 +416,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
     // 设置切换页面标志，防止useEffect重新设置索引
     isChangingPageRef.current = true;
 
-    // ✅ 重构：自动保存当前页面的编辑（只保存regions）
+    // ✅ 重构：自动保存当前页面的编辑（保存regions + 生成最终图片）
     if (window.currentFabricEditor && window.currentFabricEditor.getCurrentRegions) {
       try {
         actions.showNotification('保存中', '正在保存当前页面...', 'info');
@@ -406,10 +424,26 @@ const ComparisonView = ({ material, onSelectResult }) => {
         const currentRegions = window.currentFabricEditor.getCurrentRegions();
         if (currentRegions && currentRegions.length > 0) {
           const { materialAPI } = await import('../../services/api');
+
+          // 1. 保存 regions
           const response = await materialAPI.saveRegions(material.id, currentRegions);
 
           if (!response.success) {
             throw new Error(response.error || '保存失败');
+          }
+
+          // 2. 生成并上传最终图片（确保导出时和编辑器一致）
+          if (window.currentFabricEditor.generateFinalImage) {
+            try {
+              const finalImage = await window.currentFabricEditor.generateFinalImage();
+              if (finalImage && finalImage.blob) {
+                await materialAPI.saveFinalImage(material.id, finalImage.blob);
+                console.log(`✓ 第 ${currentPageIndex + 1} 页最终图片已生成并上传`);
+              }
+            } catch (imageError) {
+              console.warn('生成最终图片失败:', imageError);
+              // 不阻止页面切换
+            }
           }
 
           actions.updateMaterial(material.id, {
@@ -1036,6 +1070,19 @@ const ComparisonView = ({ material, onSelectResult }) => {
                       <path d="M9 18l6-6-6-6"/>
                     </svg>
                   </button>
+                  {/* 页面选择下拉菜单 */}
+                  <select
+                    className={styles.pdfPageSelect}
+                    value={currentPageIndex}
+                    onChange={(e) => handlePageChange(parseInt(e.target.value))}
+                    title="选择页面"
+                  >
+                    {pdfPages.map((_, index) => (
+                      <option key={index} value={index}>
+                        第 {index + 1} 页
+                      </option>
+                    ))}
+                  </select>
                 </div>
               )}
             </div>
@@ -1077,7 +1124,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
                 <button
                   className={styles.saveEditButton}
                   onClick={async () => {
-                  // ✅ 重构：只保存regions数据（最终图片在确认时生成）
+                  // ✅ 重构：保存regions数据 + 生成最终图片
                   if (window.currentFabricEditor && window.currentFabricEditor.getCurrentRegions) {
                     try {
                       actions.showNotification('保存中', '正在保存编辑...', 'info');
@@ -1089,12 +1136,27 @@ const ComparisonView = ({ material, onSelectResult }) => {
                         throw new Error('没有可保存的编辑内容');
                       }
 
-                      // 只发送regions数据到后端
                       const { materialAPI } = await import('../../services/api');
+
+                      // 1. 保存regions数据到后端
                       const response = await materialAPI.saveRegions(material.id, currentRegions);
 
                       if (!response.success) {
                         throw new Error(response.error || '保存失败');
+                      }
+
+                      // 2. 生成并上传最终图片
+                      if (window.currentFabricEditor.generateFinalImage) {
+                        try {
+                          const finalImage = await window.currentFabricEditor.generateFinalImage();
+                          if (finalImage && finalImage.blob) {
+                            await materialAPI.saveFinalImage(material.id, finalImage.blob);
+                            console.log('✓ 最终图片已生成并上传');
+                          }
+                        } catch (imageError) {
+                          console.warn('生成最终图片失败:', imageError);
+                          // 不阻止保存流程
+                        }
                       }
 
                       // 更新材料数据
@@ -1193,6 +1255,19 @@ const ComparisonView = ({ material, onSelectResult }) => {
                       throw new Error(response.error || '保存失败');
                     }
 
+                    // 2. 生成并上传最终图片
+                    if (window.currentFabricEditor && window.currentFabricEditor.generateFinalImage) {
+                      try {
+                        const finalImage = await window.currentFabricEditor.generateFinalImage();
+                        if (finalImage && finalImage.blob) {
+                          await materialAPI.saveFinalImage(material.id, finalImage.blob);
+                          console.log('✓ 导出回调1：最终图片已生成并上传');
+                        }
+                      } catch (imageError) {
+                        console.warn('生成最终图片失败:', imageError);
+                      }
+                    }
+
                     // 更新材料数据
                     actions.updateMaterial(material.id, {
                       editedRegions: currentRegions,
@@ -1227,6 +1302,19 @@ const ComparisonView = ({ material, onSelectResult }) => {
 
                     if (!response.success) {
                       throw new Error(response.error || '保存失败');
+                    }
+
+                    // 2. 生成并上传最终图片
+                    if (window.currentFabricEditor && window.currentFabricEditor.generateFinalImage) {
+                      try {
+                        const finalImage = await window.currentFabricEditor.generateFinalImage();
+                        if (finalImage && finalImage.blob) {
+                          await materialAPI.saveFinalImage(material.id, finalImage.blob);
+                          console.log('✓ 导出回调2：最终图片已生成并上传');
+                        }
+                      } catch (imageError) {
+                        console.warn('生成最终图片失败:', imageError);
+                      }
                     }
 
                     // 更新材料数据
