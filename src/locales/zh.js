@@ -273,4 +273,6 @@ export const zh = {
   imageRotated90: '图片已旋转90度，请点击重新翻译按钮',
   pleaseWait: '请稍候，翻译完成后会自动刷新显示',
   webTranslationPreview: '网页翻译预览',
+  selectMaterialToViewTranslation: '选择材料查看翻译结果',
+  selectMaterialFromList: '请从左侧列表中选择要查看的材料',
 };

@@ -45,10 +45,10 @@ const PreviewSection = () => {
           actions.setCurrentMaterial(updatedMaterial);
         }
       }
-      actions.showNotification('刷新成功', '材料状态已更新', 'success');
+      actions.showNotification(t('refreshSuccess'), t('materialStatusUpdated'), 'success');
     } catch (error) {
       console.error('刷新材料状态失败:', error);
-      actions.showNotification('刷新失败', '无法获取最新状态', 'error');
+      actions.showNotification(t('refreshFailed'), t('cannotGetLatestStatus'), 'error');
     } finally {
       setIsRefreshing(false);
     }
@@ -105,12 +105,12 @@ const PreviewSection = () => {
       }
 
       const message = newConfirmedState
-        ? `${currentMaterial.name} 已确认完成`
-        : `${currentMaterial.name} 已取消确认`;
+        ? t('materialConfirmedComplete', { name: currentMaterial.name })
+        : t('materialUnconfirmed', { name: currentMaterial.name });
 
       console.log('准备显示通知...');
       actions.showNotification(
-        newConfirmedState ? '确认成功' : '取消确认成功',
+        newConfirmedState ? t('confirmSuccess') : t('unconfirmSuccess'),
         message,
         'success'
       );
@@ -118,8 +118,8 @@ const PreviewSection = () => {
 
     } catch (error) {
       console.error('确认/取消确认失败:', error);
-      const errorMessage = error.response?.data?.error || error.message || '操作过程中出现错误';
-      actions.showNotification('操作失败', errorMessage, 'error');
+      const errorMessage = error.response?.data?.error || error.message || t('operationError');
+      actions.showNotification(t('error'), errorMessage, 'error');
     }
   };
 
@@ -230,7 +230,7 @@ const PreviewSection = () => {
     return (
       <div className={styles.previewSection}>
         <div className={styles.header}>
-          <h3 className={styles.title}>翻译预览</h3>
+          <h3 className={styles.title}>{t('translationPreview')}</h3>
         </div>
         <div className={styles.content}>
           <div className={styles.placeholder}>
@@ -241,8 +241,8 @@ const PreviewSection = () => {
                 <path d="M16 13H8M16 17H8M10 9H8"/>
               </svg>
             </div>
-            <h4>选择材料查看翻译结果</h4>
-            <p>请从左侧列表中选择要查看的材料</p>
+            <h4>{t('selectMaterialToViewTranslation')}</h4>
+            <p>{t('selectMaterialFromList')}</p>
           </div>
         </div>
       </div>
@@ -252,34 +252,34 @@ const PreviewSection = () => {
   return (
     <div className={styles.previewSection}>
       <div className={styles.header}>
-        <h3 className={styles.title}>翻译预览</h3>
+        <h3 className={styles.title}>{t('translationPreview')}</h3>
         <div className={styles.actions}>
-          <button 
+          <button
             className={`${styles.actionBtn} ${styles.btnRefresh}`}
             onClick={handleRefresh}
             disabled={isRefreshing}
-            title="刷新翻译结果"
+            title={t('refreshTranslationResult')}
           >
-            <svg 
-              width="16" 
-              height="16" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
               strokeWidth="2"
               className={isRefreshing ? styles.rotating : ''}
             >
               <path d="M21.5 2v6h-6M2.5 22v-6h6M2 12c0-4.75 3.25-9 9.25-9C17.5 3 22 7.5 22 12M12 22c4.75 0 9.25-4.5 9.25-9.25"/>
             </svg>
-            刷新
+            {t('refresh')}
           </button>
-          {(currentMaterial.type === 'image' || currentMaterial.type === 'pdf') && 
+          {(currentMaterial.type === 'image' || currentMaterial.type === 'pdf') &&
            currentMaterial.selectedResult === 'latex' && null}
-          <button 
+          <button
             className={`${styles.actionBtn} ${currentMaterial.confirmed ? styles.btnUnconfirm : styles.btnConfirm}`}
             onClick={handleConfirm}
           >
-            {currentMaterial.confirmed ? '取消确认' : '确认'}
+            {currentMaterial.confirmed ? t('unconfirm') : t('confirm')}
           </button>
         </div>
       </div>
@@ -475,7 +475,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
     if (!material) return;
 
     try {
-      actions.showNotification('重新翻译', '正在重新翻译当前图片...', 'info');
+      actions.showNotification(t('retranslating'), t('retranslatingCurrentImage'), 'info');
 
       // 调用单个材料的重新翻译API
       const { materialAPI } = await import('../../services/api');
@@ -531,13 +531,13 @@ const ComparisonView = ({ material, onSelectResult }) => {
         // 然后设置为当前material，触发重新渲染
         actions.setCurrentMaterial(updatedMaterial);
 
-        actions.showNotification('重新翻译完成', '已清除编辑内容，从原始图片重新翻译', 'success');
+        actions.showNotification(t('retranslateComplete'), t('clearedEditContent'), 'success');
       } else {
-        throw new Error(response.error || '重新翻译失败');
+        throw new Error(response.error || t('retranslateFailed'));
       }
     } catch (error) {
       console.error('重新翻译失败:', error);
-      actions.showNotification('重试失败', error.message || '重新翻译时出现错误', 'error');
+      actions.showNotification(t('error'), error.message || t('operationError'), 'error');
     }
   }, [material, actions]);
 
@@ -604,7 +604,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
         // 然后重新设置当前材料，触发重新挂载
         actions.setCurrentMaterial(updatedMaterial);
 
-        actions.showNotification('旋转完成', response.message || '图片已旋转90度，请点击重新翻译按钮', 'success');
+        actions.showNotification(t('rotateComplete'), response.message || t('imageRotated90'), 'success');
       } else {
         throw new Error(response.error || '旋转失败');
       }
@@ -1041,9 +1041,9 @@ const ComparisonView = ({ material, onSelectResult }) => {
         <div className={styles.llmEditorSection}>
           <div className={styles.llmEditorHeader}>
             <div>
-              <h2 className={styles.llmEditorTitle}>自定义编辑</h2>
+              <h2 className={styles.llmEditorTitle}>{t('customEdit')}</h2>
               {llmLoading && <p className={styles.sectionDescription}>
-                <span style={{ color: '#007bff' }}>正在加载...</span>
+                <span style={{ color: '#007bff' }}>{t('loading')}</span>
               </p>}
               {/* PDF页面导航 */}
               {pdfPages.length > 0 && (
@@ -1117,9 +1117,9 @@ const ComparisonView = ({ material, onSelectResult }) => {
                   <button
                     className={styles.retranslateButton}
                     onClick={handleRetranslateCurrentImage}
-                    title="重新翻译当前图片"
+                    title={t('retranslateCurrentImage')}
                   >
-                    重新翻译
+                    {t('retranslate')}
                   </button>
                 )}
 
@@ -1233,7 +1233,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
                     </div>
                     <span className={styles.progressText}>{pdfSessionProgress ? pdfSessionProgress.progress : (llmLoading && material.processingProgress < 66 ? 66 : (material.processingProgress || 0))}%</span>
                   </div>
-                  <p className={styles.processingTip}>请稍候，翻译完成后会自动刷新显示</p>
+                  <p className={styles.processingTip}>{t('pleaseWait')}</p>
                 </div>
               </div>
             ) : !material.translationTextInfo ? (
@@ -1463,7 +1463,7 @@ const SinglePreview = ({ material }) => {
             className={styles.retryBtn}
             onClick={handleTranslate}
           >
-            重新翻译
+            {t('retranslate')}
           </button>
         </div>
       </div>
@@ -1517,7 +1517,7 @@ const SinglePreview = ({ material }) => {
               className={styles.pdfActionBtn}
               onClick={handleTranslate}
             >
-              重新翻译
+              {t('retranslate')}
             </button>
           </div>
         </div>

@@ -273,4 +273,6 @@ export const en = {
   imageRotated90: 'Image rotated 90 degrees, please click retranslate button',
   pleaseWait: 'Please wait, will refresh automatically when translation completes',
   webTranslationPreview: 'Web Translation Preview',
+  selectMaterialToViewTranslation: 'Select material to view translation',
+  selectMaterialFromList: 'Please select a material from the list to view',
 };
