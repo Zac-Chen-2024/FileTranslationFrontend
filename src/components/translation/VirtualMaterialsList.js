@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import { useApp } from '../../contexts/AppContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { materialAPI } from '../../services/api';
 import styles from './MaterialsList.module.css';
 
@@ -102,6 +103,7 @@ const VirtualMaterialItem = React.memo(({
 
 const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDropped }) => {
   const { state, actions } = useApp();
+  const { t } = useLanguage();
   const { materials, currentClient, currentMaterial } = state;
 
   const [scrollTop, setScrollTop] = useState(0);

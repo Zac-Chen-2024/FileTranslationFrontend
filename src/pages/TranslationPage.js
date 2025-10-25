@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { materialAPI, exportAPI } from '../services/api';
 import Header from '../components/common/Header';
 import AddMaterialModal from '../components/modals/AddMaterialModal';
@@ -13,6 +14,7 @@ const TranslationPage = () => {
   const navigate = useNavigate();
   const { clientId } = useParams();
   const { state, actions } = useApp();
+  const { t } = useLanguage();
   const { currentClient, materials, currentMaterial } = state;
   const [loading, setLoading] = useState(true);
   const [hasLoadedMaterials, setHasLoadedMaterials] = useState(false);
@@ -50,7 +52,7 @@ const TranslationPage = () => {
       const materialsData = await materialAPI.getMaterials(clientId);
       actions.setMaterials(materialsData.materials || []);
     } catch (error) {
-      actions.showNotification('加载失败', '无法加载材料列表', 'error');
+      actions.showNotification(t('loadFailed'), t('cannotLoadMaterialList'), 'error');
     } finally {
       setLoading(false);
     }
@@ -135,7 +137,7 @@ const TranslationPage = () => {
     const confirmedMaterials = clientMaterials.filter(m => m.confirmed);
     
     if (confirmedMaterials.length === 0) {
-      actions.showNotification('导出失败', '没有已确认的材料可以导出', 'error');
+      actions.showNotification(t('exportFailed'), t('noConfirmedMaterials'), 'error');
       return;
     }
     
@@ -150,25 +152,25 @@ const TranslationPage = () => {
     const confirmedMaterials = clientMaterials.filter(m => m.confirmed);
     
     try {
-      actions.showNotification('导出开始', '正在打包文件...', 'info');
-      
+      actions.showNotification(t('exportStart'), t('packingFiles'), 'info');
+
       // 生成文件名
-      const clientName = (currentClient?.name || '导出').replace(/[<>:"/\\|?*]/g, '_');
+      const clientName = (currentClient?.name || t('export')).replace(/[<>:"/\\|?*]/g, '_');
       const now = new Date();
-      const dateStr = now.getFullYear() + 
+      const dateStr = now.getFullYear() +
                       String(now.getMonth() + 1).padStart(2, '0') +
                       String(now.getDate()).padStart(2, '0') + '_' +
                       String(now.getHours()).padStart(2, '0') +
                       String(now.getMinutes()).padStart(2, '0');
-      
+
       // 调用导出API
       await exportAPI.exportClientMaterials(clientId, `${clientName}_${dateStr}.zip`);
-      
-      actions.showNotification('导出完成', `已导出 ${confirmedMaterials.length} 个文件`, 'success');
-      
+
+      actions.showNotification(t('exportComplete'), t('exportedFiles', { count: confirmedMaterials.length }), 'success');
+
     } catch (error) {
       console.error('导出失败:', error);
-      actions.showNotification('导出失败', error.message || '导出过程中出现错误', 'error');
+      actions.showNotification(t('exportFailed'), error.message || t('exportError'), 'error');
     }
   };
 
