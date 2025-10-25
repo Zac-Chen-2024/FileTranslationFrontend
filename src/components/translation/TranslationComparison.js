@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../contexts/AppContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { materialAPI } from '../../services/api';
 import styles from './TranslationComparison.module.css';
 
@@ -9,6 +10,7 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5010';
 const TranslationComparison = () => {
   const { state, actions } = useApp();
   const { currentMaterial } = state;
+  const { t } = useLanguage();
   const [isConfirming, setIsConfirming] = useState(false);
   const [selectedType, setSelectedType] = useState(null);
 
@@ -32,9 +34,10 @@ const TranslationComparison = () => {
       });
       
       setSelectedType(translationType);
-      actions.showNotification('选择成功', `已选择${translationType === 'latex' ? 'LaTeX' : 'API'}翻译结果`, 'success');
+      const resultText = translationType === 'latex' ? t('selectedLatexResult') : t('selectedApiResult');
+      actions.showNotification(t('selectionSuccess'), resultText, 'success');
     } catch (error) {
-      actions.showNotification('选择失败', error.message || '选择翻译结果失败', 'error');
+      actions.showNotification(t('selectionFailed'), error.message || t('selectResultFailed'), 'error');
     }
   };
 
@@ -75,12 +78,12 @@ const TranslationComparison = () => {
       // 更新本地状态
       actions.updateMaterial(currentMaterial.id, {
         confirmed: true,
-        status: '已确认'
+        status: t('confirmed')
       });
 
-      actions.showNotification('确认成功', `${currentMaterial.name} 翻译结果已确认`, 'success');
+      actions.showNotification(t('confirmationSuccess'), t('materialConfirmed', { name: currentMaterial.name }), 'success');
     } catch (error) {
-      actions.showNotification('确认失败', error.message || '确认翻译结果失败', 'error');
+      actions.showNotification(t('confirmationFailed'), error.message || t('confirmResultFailed'), 'error');
     } finally {
       setIsConfirming(false);
     }
@@ -88,18 +91,20 @@ const TranslationComparison = () => {
 
   const handleRetryTranslation = async (translationType) => {
     if (!currentMaterial) return;
-    
+
     try {
-      actions.showNotification('重试中', `正在重新${translationType === 'latex' ? 'LaTeX' : 'API'}翻译...`, 'info');
-      
+      const retryingMsg = translationType === 'latex' ? t('retryingLatex') : t('retryingApi');
+      actions.showNotification(t('retrying'), retryingMsg, 'info');
+
       // 这里可以调用重试API或重新触发翻译
       // 目前先显示提示
       setTimeout(() => {
-        actions.showNotification('重试完成', `${translationType === 'latex' ? 'LaTeX' : 'API'}翻译重试已提交`, 'success');
+        const completeMsg = translationType === 'latex' ? t('latexRetrySubmitted') : t('apiRetrySubmitted');
+        actions.showNotification(t('retryComplete'), completeMsg, 'success');
       }, 1000);
-      
+
     } catch (error) {
-      actions.showNotification('重试失败', error.message || '重试翻译失败', 'error');
+      actions.showNotification(t('retryFailed'), error.message || t('retryTranslationFailed'), 'error');
     }
   };
 
@@ -108,8 +113,8 @@ const TranslationComparison = () => {
       <div className={styles.container}>
         <div className={styles.emptyState}>
           <div className={styles.emptyIcon}>🔍</div>
-          <h3>选择材料查看翻译结果</h3>
-          <p>从左侧材料列表中选择一个材料来查看和对比翻译结果</p>
+          <h3>{t('selectMaterialToView')}</h3>
+          <p>{t('selectMaterialHint')}</p>
         </div>
       </div>
     );
@@ -124,7 +129,7 @@ const TranslationComparison = () => {
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h2 className={styles.title}>翻译结果对比</h2>
+        <h2 className={styles.title}>{t('translationComparison')}</h2>
         <div className={styles.materialInfo}>
           <span className={styles.materialName}>{currentMaterial.name}</span>
           <span className={`${styles.status} ${styles[currentMaterial.status?.replace(/\s+/g, '')]}`}>
@@ -139,17 +144,17 @@ const TranslationComparison = () => {
           <div className={styles.cardHeader}>
             <h3 className={styles.cardTitle}>
               <span className={styles.methodIcon}>📄</span>
-              LaTeX翻译
+              {t('latexTranslation')}
             </h3>
             <div className={styles.statusBadge}>
               {hasLatexResult && !latexFailed && (
-                <span className={`${styles.badge} ${styles.success}`}>✅ 成功</span>
+                <span className={`${styles.badge} ${styles.success}`}>✅ {t('success')}</span>
               )}
               {latexFailed && (
-                <span className={`${styles.badge} ${styles.error}`}>❌ 失败</span>
+                <span className={`${styles.badge} ${styles.error}`}>❌ {t('error')}</span>
               )}
               {!hasLatexResult && !latexFailed && (
-                <span className={`${styles.badge} ${styles.pending}`}>⏳ 处理中</span>
+                <span className={`${styles.badge} ${styles.pending}`}>⏳ {t('processing')}</span>
               )}
             </div>
           </div>
@@ -158,44 +163,44 @@ const TranslationComparison = () => {
             {hasLatexResult && !latexFailed ? (
               <div className={styles.previewArea}>
                 <div className={styles.previewPlaceholder}>
-                  <span>📋 LaTeX内容预览</span>
-                  <p>点击查看生成的LaTeX文档</p>
+                  <span>📋 {t('latexContent')}</span>
+                  <p>{t('clickToViewLatex')}</p>
                 </div>
-                <button 
+                <button
                   className={styles.previewBtn}
                   onClick={() => window.open(`${API_URL}/preview/latex/${currentMaterial.id}.pdf`, '_blank')}
                 >
-                  预览PDF
+                  {t('previewPDF')}
                 </button>
               </div>
             ) : latexFailed ? (
               <div className={styles.errorArea}>
                 <p className={styles.errorMessage}>
-                  {currentMaterial.latexTranslationError || 'LaTeX翻译失败'}
+                  {currentMaterial.latexTranslationError || t('latexTranslationFailed')}
                 </p>
-                <button 
+                <button
                   className={styles.retryBtn}
                   onClick={() => handleRetryTranslation('latex')}
                 >
-                  重试翻译
+                  {t('retryTranslation')}
                 </button>
               </div>
             ) : (
               <div className={styles.loadingArea}>
                 <div className={styles.spinner}></div>
-                <p>正在生成LaTeX翻译...</p>
+                <p>{t('generatingLatex')}</p>
               </div>
             )}
           </div>
 
           {hasLatexResult && !latexFailed && (
             <div className={styles.cardActions}>
-              <button 
+              <button
                 className={`${styles.selectBtn} ${selectedType === 'latex' ? styles.selected : ''}`}
                 onClick={() => handleSelectResult('latex')}
                 disabled={selectedType === 'latex'}
               >
-                {selectedType === 'latex' ? '已选择' : '选择此结果'}
+                {selectedType === 'latex' ? t('selected') : t('selectThisResult')}
               </button>
             </div>
           )}
@@ -206,17 +211,17 @@ const TranslationComparison = () => {
           <div className={styles.cardHeader}>
             <h3 className={styles.cardTitle}>
               <span className={styles.methodIcon}>🔤</span>
-              API翻译
+              {t('apiTranslation')}
             </h3>
             <div className={styles.statusBadge}>
               {hasApiResult && !apiFailed && (
-                <span className={`${styles.badge} ${styles.success}`}>✅ 成功</span>
+                <span className={`${styles.badge} ${styles.success}`}>✅ {t('success')}</span>
               )}
               {apiFailed && (
-                <span className={`${styles.badge} ${styles.error}`}>❌ 失败</span>
+                <span className={`${styles.badge} ${styles.error}`}>❌ {t('error')}</span>
               )}
               {!hasApiResult && !apiFailed && (
-                <span className={`${styles.badge} ${styles.pending}`}>⏳ 处理中</span>
+                <span className={`${styles.badge} ${styles.pending}`}>⏳ {t('processing')}</span>
               )}
             </div>
           </div>
@@ -225,9 +230,9 @@ const TranslationComparison = () => {
             {hasApiResult && !apiFailed ? (
               <div className={styles.previewArea}>
                 <div className={styles.imagePreview}>
-                  <img 
+                  <img
                     src={`/download/api/${currentMaterial.translatedImagePath}`}
-                    alt="API翻译结果"
+                    alt={t('apiTranslationResult')}
                     className={styles.translatedImage}
                     onError={(e) => {
                       e.target.style.display = 'none';
@@ -235,45 +240,45 @@ const TranslationComparison = () => {
                     }}
                   />
                   <div className={styles.previewPlaceholder} style={{display: 'none'}}>
-                    <span>🖼️ 翻译图片</span>
-                    <p>API翻译结果图片</p>
+                    <span>🖼️ {t('translationImage')}</span>
+                    <p>{t('apiTranslationResult')}</p>
                   </div>
                 </div>
-                <button 
+                <button
                   className={styles.previewBtn}
                   onClick={() => window.open(`/download/api/${currentMaterial.translatedImagePath}`, '_blank')}
                 >
-                  查看大图
+                  {t('viewLargeImage')}
                 </button>
               </div>
             ) : apiFailed ? (
               <div className={styles.errorArea}>
                 <p className={styles.errorMessage}>
-                  {currentMaterial.translationError || 'API翻译失败'}
+                  {currentMaterial.translationError || t('apiTranslationFailed')}
                 </p>
-                <button 
+                <button
                   className={styles.retryBtn}
                   onClick={() => handleRetryTranslation('api')}
                 >
-                  重试翻译
+                  {t('retryTranslation')}
                 </button>
               </div>
             ) : (
               <div className={styles.loadingArea}>
                 <div className={styles.spinner}></div>
-                <p>正在进行API翻译...</p>
+                <p>{t('performingApiTranslation')}</p>
               </div>
             )}
           </div>
 
           {hasApiResult && !apiFailed && (
             <div className={styles.cardActions}>
-              <button 
+              <button
                 className={`${styles.selectBtn} ${selectedType === 'api' ? styles.selected : ''}`}
                 onClick={() => handleSelectResult('api')}
                 disabled={selectedType === 'api'}
               >
-                {selectedType === 'api' ? '已选择' : '选择此结果'}
+                {selectedType === 'api' ? t('selected') : t('selectThisResult')}
               </button>
             </div>
           )}
@@ -284,19 +289,19 @@ const TranslationComparison = () => {
       {selectedType && (hasLatexResult || hasApiResult) && (
         <div className={styles.confirmationArea}>
           <div className={styles.selectedInfo}>
-            <span className={styles.selectedLabel}>当前选择:</span>
+            <span className={styles.selectedLabel}>{t('currentSelection')}:</span>
             <span className={styles.selectedMethod}>
-              {selectedType === 'latex' ? 'LaTeX翻译' : 'API翻译'}
+              {selectedType === 'latex' ? t('latexTranslation') : t('apiTranslation')}
             </span>
           </div>
-          
+
           <button
             className={`${styles.confirmBtn} ${currentMaterial.confirmed ? styles.confirmed : ''}`}
             onClick={handleConfirmResult}
             disabled={isConfirming || currentMaterial.confirmed}
           >
-            {isConfirming ? '确认中...' :
-             currentMaterial.confirmed ? '已确认' : '确认选择'}
+            {isConfirming ? t('confirming') :
+             currentMaterial.confirmed ? t('confirmed') : t('confirmSelection')}
           </button>
         </div>
       )}

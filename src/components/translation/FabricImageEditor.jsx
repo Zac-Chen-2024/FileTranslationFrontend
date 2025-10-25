@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
+import { useLanguage } from '../../contexts/LanguageContext';
 import AIAssistantModal from './AIAssistantModal';
 import GlobalAIModal from './GlobalAIModal';
 import './ImageEditor.css';
@@ -6,6 +7,7 @@ import './ImageEditor.css';
 /* global fabric */
 
 function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default', exposeHandlers = false }) {
+  const { t } = useLanguage();
   // 检查 Fabric.js 是否加载
   const [fabricLoaded, setFabricLoaded] = useState(false);
   const canvasRef = useRef(null);
@@ -2788,18 +2790,18 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
             onClick={handleUndo}
             disabled={!canUndo}
             className="undo-button"
-            title="撤销 (Ctrl+Z)"
+            title={t('undoShortcut')}
           >
-            ↶ 撤销
+            ↶ {t('undo')}
           </button>
 
           <button
             onClick={handleRedo}
             disabled={!canRedo}
             className="redo-button"
-            title="重做 (Ctrl+Y)"
+            title={t('redoShortcut')}
           >
-            ↷ 重做
+            ↷ {t('redo')}
           </button>
 
           <div className="toolbar-separator" style={{ borderLeft: '1px solid #ddd', height: '20px', margin: '0 10px' }} />
@@ -2807,18 +2809,18 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           <button
             onClick={toggleMaskEditMode}
             className={maskEditMode ? "process-button active" : "process-button"}
-            title={maskEditMode ? "退出遮罩编辑模式" : "进入遮罩编辑模式 - 隐藏文本框，编辑遮罩层"}
+            title={maskEditMode ? t('exitMaskEditMode') : t('enterMaskEditMode')}
           >
-            {maskEditMode ? '✓ 遮罩编辑模式' : '遮罩编辑模式'}
+            {maskEditMode ? `✓ ${t('maskEditMode')}` : t('maskEditMode')}
           </button>
 
           {maskEditMode && (
             <button
               onClick={createNewMask}
               className="process-button"
-              title="创建新的遮罩层"
+              title={t('addCustomMask')}
             >
-              ➕ 创建遮罩
+              ➕ {t('addCustomMask')}
             </button>
           )}
 
@@ -2827,13 +2829,13 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
             disabled={selectedObjects.length < 2}
             className="merge-button"
           >
-            合并选中区域 ({selectedObjects.filter(obj => obj && obj.type === 'textbox').length})
+            {t('mergeTextboxes')} ({selectedObjects.filter(obj => obj && obj.type === 'textbox').length})
           </button>
 
           {selectedObjects.length > 0 && (
             <div className="merged-controls">
               <label>
-                字体：
+                {t('fontFamily')}：
                 <select
                   value={selectedFont}
                   onChange={(e) => {
@@ -2841,16 +2843,16 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
                     updateSelectedStyle('fontFamily', e.target.value);
                   }}
                 >
-                  <option value="Arial">Arial</option>
-                  <option value="SimSun">宋体</option>
-                  <option value="SimHei">黑体</option>
-                  <option value="Microsoft YaHei">微软雅黑</option>
-                  <option value="KaiTi">楷体</option>
+                  <option value="Arial">{t('fontArial')}</option>
+                  <option value="SimSun">{t('fontSimSun')}</option>
+                  <option value="SimHei">{t('fontSimHei')}</option>
+                  <option value="Microsoft YaHei">{t('fontMicrosoftYaHei')}</option>
+                  <option value="KaiTi">{t('fontKaiTi')}</option>
                 </select>
               </label>
 
               <label>
-                颜色：
+                {t('textColor')}：
                 <input
                   type="color"
                   value={selectedColor}
@@ -2862,7 +2864,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
               </label>
 
               <label>
-                对齐：
+                {t('textAlign')}：
                 <select
                   value={textAlign}
                   onChange={(e) => {
@@ -2870,14 +2872,14 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
                     updateSelectedStyle('textAlign', e.target.value);
                   }}
                 >
-                  <option value="left">左对齐</option>
-                  <option value="center">居中</option>
-                  <option value="right">右对齐</option>
+                  <option value="left">{t('alignLeft')}</option>
+                  <option value="center">{t('alignCenter')}</option>
+                  <option value="right">{t('alignRight')}</option>
                 </select>
               </label>
 
               <label>
-                字号：
+                {t('fontSize')}：
                 <input
                   type="number"
                   value={fontSize}
@@ -2900,7 +2902,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
                     updateSelectedStyle('fontSize', size);
                   }}
                   style={{ width: '60px' }}
-                  title="字号（可选中部分文字单独设置）"
+                  title={t('fontSizeTooltip')}
                 />
               </label>
 
@@ -2927,7 +2929,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
                     updateSelectedStyle('fontWeight', newBold ? 'bold' : 'normal');
                   }
                 }}
-                title="加粗（可选中部分文字）"
+                title={t('boldTooltip')}
                 style={{
                   fontWeight: 'bold',
                   fontSize: '16px',
@@ -2965,7 +2967,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
                     updateSelectedStyle('fontStyle', newItalic ? 'italic' : 'normal');
                   }
                 }}
-                title="斜体（可选中部分文字）"
+                title={t('italicTooltip')}
                 style={{
                   fontStyle: 'italic',
                   fontSize: '16px',
