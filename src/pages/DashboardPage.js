@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { clientAPI } from '../services/api';
 import Header from '../components/common/Header';
 import AddClientModal from '../components/modals/AddClientModal';
@@ -11,6 +12,7 @@ import styles from './DashboardPage.module.css';
 const DashboardPage = () => {
   const navigate = useNavigate();
   const { state, actions } = useApp();
+  const { t } = useLanguage();
   const { user, clients } = state;
   const [loading, setLoading] = useState(true);
   const [editingClient, setEditingClient] = useState(null);
@@ -43,7 +45,7 @@ const DashboardPage = () => {
       const clientsData = await clientAPI.getClients();
       actions.setClients(clientsData.clients || []);
     } catch (error) {
-      actions.showNotification('加载失败', '无法加载客户列表', 'error');
+      actions.showNotification(t('loadFailed'), t('cannotLoadClients'), 'error');
     } finally {
       setLoading(false);
     }
@@ -60,15 +62,15 @@ const DashboardPage = () => {
 
   const handleDeleteClient = (client, e) => {
     e.stopPropagation(); // 防止触发点击客户卡片
-    
+
     setConfirmDialog({
       show: true,
       type: 'delete',
       client,
-      title: '删除客户',
-      message: `确定要删除客户 "${client.name}" 吗？这将同时删除该客户的所有材料。`,
-      confirmText: '删除',
-      cancelText: '取消'
+      title: t('deleteClientTitle'),
+      message: t('deleteClientMessage', { name: client.name }),
+      confirmText: t('deleteClient'),
+      cancelText: t('cancel')
     });
     setOpenMenuId(null);
   };
@@ -88,10 +90,10 @@ const DashboardPage = () => {
       show: true,
       type: 'archive',
       client,
-      title: '归档客户',
-      message: `确定要归档客户 "${client.name}" 吗？归档的客户材料可在右上角归档材料中找到。`,
-      confirmText: '归档',
-      cancelText: '取消'
+      title: t('archiveClientTitle'),
+      message: t('archiveClientMessage', { name: client.name }),
+      confirmText: t('archiveClientAction'),
+      cancelText: t('cancel')
     });
     setOpenMenuId(null);
   };
@@ -105,19 +107,19 @@ const DashboardPage = () => {
   // 处理确认对话框
   const handleConfirm = async () => {
     const { type, client } = confirmDialog;
-    
+
     try {
       if (type === 'archive') {
-        await clientAPI.archiveClient(client.cid, '用户手动归档');
-        actions.showNotification('归档成功', `客户 ${client.name} 已归档`, 'success');
+        await clientAPI.archiveClient(client.cid, t('manualArchive'));
+        actions.showNotification(t('archiveSuccess'), t('clientArchived', { name: client.name }), 'success');
       } else if (type === 'delete') {
         await clientAPI.deleteClient(client.cid);
-        actions.showNotification('删除成功', `客户 ${client.name} 已删除`, 'success');
+        actions.showNotification(t('deleteSuccess'), t('clientDeleted', { name: client.name }), 'success');
       }
-      
+
       loadClients();
     } catch (error) {
-      const actionName = type === 'archive' ? '归档' : '删除';
+      const actionName = type === 'archive' ? t('archiveClientAction') : t('deleteClient');
       actions.showNotification(`${actionName}失败`, error.message || `${actionName}客户时出现错误`, 'error');
     }
     
@@ -151,25 +153,25 @@ const DashboardPage = () => {
       <div className={styles.content}>
         <div className={styles.clientsSection}>
           <div className={styles.sectionHeader}>
-            <h2 className={styles.sectionTitle}>客户列表</h2>
-            <button 
+            <h2 className={styles.sectionTitle}>{t('clientList')}</h2>
+            <button
               className={styles.addClientBtn}
               onClick={handleAddClient}
             >
-              添加客户
+              {t('addClient')}
             </button>
           </div>
 
           {clients.length === 0 ? (
             <div className={styles.emptyState}>
               <div className={styles.emptyIcon}>👥</div>
-              <h3 className={styles.emptyTitle}>暂无客户</h3>
-              <p className={styles.emptyDescription}>开始添加您的第一个客户</p>
-              <button 
+              <h3 className={styles.emptyTitle}>{t('noClientsYet')}</h3>
+              <p className={styles.emptyDescription}>{t('addFirstClient')}</p>
+              <button
                 className={styles.addClientBtn}
                 onClick={handleAddClient}
               >
-                添加客户
+                {t('addClient')}
               </button>
             </div>
           ) : (
@@ -201,19 +203,19 @@ const DashboardPage = () => {
                           className={styles.menuItem}
                           onClick={(e) => handleEditClient(client, e)}
                         >
-                          编辑客户
+                          {t('editClient')}
                         </button>
                         <button
                           className={`${styles.menuItem} ${styles.archiveItem}`}
                           onClick={(e) => handleArchiveClient(client, e)}
                         >
-                          归档客户
+                          {t('archiveClientAction')}
                         </button>
                         <button
                           className={`${styles.menuItem} ${styles.deleteItem}`}
                           onClick={(e) => handleDeleteClient(client, e)}
                         >
-                          删除客户
+                          {t('deleteClient')}
                         </button>
                       </div>
                     )}

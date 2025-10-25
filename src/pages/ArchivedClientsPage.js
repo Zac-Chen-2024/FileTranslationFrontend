@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { clientAPI } from '../services/api';
 import Header from '../components/common/Header';
 import ConfirmDialog from '../components/common/ConfirmDialog';
@@ -12,6 +13,7 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5010';
 const ArchivedClientsPage = () => {
   const navigate = useNavigate();
   const { state, actions } = useApp();
+  const { t } = useLanguage();
   const { user } = state;
   const [loading, setLoading] = useState(true);
   const [archivedClients, setArchivedClients] = useState([]);
@@ -51,7 +53,7 @@ const ArchivedClientsPage = () => {
       const archived = (clientsData.clients || []).filter(client => client.isArchived);
       setArchivedClients(archived);
     } catch (error) {
-      actions.showNotification('加载失败', '无法加载归档客户列表', 'error');
+      actions.showNotification(t('loadFailed'), t('cannotLoadArchivedClients'), 'error');
     } finally {
       setLoading(false);
     }
@@ -68,10 +70,10 @@ const ArchivedClientsPage = () => {
       show: true,
       type: 'unarchive',
       client,
-      title: '取消归档',
-      message: `确定要将客户 "${client.name}" 从归档中恢复吗？`,
-      confirmText: '恢复',
-      cancelText: '取消'
+      title: t('unarchiveClientTitle'),
+      message: t('unarchiveClientMessage', { name: client.name }),
+      confirmText: t('restore'),
+      cancelText: t('cancel')
     });
     setOpenMenuId(null);
   };
@@ -82,10 +84,10 @@ const ArchivedClientsPage = () => {
       show: true,
       type: 'delete',
       client,
-      title: '删除客户',
-      message: `确定要永久删除客户 "${client.name}" 吗？这将同时删除该客户的所有材料，且无法恢复。`,
-      confirmText: '删除',
-      cancelText: '取消'
+      title: t('deleteClientTitle'),
+      message: t('permanentDeleteMessage', { name: client.name }),
+      confirmText: t('deleteClient'),
+      cancelText: t('cancel')
     });
     setOpenMenuId(null);
   };
@@ -99,22 +101,22 @@ const ArchivedClientsPage = () => {
   // 处理确认对话框
   const handleConfirm = async () => {
     const { type, client } = confirmDialog;
-    
+
     try {
       if (type === 'unarchive') {
         await clientAPI.unarchiveClient(client.cid);
-        actions.showNotification('恢复成功', `客户 ${client.name} 已从归档中恢复`, 'success');
+        actions.showNotification(t('restoreSuccess'), t('clientRestored', { name: client.name }), 'success');
       } else if (type === 'delete') {
         await clientAPI.deleteClient(client.cid);
-        actions.showNotification('删除成功', `客户 ${client.name} 已永久删除`, 'success');
+        actions.showNotification(t('deleteSuccess'), t('clientDeleted', { name: client.name }), 'success');
       }
-      
+
       loadArchivedClients();
     } catch (error) {
-      const actionName = type === 'unarchive' ? '恢复' : '删除';
-      actions.showNotification(`${actionName}失败`, error.message || `${actionName}客户时出现错误`, 'error');
+      const actionName = type === 'unarchive' ? t('restore') : t('deleteClient');
+      actions.showNotification(`${actionName}${t('error')}`, error.message, 'error');
     }
-    
+
     setConfirmDialog({ show: false, type: '', client: null });
   };
 
@@ -122,7 +124,7 @@ const ArchivedClientsPage = () => {
     return (
       <div className={styles.loadingContainer}>
         <div className="loading-spinner"></div>
-        <p>加载中...</p>
+        <p>{t('loading')}</p>
       </div>
     );
   }
@@ -134,25 +136,25 @@ const ArchivedClientsPage = () => {
       <div className={styles.content}>
         <div className={styles.clientsSection}>
           <div className={styles.sectionHeader}>
-            <h2 className={styles.sectionTitle}>归档客户</h2>
-            <button 
+            <h2 className={styles.sectionTitle}>{t('archivedClients')}</h2>
+            <button
               className={styles.addClientBtn}
               onClick={() => navigate('/dashboard')}
             >
-              返回客户列表
+              {t('back')}
             </button>
           </div>
 
           {archivedClients.length === 0 ? (
             <div className={styles.emptyState}>
               <div className={styles.emptyIcon}>📁</div>
-              <h3 className={styles.emptyTitle}>暂无归档客户</h3>
-              <p className={styles.emptyDescription}>归档的客户将会显示在这里</p>
-              <button 
+              <h3 className={styles.emptyTitle}>{t('noArchivedClients')}</h3>
+              <p className={styles.emptyDescription}>{t('selectMaterialHint')}</p>
+              <button
                 className={styles.addClientBtn}
                 onClick={() => navigate('/dashboard')}
               >
-                返回客户列表
+                {t('back')}
               </button>
             </div>
           ) : (
@@ -189,13 +191,13 @@ const ArchivedClientsPage = () => {
                           className={styles.menuItem}
                           onClick={(e) => handleUnarchiveClient(client, e)}
                         >
-                          恢复客户
+                          {t('restoreClient')}
                         </button>
                         <button
                           className={`${styles.menuItem} ${styles.deleteItem}`}
                           onClick={(e) => handleDeleteClient(client, e)}
                         >
-                          永久删除
+                          {t('deleteClient')}
                         </button>
                       </div>
                     )}
