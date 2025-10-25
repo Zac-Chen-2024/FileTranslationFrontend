@@ -246,4 +246,5 @@ export const en = {
   addTranslationMaterials: 'Add translation materials for {name}',
   materialListFor: 'Material list for {name}',
   hint: 'Hint',
+  noMaterials: 'No materials',
 };

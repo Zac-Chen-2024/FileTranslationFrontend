@@ -10,29 +10,30 @@ const ITEM_GAP = 10; // 项目之间的间距
 const BUFFER_SIZE = 5; // 缓冲区大小，提前渲染的项目数
 const SCROLL_DEBOUNCE = 10; // 滚动防抖延迟
 
-// 获取类型标签的辅助函数
-const getTypeLabel = (type, isPdfSession = false) => {
+// 获取类型标签的辅助函数（现在接受t函数作为参数）
+const getTypeLabel = (type, isPdfSession = false, t) => {
   if (isPdfSession) {
-    return 'PDF文档';
+    return t('pdfDocument');
   }
   const typeLabels = {
-    pdf: 'PDF文档',
-    image: '图片',
-    webpage: '网页',
-    document: '文档'
+    pdf: t('pdfDocument'),
+    image: t('image'),
+    webpage: t('webpage'),
+    document: t('document')
   };
   return typeLabels[type] || type;
 };
 
 // 单个材料项组件
-const VirtualMaterialItem = React.memo(({ 
-  material, 
+const VirtualMaterialItem = React.memo(({
+  material,
   isActive,
   isSelected,
-  onSelect, 
+  onSelect,
   onDelete,
   onCheckboxChange,
-  style 
+  style,
+  t
 }) => {
   const handleClick = useCallback(() => {
     onSelect(material);
@@ -75,14 +76,14 @@ const VirtualMaterialItem = React.memo(({
           </div>
         </div>
         <div className={styles.materialMeta}>
-          <span className={styles.materialType}>{getTypeLabel(material.type, material.isPdfSession)}</span>
+          <span className={styles.materialType}>{getTypeLabel(material.type, material.isPdfSession, t)}</span>
           <span className={styles.materialStatus}>{material.status}</span>
         </div>
       </div>
       <button
         className={styles.deleteMaterialBtn}
         onClick={handleDelete}
-        title="删除材料"
+        title={t('deleteMaterial')}
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -258,15 +259,15 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
 
   const handleDeleteMaterial = useCallback(async (material, e) => {
     const deleteMessage = material.isPdfSession
-      ? `确定要删除PDF "${material.name}" 的所有 ${material.pdfTotalPages} 页吗？`
-      : `确定要删除材料 "${material.name}" 吗？`;
+      ? t('confirmDeletePdf', { name: material.name, pages: material.pdfTotalPages })
+      : t('confirmDeleteMaterial', { name: material.name });
 
     actions.openConfirmDialog({
-      title: '删除材料',
+      title: t('deleteMaterial'),
       message: deleteMessage,
       type: 'danger',
-      confirmText: '删除',
-      cancelText: '取消',
+      confirmText: t('delete'),
+      cancelText: t('cancel'),
       onConfirm: async () => {
         try {
           if (material.isPdfSession) {
@@ -274,7 +275,7 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
             const deletePromises = material.pages.map(page => materialAPI.deleteMaterial(page.id));
             await Promise.all(deletePromises);
 
-            actions.showNotification('删除成功', `PDF ${material.name} 的所有页面已删除`, 'success');
+            actions.showNotification(t('deleteSuccess'), t('pdfPagesDeleted', { name: material.name }), 'success');
 
             // 从本地状态中移除所有页面
             const pageIds = material.pages.map(p => p.id);
@@ -288,7 +289,7 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
           } else {
             // 删除单个材料
             await materialAPI.deleteMaterial(material.id);
-            actions.showNotification('删除成功', `材料 ${material.name} 已删除`, 'success');
+            actions.showNotification(t('deleteSuccess'), t('materialDeleted', { name: material.name }), 'success');
 
             // 从本地状态中移除材料
             const updatedMaterials = materials.filter(m => m.id !== material.id);
@@ -300,11 +301,11 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
             }
           }
         } catch (error) {
-          actions.showNotification('删除失败', error.message || '删除材料时出现错误', 'error');
+          actions.showNotification(t('deleteFailed'), error.message || t('deleteError'), 'error');
         }
       }
     });
-  }, [actions, materials, currentMaterial]);
+  }, [actions, materials, currentMaterial, t]);
 
   // 处理复选框变化
   const handleCheckboxChange = useCallback((e, materialId) => {
@@ -343,41 +344,41 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
     const confirmableMaterials = materialsToConfirm;
 
     if (confirmableMaterials.length === 0) {
-      actions.showNotification('提示', '没有可确认的材料', 'warning');
+      actions.showNotification(t('hint'), t('noConfirmableMaterials'), 'warning');
       return;
     }
 
     actions.openConfirmDialog({
-      title: '批量确认',
-      message: `确定要确认 ${confirmableMaterials.length} 个材料吗？`,
+      title: t('batchConfirm'),
+      message: t('confirmMultipleMaterials', { count: confirmableMaterials.length }),
       type: 'primary',
-      confirmText: '确认',
-      cancelText: '取消',
+      confirmText: t('confirm'),
+      cancelText: t('cancel'),
       onConfirm: async () => {
         try {
           // 批量确认API调用
-          const promises = confirmableMaterials.map(material => 
+          const promises = confirmableMaterials.map(material =>
             materialAPI.confirmMaterial(material.id)
           );
-          
+
           await Promise.all(promises);
-          
+
           // 更新本地状态
           confirmableMaterials.forEach(material => {
-            actions.updateMaterial(material.id, { 
+            actions.updateMaterial(material.id, {
               confirmed: true,
-              status: '已确认'
+              status: t('confirmed')
             });
           });
-          
-          actions.showNotification('批量确认成功', `已确认 ${confirmableMaterials.length} 个材料`, 'success');
+
+          actions.showNotification(t('batchConfirmSuccess'), t('confirmedMultipleMaterials', { count: confirmableMaterials.length }), 'success');
           setSelectedMaterials(new Set());
         } catch (error) {
-          actions.showNotification('批量确认失败', error.message || '操作过程中出现错误', 'error');
+          actions.showNotification(t('batchConfirmFailed'), error.message || t('operationError'), 'error');
         }
       }
     });
-  }, [selectedMaterials, clientMaterials, actions]);
+  }, [selectedMaterials, clientMaterials, actions, t]);
 
   // 拖拽事件处理
   const handleDragEnter = useCallback((e) => {
@@ -419,7 +420,7 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
   const handleBatchDelete = useCallback(async () => {
     const selectedList = Array.from(selectedMaterials);
     if (selectedList.length === 0) {
-      actions.showNotification('提示', '请选择要删除的材料', 'warning');
+      actions.showNotification(t('hint'), t('pleaseSelectMaterials'), 'warning');
       return;
     }
 
@@ -437,11 +438,11 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
     });
 
     actions.openConfirmDialog({
-      title: '批量删除',
-      message: `确定要删除 ${selectedList.length} 个项目吗？此操作不可恢复。`,
+      title: t('batchDelete'),
+      message: t('confirmDeleteMultiple', { count: selectedList.length }),
       type: 'danger',
-      confirmText: '删除',
-      cancelText: '取消',
+      confirmText: t('delete'),
+      cancelText: t('cancel'),
       onConfirm: async () => {
         try {
           // 批量删除API调用
@@ -460,14 +461,14 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
             actions.setCurrentMaterial(null);
           }
 
-          actions.showNotification('批量删除成功', `已删除 ${selectedList.length} 个项目`, 'success');
+          actions.showNotification(t('batchDeleteSuccess'), t('deletedMultipleItems', { count: selectedList.length }), 'success');
           setSelectedMaterials(new Set());
         } catch (error) {
-          actions.showNotification('批量删除失败', error.message || '操作过程中出现错误', 'error');
+          actions.showNotification(t('batchDeleteFailed'), error.message || t('operationError'), 'error');
         }
       }
     });
-  }, [selectedMaterials, materials, currentMaterial, actions, clientMaterials]);
+  }, [selectedMaterials, materials, currentMaterial, actions, clientMaterials, t]);
 
   if (clientMaterials.length === 0) {
     return (
@@ -479,21 +480,21 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
         onDrop={handleDrop}
       >
         <div className={styles.header}>
-          <h3 className={styles.title}>{clientName}的材料列表</h3>
+          <h3 className={styles.title}>{t('materialListFor', { name: clientName })}</h3>
           <div className={styles.actions}>
             <button
               className={`${styles.actionBtn} ${styles.btnAdd}`}
               onClick={onAddMaterial}
             >
-              添加
+              {t('add')}
             </button>
             <button
               className={`${styles.actionBtn} ${styles.btnExport}`}
               onClick={onExport}
               disabled={true}
-              title="没有材料可导出"
+              title={t('noMaterialsToExport')}
             >
-              导出
+              {t('export')}
             </button>
           </div>
         </div>
@@ -506,9 +507,9 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
               <line x1="9" y1="15" x2="15" y2="15" />
             </svg>
           </div>
-          <h4 className={styles.emptyTitle}>暂无材料</h4>
+          <h4 className={styles.emptyTitle}>{t('noMaterials')}</h4>
           <p className={styles.emptyDescription}>
-            为 {currentClient?.name} 添加翻译材料
+            {t('addTranslationMaterials', { name: currentClient?.name })}
           </p>
         </div>
 
@@ -538,23 +539,23 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
       onDrop={handleDrop}
     >
       <div className={styles.header}>
-        <h3 className={styles.title}>{clientName}的材料列表</h3>
+        <h3 className={styles.title}>{t('materialListFor', { name: clientName })}</h3>
         <div className={styles.actions}>
           <button
             className={`${styles.actionBtn} ${styles.btnAdd}`}
             onClick={onAddMaterial}
           >
-            添加
+            {t('add')}
           </button>
           <button
             className={`${styles.actionBtn} ${styles.btnExport}`}
             onClick={onExport}
           >
-            导出
+            {t('export')}
           </button>
         </div>
       </div>
-      
+
       {/* 批量操作栏 - 常驻 */}
       <div className={styles.batchActionsBar}>
         <div className={styles.batchActionsLeft}>
@@ -570,7 +571,7 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
                 }
               }}
             />
-            <span>全选{selectedMaterials.size > 0 && `(${selectedMaterials.size})`}</span>
+            <span>{t('selectAll')}{selectedMaterials.size > 0 && `(${selectedMaterials.size})`}</span>
           </label>
         </div>
         <div className={styles.batchActionsRight}>
@@ -579,14 +580,14 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
             onClick={handleBatchConfirm}
             disabled={selectedMaterials.size === 0}
           >
-            确认
+            {t('confirm')}
           </button>
           <button
             className={`${styles.batchActionBtn} ${styles.batchDeleteBtn}`}
             onClick={handleBatchDelete}
             disabled={selectedMaterials.size === 0}
           >
-            删除
+            {t('delete')}
           </button>
         </div>
       </div>
@@ -620,6 +621,7 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
                 onSelect={handleMaterialSelect}
                 onDelete={handleDeleteMaterial}
                 onCheckboxChange={handleCheckboxChange}
+                t={t}
                 style={{
                   position: 'absolute',
                   top: index * itemWithGapHeight,

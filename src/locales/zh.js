@@ -246,4 +246,5 @@ export const zh = {
   addTranslationMaterials: '为 {name} 添加翻译材料',
   materialListFor: '{name}的材料列表',
   hint: '提示',
+  noMaterials: '暂无材料',
 };
