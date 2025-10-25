@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppProvider } from './contexts/AppContext';
 import { NotificationProvider } from './contexts/NotificationContext';
+import { LanguageProvider } from './contexts/LanguageContext';
 import { VERSION, BUILD_TIME, BUILD_NUMBER } from './version';
 
 // 页面组件
@@ -41,10 +42,11 @@ function VersionLogger() {
 
 function App() {
   return (
-    <AppProvider>
-      <NotificationProvider>
-        <Router basename="/FileTranslationFrontend">
-          <VersionLogger />
+    <LanguageProvider>
+      <AppProvider>
+        <NotificationProvider>
+          <Router basename="/FileTranslationFrontend">
+            <VersionLogger />
         <div className="App">
           <Routes>
             {/* 公开路由 */}
@@ -99,9 +101,10 @@ function App() {
           <GlobalUploadProgress />
           <GlobalConfirmDialog />
         </div>
-      </Router>
-      </NotificationProvider>
-    </AppProvider>
+        </Router>
+        </NotificationProvider>
+      </AppProvider>
+    </LanguageProvider>
   );
 }
 

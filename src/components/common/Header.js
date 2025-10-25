@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../../contexts/AppContext';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { authAPI } from '../../services/api';
+import LanguageSelector from './LanguageSelector';
 import styles from './Header.module.css';
 
 const Header = () => {
@@ -10,6 +12,7 @@ const Header = () => {
   const location = useLocation();
   const { state, actions } = useApp();
   const { user } = state;
+  const { t } = useLanguage();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
@@ -91,18 +94,21 @@ const Header = () => {
               <circle cx="18" cy="19" r="2"/>
             </svg>
           </div>
-          <h1 className={styles.siteName}>智能文书翻译平台</h1>
+          <h1 className={styles.siteName}>{t('siteTitle')}</h1>
         </div>
       </div>
 
       <div className={styles.userArea}>
         {user && (
           <div className={styles.toolButtons}>
+            {/* 语言选择器 */}
+            <LanguageSelector />
+
             {/* 主题切换按钮 */}
-            <button 
+            <button
               className={styles.toolButton}
               onClick={handleThemeToggle}
-              title={theme === 'light' ? '切换到夜间模式' : '切换到日间模式'}
+              title={theme === 'light' ? t('switchToDarkMode') : t('switchToLightMode')}
             >
               {theme === 'light' ? (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -118,10 +124,10 @@ const Header = () => {
             
             {/* 通知按钮 */}
             <div className={styles.notificationContainer}>
-              <button 
+              <button
                 className={styles.toolButton}
                 onClick={handleNotificationClick}
-                title="通知"
+                title={t('notifications')}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
@@ -135,12 +141,12 @@ const Header = () => {
               {showNotificationDropdown && (
                 <div className={styles.notificationDropdown}>
                   <div className={styles.notificationHeader}>
-                    <h3>通知</h3>
-                    <span className={styles.notificationCount}>{notifications.length}条</span>
+                    <h3>{t('notifications')}</h3>
+                    <span className={styles.notificationCount}>{t('notificationCount', { count: notifications.length })}</span>
                   </div>
                   <div className={styles.notificationList}>
                     {notifications.length === 0 ? (
-                      <div className={styles.noNotifications}>暂无通知</div>
+                      <div className={styles.noNotifications}>{t('noNotifications')}</div>
                     ) : (
                       <>
                         {/* 未读通知 */}
@@ -210,7 +216,7 @@ const Header = () => {
                   {unreadCount > 0 && (
                     <div className={styles.notificationFooter}>
                       <button className={styles.clearAllButton} onClick={handleMarkAllAsRead}>
-                        全部已读
+                        {t('markAllRead')}
                       </button>
                     </div>
                   )}
@@ -235,41 +241,41 @@ const Header = () => {
 
             {showUserDropdown && (
               <div className={styles.dropdown}>
-                <button 
+                <button
                   className={styles.dropdownItem}
                   onClick={handleUserProfile}
                 >
-                  个人设置
+                  {t('userSettings')}
                 </button>
-                <button 
+                <button
                   className={styles.dropdownItem}
                   onClick={handleArchivedClients}
                 >
-                  归档材料
+                  {t('archivedMaterials')}
                 </button>
                 <div className={styles.dropdownDivider}></div>
-                <button 
+                <button
                   className={`${styles.dropdownItem} ${styles.logoutItem}`}
                   onClick={handleLogout}
                 >
-                  退出登录
+                  {t('logout')}
                 </button>
               </div>
             )}
           </div>
         ) : (
           <div className={styles.authButtons}>
-            <button 
+            <button
               className={styles.authBtn}
               onClick={() => navigate('/signin')}
             >
-              登录
+              {t('signIn')}
             </button>
-            <button 
+            <button
               className={`${styles.authBtn} ${styles.primaryBtn}`}
               onClick={() => navigate('/signup')}
             >
-              注册
+              {t('signUp')}
             </button>
           </div>
         )}

@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useApp } from '../../contexts/AppContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { materialAPI } from '../../services/api';
 import LaTeXEditModal from '../modals/LaTeXEditModal';
 import LaTeXEditModalV2 from '../modals/LaTeXEditModalV2';
@@ -13,6 +14,7 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5010';
 const PreviewSection = () => {
   const { state, actions } = useApp();
   const { currentMaterial } = state;
+  const { t } = useLanguage();
   const [showLatexEditor, setShowLatexEditor] = useState(false);
   const [showLatexEditorV2, setShowLatexEditorV2] = useState(false);
   const [forceRefresh, setForceRefresh] = useState(0);
@@ -316,6 +318,7 @@ const PreviewSection = () => {
 
 const ComparisonView = ({ material, onSelectResult }) => {
   const { state, actions } = useApp();
+  const { t } = useLanguage();
   const isLatexSelected = material.selectedResult === 'latex';
   const isApiSelected = material.selectedResult === 'api';
 
@@ -1054,18 +1057,18 @@ const ComparisonView = ({ material, onSelectResult }) => {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M15 18l-6-6 6-6"/>
                     </svg>
-                    上一页
+                    {t('previousPage')}
                   </button>
                   <span className={styles.pdfPageInfo}>
-                    第 {currentPageIndex + 1} / {pdfPages.length} 页
+                    {t('currentPage', { current: currentPageIndex + 1, total: pdfPages.length })}
                   </span>
                   <button
                     className={styles.pdfNavBtn}
                     onClick={() => handlePageChange(currentPageIndex + 1)}
                     disabled={currentPageIndex === pdfPages.length - 1}
-                    title="下一页"
+                    title={t('nextPage')}
                   >
-                    下一页
+                    {t('nextPage')}
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M9 18l6-6-6-6"/>
                     </svg>
@@ -1075,11 +1078,11 @@ const ComparisonView = ({ material, onSelectResult }) => {
                     className={styles.pdfPageSelect}
                     value={currentPageIndex}
                     onChange={(e) => handlePageChange(parseInt(e.target.value))}
-                    title="选择页面"
+                    title={t('selectPage')}
                   >
                     {pdfPages.map((_, index) => (
                       <option key={index} value={index}>
-                        第 {index + 1} 页
+                        {t('pageSelector', { page: index + 1 })}
                       </option>
                     ))}
                   </select>
@@ -1093,9 +1096,9 @@ const ComparisonView = ({ material, onSelectResult }) => {
                 <button
                   className={styles.rotateButton}
                   onClick={handleRotateImage}
-                  title="旋转图片90度"
+                  title={t('rotate')}
                 >
-                  旋转
+                  {t('rotate')}
                 </button>
 
                 {/* 开始翻译按钮 - 只在status='已上传'时显示 */}
@@ -1103,9 +1106,9 @@ const ComparisonView = ({ material, onSelectResult }) => {
                   <button
                     className={styles.startTranslationBtn}
                     onClick={handleStartTranslation}
-                    title="开始翻译并优化"
+                    title={t('startTranslation')}
                   >
-                    开始翻译{pdfPages.length > 0 ? `（${pdfPages.length}页）` : ''}
+                    {t('startTranslation')}{pdfPages.length > 0 ? `（${pdfPages.length}页）` : ''}
                   </button>
                 )}
 
@@ -1354,6 +1357,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
 
 const SinglePreview = ({ material }) => {
   const { actions } = useApp();
+  const { t } = useLanguage();
   const [error, setError] = useState(null);
 
   // 判断是否正在翻译
@@ -1533,9 +1537,9 @@ const SinglePreview = ({ material }) => {
               <path d="M12 6v6l4 2"/>
             </svg>
           </div>
-          <h4>等待翻译</h4>
+          <h4>{t('waitingForTranslation')}</h4>
           <p className={styles.urlInfo}>{material.url}</p>
-          <p className={styles.waitingText}>网页材料已添加，即将自动开始翻译...</p>
+          <p className={styles.waitingText}>{t('waitingForTranslation')}...</p>
         </div>
       </div>
     );
