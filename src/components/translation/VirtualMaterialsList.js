@@ -627,11 +627,18 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
               right: 0
             }}
           >
-            {visibleItems.map((material, index) => (
+            {visibleItems.map((material, index) => {
+              // 判断是否为当前激活的材料
+              // 对于PDF会话，需要检查currentMaterial是否是该会话的某一页
+              const isActive = material.isPdfSession
+                ? currentMaterial?.pdfSessionId === material.id
+                : currentMaterial?.id === material.id;
+
+              return (
               <VirtualMaterialItem
                 key={material.id}
                 material={material}
-                isActive={currentMaterial?.id === material.id}
+                isActive={isActive}
                 isSelected={selectedMaterials.has(material.id)}
                 onSelect={handleMaterialSelect}
                 onDelete={handleDeleteMaterial}
@@ -646,7 +653,8 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
                   marginBottom: ITEM_GAP
                 }}
               />
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
