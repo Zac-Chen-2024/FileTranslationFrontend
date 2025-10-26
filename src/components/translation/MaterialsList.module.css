@@ -190,7 +190,6 @@
   flex: 1;
   min-height: 0;
   padding-right: var(--spacing-xs, 0.5rem);
-  padding-top: var(--spacing-xs, 0.5rem);
 }
 
 .materialsList::-webkit-scrollbar {

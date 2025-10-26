@@ -43,6 +43,7 @@ export const zh = {
   selectPage: '选择页面',
 
   // 材料状态
+  added: '已添加',
   uploaded: '已上传',
   statusTranslating: '翻译中',
   translated: '已翻译',

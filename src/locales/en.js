@@ -43,6 +43,7 @@ export const en = {
   selectPage: 'Select page',
 
   // Material status
+  added: 'Added',
   uploaded: 'Uploaded',
   statusTranslating: 'Translating',
   translated: 'Translated',

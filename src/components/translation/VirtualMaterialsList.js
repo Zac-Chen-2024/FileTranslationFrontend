@@ -27,6 +27,7 @@ const getTypeLabel = (type, isPdfSession = false, t) => {
 // 获取状态标签的辅助函数
 const getStatusLabel = (status, t) => {
   const statusLabels = {
+    '已添加': t('added'),
     '已上传': t('uploaded'),
     '处理中': t('processing'),
     '正在翻译': t('statusTranslating'),
@@ -224,7 +225,10 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
 
   // 计算虚拟滚动参数（包含间距）
   const itemWithGapHeight = ITEM_HEIGHT + ITEM_GAP;
-  const totalHeight = clientMaterials.length * itemWithGapHeight;
+  // 总高度 = 所有项目高度 + (项目数-1)个间距（最后一项不需要间距）
+  const totalHeight = clientMaterials.length > 0
+    ? (clientMaterials.length * ITEM_HEIGHT) + ((clientMaterials.length - 1) * ITEM_GAP)
+    : 0;
   const startIndex = Math.max(0, Math.floor(scrollTop / itemWithGapHeight) - BUFFER_SIZE);
   const endIndex = Math.min(
     clientMaterials.length,

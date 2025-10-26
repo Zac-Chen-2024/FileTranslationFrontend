@@ -1388,65 +1388,6 @@ const SinglePreview = ({ material }) => {
     }
   }, [material]);
 
-  const handleTranslate = async () => {
-    if (!material || !material.url) return;
-    
-    setError(null);
-    
-    // 更新状态为正在翻译
-    actions.updateMaterial(material.id, {
-      status: '正在翻译'
-    });
-    
-    try {
-      // 调用Google网页翻译API
-      const response = await fetch('/api/webpage-google-translate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        },
-        body: JSON.stringify({
-          url: material.url
-        })
-      });
-
-      const data = await response.json();
-      
-      if (data.success) {
-        // 更新材料状态
-        actions.updateMaterial(material.id, {
-          status: '翻译完成',
-          translatedImagePath: data.pdf_filename,
-          translationError: null
-        });
-        
-        actions.showNotification('翻译成功', '网页翻译已完成', 'success');
-      } else {
-        setError(data.error || '翻译失败');
-        actions.updateMaterial(material.id, {
-          status: '翻译失败',
-          translationError: data.error
-        });
-      }
-    } catch (err) {
-      setError(err.message || '网络错误');
-      actions.updateMaterial(material.id, {
-        status: '翻译失败',
-        translationError: err.message
-      });
-    }
-  };
-
-  const handleOpenPdf = () => {
-    if (material && material.translatedImagePath) {
-      // URL编码文件名，处理空格等特殊字符
-      const encodedFilename = encodeURIComponent(material.translatedImagePath);
-      // 使用完整的后端URL，绕过React Router
-      window.open(`${API_URL}/preview/translated/${encodedFilename}`, '_blank');
-    }
-  };
-
   if (error) {
     return (
       <div className={styles.singlePreview}>
@@ -1457,14 +1398,8 @@ const SinglePreview = ({ material }) => {
               <path d="m15 9-6 6M9 9l6 6"/>
             </svg>
           </div>
-          <h4>翻译失败</h4>
+          <h4>{t('translationFailed')}</h4>
           <p className={styles.errorMessage}>{error}</p>
-          <button 
-            className={styles.retryBtn}
-            onClick={handleTranslate}
-          >
-            {t('retranslate')}
-          </button>
         </div>
       </div>
     );
@@ -1506,20 +1441,6 @@ const SinglePreview = ({ material }) => {
             onLoad={() => console.log('✅ PDF iframe加载完成')}
             onError={(e) => console.error('❌ PDF iframe加载失败:', e)}
           />
-          <div className={styles.pdfActions}>
-            <button
-              className={styles.pdfActionBtn}
-              onClick={handleOpenPdf}
-            >
-              在新标签页中打开
-            </button>
-            <button
-              className={styles.pdfActionBtn}
-              onClick={handleTranslate}
-            >
-              {t('retranslate')}
-            </button>
-          </div>
         </div>
       </div>
     );
