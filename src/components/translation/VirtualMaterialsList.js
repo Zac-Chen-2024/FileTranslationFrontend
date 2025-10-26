@@ -611,13 +611,11 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
         </div>
       </div>
       
-      <div 
+      <div
         ref={scrollContainerRef}
         className={styles.materialsList}
         onScroll={handleScroll}
         style={{
-          height: '400px',
-          overflowY: 'auto',
           position: 'relative'
         }}
       >
