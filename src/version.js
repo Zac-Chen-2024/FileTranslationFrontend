@@ -1,5 +1,5 @@
 // 自动生成的版本信息文件
 // 每次构建时更新
 export const VERSION = '1.5.0';
-export const BUILD_TIME = '2025-10-26T18:26:15.334Z';
-export const BUILD_NUMBER = 1761503175334;
+export const BUILD_TIME = '2025-10-26T21:34:31.071Z';
+export const BUILD_NUMBER = 1761514471071;
