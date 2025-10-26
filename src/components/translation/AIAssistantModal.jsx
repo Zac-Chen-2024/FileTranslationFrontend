@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import './AIAssistantModal.css';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 // API URL配置
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5010';
@@ -10,6 +11,7 @@ const AIAssistantModal = ({
   selectedTextboxes = [],
   onApply
 }) => {
+  const { t } = useLanguage();
   const [instruction, setInstruction] = useState('');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState([]);
@@ -23,7 +25,7 @@ const AIAssistantModal = ({
   // 提交修改指令
   const handleSubmit = async () => {
     if (!instruction.trim()) {
-      alert('请输入修改意见');
+      alert(t('enterModificationOpinion'));
       return;
     }
 
@@ -55,11 +57,11 @@ const AIAssistantModal = ({
           setCurrentIndex(0);
         }
       } else {
-        alert('AI处理失败: ' + (data.error || '未知错误'));
+        alert(t('aiProcessingFailed') + ': ' + (data.error || t('unknownError')));
       }
     } catch (error) {
-      console.error('AI修改失败:', error);
-      alert('网络错误，请重试');
+      console.error(t('aiModificationFailed'), error);
+      alert(t('networkError'));
     } finally {
       setLoading(false);
     }
@@ -123,16 +125,16 @@ const AIAssistantModal = ({
   // 获取占位符文本
   const getPlaceholder = () => {
     if (!isMultiple) {
-      return '例如：改得更简洁、改为正式语气、修正语法错误';
+      return t('exampleSimpler');
     }
 
     switch (processingMode) {
       case 'unified':
-        return '例如：把所有文本改得更简洁';
+        return t('exampleAllSimpler');
       case 'merge':
-        return '例如：合并后改为更连贯的表达';
+        return t('exampleMergeCoherent');
       case 'individual':
-        return '例如：逐个检查并优化';
+        return t('exampleCheckOptimize');
       default:
         return '';
     }
@@ -141,7 +143,7 @@ const AIAssistantModal = ({
   return (
     <div className="ai-panel-content">
       <div className="ai-panel-header">
-        <span className="ai-panel-title">AI助手</span>
+        <span className="ai-panel-title">{t('aiAssistant')}</span>
         <button className="ai-panel-close" onClick={handleClose}>×</button>
       </div>
 
@@ -149,7 +151,7 @@ const AIAssistantModal = ({
           {/* 多选时显示处理模式选择 */}
           {isMultiple && !results.length && (
             <div className="processing-mode-section">
-              <h4>已选中 {selectedTextboxes.length} 个文本框</h4>
+              <h4>{t('selectedTextboxes', { count: selectedTextboxes.length })}</h4>
               <div className="mode-options">
                 <label className={processingMode === 'unified' ? 'active' : ''}>
                   <input
@@ -159,8 +161,8 @@ const AIAssistantModal = ({
                     onChange={(e) => setProcessingMode(e.target.value)}
                   />
                   <div className="mode-content">
-                    <strong>统一修改</strong>
-                    <span>对每个文本框应用相同的修改指令</span>
+                    <strong>{t('unifiedModification')}</strong>
+                    <span>{t('unifiedModificationDesc')}</span>
                   </div>
                 </label>
 
@@ -172,8 +174,8 @@ const AIAssistantModal = ({
                     onChange={(e) => setProcessingMode(e.target.value)}
                   />
                   <div className="mode-content">
-                    <strong>合并后修改</strong>
-                    <span>先合并为一个文本框，再进行优化</span>
+                    <strong>{t('mergeAndModify')}</strong>
+                    <span>{t('mergeAndModifyDesc')}</span>
                   </div>
                 </label>
 
@@ -185,8 +187,8 @@ const AIAssistantModal = ({
                     onChange={(e) => setProcessingMode(e.target.value)}
                   />
                   <div className="mode-content">
-                    <strong>逐个修改</strong>
-                    <span>分别查看和处理每个文本框</span>
+                    <strong>{t('modifyIndividually')}</strong>
+                    <span>{t('modifyIndividuallyDesc')}</span>
                   </div>
                 </label>
               </div>
@@ -196,7 +198,7 @@ const AIAssistantModal = ({
           {/* 输入区域 */}
           {!results.length && (
             <div className="instruction-section">
-              <label>修改意见（用自然语言描述）</label>
+              <label>{t('modificationOpinion')}</label>
               <textarea
                 value={instruction}
                 onChange={(e) => setInstruction(e.target.value)}
@@ -209,7 +211,7 @@ const AIAssistantModal = ({
                 disabled={loading || !instruction.trim()}
                 className="submit-button"
               >
-                {loading ? '处理中...' : '提交修改'}
+                {loading ? t('aiProcessing') : t('submitModification')}
               </button>
             </div>
           )}
@@ -221,29 +223,29 @@ const AIAssistantModal = ({
                 // Individual模式：逐个显示
                 <div className="individual-result">
                   <div className="progress-bar">
-                    <span>进度: {currentIndex + 1} / {selectedTextboxes.length}</span>
+                    <span>{t('aiProgress', { current: currentIndex + 1, total: selectedTextboxes.length })}</span>
                   </div>
 
                   <div className="comparison">
                     <div className="original-version">
-                      <h4>原始版本</h4>
+                      <h4>{t('aiOriginalVersion')}</h4>
                       <p>{results[currentIndex]?.original}</p>
                     </div>
 
                     <div className="arrow">→</div>
 
                     <div className="revised-version">
-                      <h4>修改后</h4>
+                      <h4>{t('modifiedVersion')}</h4>
                       <p>{results[currentIndex]?.revised}</p>
                     </div>
                   </div>
 
                   <div className="individual-actions">
                     <button onClick={handleAcceptCurrent} className="accept-button">
-                      ✓ 采纳此修改
+                      {t('acceptThisModification')}
                     </button>
                     <button onClick={handleSkipCurrent} className="skip-button">
-                      跳过
+                      {t('skip')}
                     </button>
                   </div>
                 </div>
@@ -254,14 +256,14 @@ const AIAssistantModal = ({
                     // 合并模式：显示一个大的对比
                     <div className="comparison large">
                       <div className="original-version">
-                        <h4>合并前（{selectedTextboxes.length}个文本框）</h4>
+                        <h4>{t('beforeMerge', { count: selectedTextboxes.length })}</h4>
                         <p>{results[0]?.original}</p>
                       </div>
 
                       <div className="arrow">→</div>
 
                       <div className="revised-version">
-                        <h4>合并并修改后</h4>
+                        <h4>{t('afterMergeAndModify')}</h4>
                         <p>{results[0]?.revised}</p>
                       </div>
                     </div>
@@ -271,16 +273,16 @@ const AIAssistantModal = ({
                       {results.map((result, index) => (
                         <div key={index} className="result-item">
                           <div className="result-header">
-                            文本框 {index + 1}
+                            {t('textbox', { index: index + 1 })}
                           </div>
                           <div className="comparison">
                             <div className="original-version">
-                              <label>原始:</label>
+                              <label>{t('original')}</label>
                               <p>{result.original}</p>
                             </div>
                             <div className="arrow">→</div>
                             <div className="revised-version">
-                              <label>修改后:</label>
+                              <label>{t('modified')}</label>
                               <p>{result.revised}</p>
                             </div>
                           </div>
@@ -291,10 +293,10 @@ const AIAssistantModal = ({
 
                   <div className="unified-actions">
                     <button onClick={handleAccept} className="accept-all-button">
-                      ✓ 采纳所有修改
+                      {t('acceptAllModifications')}
                     </button>
                     <button onClick={handleClose} className="cancel-button">
-                      取消
+                      {t('cancel')}
                     </button>
                   </div>
                 </div>

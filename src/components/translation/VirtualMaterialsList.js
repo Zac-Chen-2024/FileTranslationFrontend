@@ -24,6 +24,21 @@ const getTypeLabel = (type, isPdfSession = false, t) => {
   return typeLabels[type] || type;
 };
 
+// 获取状态标签的辅助函数
+const getStatusLabel = (status, t) => {
+  const statusLabels = {
+    '已上传': t('uploaded'),
+    '处理中': t('processing'),
+    '正在翻译': t('statusTranslating'),
+    '翻译中': t('statusTranslating'),
+    '翻译完成': t('translated'),
+    '已翻译': t('translated'),
+    '已确认': t('confirmed'),
+    '翻译失败': t('translationFailed')
+  };
+  return statusLabels[status] || status;
+};
+
 // 单个材料项组件
 const VirtualMaterialItem = React.memo(({
   material,
@@ -77,7 +92,7 @@ const VirtualMaterialItem = React.memo(({
         </div>
         <div className={styles.materialMeta}>
           <span className={styles.materialType}>{getTypeLabel(material.type, material.isPdfSession, t)}</span>
-          <span className={styles.materialStatus}>{material.status}</span>
+          <span className={styles.materialStatus}>{getStatusLabel(material.status, t)}</span>
         </div>
       </div>
       <button

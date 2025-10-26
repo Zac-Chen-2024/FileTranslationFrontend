@@ -4,8 +4,8 @@
   padding: var(--spacing-lg, 1.5rem);
   box-shadow: var(--shadow-md);
   overflow: hidden;
-  height: fit-content;
-  max-height: calc(100vh - 200px);
+  /* 固定高度，占满父容器 */
+  height: 100%;
   display: flex;
   flex-direction: column;
   transition: all var(--transition-slow, 300ms ease);
@@ -400,6 +400,12 @@
   text-align: center;
   padding: 3rem 1rem;
   color: var(--neutral-500);
+  /* 占据剩余空间，保持高度一致 */
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 .emptyIcon {

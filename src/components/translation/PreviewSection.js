@@ -1130,13 +1130,13 @@ const ComparisonView = ({ material, onSelectResult }) => {
                   // ✅ 重构：保存regions数据 + 生成最终图片
                   if (window.currentFabricEditor && window.currentFabricEditor.getCurrentRegions) {
                     try {
-                      actions.showNotification('保存中', '正在保存编辑...', 'info');
+                      actions.showNotification(t('saving'), t('savingEdits'), 'info');
 
                       // 获取当前的regions数据
                       const currentRegions = window.currentFabricEditor.getCurrentRegions();
 
                       if (!currentRegions || currentRegions.length === 0) {
-                        throw new Error('没有可保存的编辑内容');
+                        throw new Error(t('noEditContent'));
                       }
 
                       const { materialAPI } = await import('../../services/api');
@@ -1145,7 +1145,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
                       const response = await materialAPI.saveRegions(material.id, currentRegions);
 
                       if (!response.success) {
-                        throw new Error(response.error || '保存失败');
+                        throw new Error(response.error || t('saveFailed'));
                       }
 
                       // 2. 生成并上传最终图片
@@ -1168,15 +1168,15 @@ const ComparisonView = ({ material, onSelectResult }) => {
                         hasEditedVersion: true
                       });
 
-                      actions.showNotification('保存成功', '编辑已保存', 'success');
+                      actions.showNotification(t('saveSuccess'), t('savingEdits'), 'success');
                     } catch (error) {
                       console.error('保存编辑失败:', error);
-                      actions.showNotification('保存失败', error.message || '无法保存编辑', 'error');
+                      actions.showNotification(t('saveFailed'), error.message || t('saveFailed'), 'error');
                     }
                   }
                 }}
               >
-                保存修改
+                {t('saveEdits')}
               </button>
               </div>
             )}

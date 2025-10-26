@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import './GlobalAIModal.css';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 // API URL配置
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5010';
 
 const GlobalAIModal = ({ isOpen, onClose, allTextboxes, onApply }) => {
+  const { t } = useLanguage();
   const [instruction, setInstruction] = useState('');
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
@@ -14,7 +16,7 @@ const GlobalAIModal = ({ isOpen, onClose, allTextboxes, onApply }) => {
 
   const handleSubmit = async () => {
     if (!instruction.trim()) {
-      alert('请输入修改要求');
+      alert(t('enterRequirement'));
       return;
     }
 
@@ -82,7 +84,7 @@ const GlobalAIModal = ({ isOpen, onClose, allTextboxes, onApply }) => {
     });
 
     if (updates.length === 0) {
-      alert('请至少选择一项修改');
+      alert(t('selectAtLeastOne'));
       return;
     }
 
@@ -103,7 +105,7 @@ const GlobalAIModal = ({ isOpen, onClose, allTextboxes, onApply }) => {
     <div className="global-ai-overlay" onClick={handleClose}>
       <div className="global-ai-modal" onClick={(e) => e.stopPropagation()}>
         <div className="global-ai-header">
-          <h3>全局辅助修改</h3>
+          <h3>{t('globalAssistantEdit')}</h3>
           <button className="global-ai-close" onClick={handleClose}>×</button>
         </div>
 
@@ -111,18 +113,18 @@ const GlobalAIModal = ({ isOpen, onClose, allTextboxes, onApply }) => {
           {!suggestions.length && (
             <>
               <div className="instruction-input">
-                <label>修改要求（用自然语言描述）</label>
+                <label>{t('modificationRequirement')}</label>
                 <textarea
                   value={instruction}
                   onChange={(e) => setInstruction(e.target.value)}
-                  placeholder='例如：使所有句子更简洁、检查术语一致性、统一风格'
+                  placeholder={t('modificationRequirementPlaceholder')}
                   rows={4}
                   disabled={loading}
                 />
               </div>
 
               <div className="text-count-info">
-                <span>将处理 {allTextboxes.length} 个文本框</span>
+                <span>{t('willProcess', { count: allTextboxes.length })}</span>
               </div>
 
               <button
@@ -130,7 +132,7 @@ const GlobalAIModal = ({ isOpen, onClose, allTextboxes, onApply }) => {
                 disabled={loading}
                 className="global-submit-btn"
               >
-                {loading ? '分析中...' : '开始分析'}
+                {loading ? t('analyzing') : t('startAnalysis')}
               </button>
             </>
           )}
@@ -138,13 +140,13 @@ const GlobalAIModal = ({ isOpen, onClose, allTextboxes, onApply }) => {
           {suggestions.length > 0 && (
             <>
               <div className="suggestions-header">
-                <h4>优化建议</h4>
+                <h4>{t('optimizationSuggestions')}</h4>
                 {hasChanges ? (
                   <span className="changes-count">
-                    发现 {suggestions.filter(s => s.revised !== s.original).length} 处建议修改
+                    {t('foundSuggestions', { count: suggestions.filter(s => s.revised !== s.original).length })}
                   </span>
                 ) : (
-                  <span className="no-changes">未发现需要修改的内容</span>
+                  <span className="no-changes">{t('noChangesNeeded')}</span>
                 )}
               </div>
 
