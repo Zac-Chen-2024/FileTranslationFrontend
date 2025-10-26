@@ -348,9 +348,6 @@
 .canvas-container {
   display: flex;
   gap: var(--spacing-lg, 1.5rem);
-  /* 让画布容器占据所有剩余空间 */
-  flex: 1;
-  min-height: 0; /* 允许flex子元素缩小 */
 }
 
 .canvas-wrapper {
@@ -359,9 +356,7 @@
   justify-content: center;
   align-items: flex-start;
   overflow: auto;
-  /* 移除max-height限制，让画布自适应填满空间 */
-  min-height: 400px; /* 设置最小高度保证可用性 */
-  height: 100%; /* 占满父容器高度 */
+  max-height: 600px;
   background-color: var(--color-gray-100, #f0f0f0);
   border-radius: var(--radius-md, 8px);
   padding: var(--spacing-md, 1rem);
