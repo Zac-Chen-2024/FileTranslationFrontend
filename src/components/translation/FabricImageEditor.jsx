@@ -2832,174 +2832,186 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
             {t('mergeTextboxes')} ({selectedObjects.filter(obj => obj && obj.type === 'textbox').length})
           </button>
 
-          {selectedObjects.length > 0 && (
-            <div className="merged-controls">
-              <label>
-                {t('fontFamily')}：
-                <select
-                  value={selectedFont}
-                  onChange={(e) => {
-                    setSelectedFont(e.target.value);
-                    updateSelectedStyle('fontFamily', e.target.value);
-                  }}
-                >
-                  <option value="Arial">{t('fontArial')}</option>
-                  <option value="SimSun">{t('fontSimSun')}</option>
-                  <option value="SimHei">{t('fontSimHei')}</option>
-                  <option value="Microsoft YaHei">{t('fontMicrosoftYaHei')}</option>
-                  <option value="KaiTi">{t('fontKaiTi')}</option>
-                </select>
-              </label>
+          {/* 字体工具栏 - 常驻显示 */}
+          <div className="merged-controls">
+            <label>
+              {t('fontFamily')}：
+              <select
+                value={selectedObjects.length > 0 ? selectedFont : ''}
+                onChange={(e) => {
+                  setSelectedFont(e.target.value);
+                  updateSelectedStyle('fontFamily', e.target.value);
+                }}
+                disabled={selectedObjects.length === 0}
+              >
+                <option value="">{selectedObjects.length === 0 ? '--' : ''}</option>
+                <option value="Arial">{t('fontArial')}</option>
+                <option value="SimSun">{t('fontSimSun')}</option>
+                <option value="SimHei">{t('fontSimHei')}</option>
+                <option value="Microsoft YaHei">{t('fontMicrosoftYaHei')}</option>
+                <option value="KaiTi">{t('fontKaiTi')}</option>
+              </select>
+            </label>
 
-              <label>
-                {t('textColor')}：
-                <input
-                  type="color"
-                  value={selectedColor}
-                  onChange={(e) => {
-                    setSelectedColor(e.target.value);
-                    updateSelectedStyle('fill', e.target.value);
-                  }}
-                />
-              </label>
+            <label>
+              {t('textColor')}：
+              <input
+                type="color"
+                value={selectedColor}
+                onChange={(e) => {
+                  setSelectedColor(e.target.value);
+                  updateSelectedStyle('fill', e.target.value);
+                }}
+                disabled={selectedObjects.length === 0}
+              />
+            </label>
 
-              <label>
-                {t('textAlign')}：
-                <select
-                  value={textAlign}
-                  onChange={(e) => {
-                    setTextAlign(e.target.value);
-                    updateSelectedStyle('textAlign', e.target.value);
-                  }}
-                >
-                  <option value="left">{t('alignLeft')}</option>
-                  <option value="center">{t('alignCenter')}</option>
-                  <option value="right">{t('alignRight')}</option>
-                </select>
-              </label>
+            <label>
+              {t('textAlign')}：
+              <select
+                value={selectedObjects.length > 0 ? textAlign : ''}
+                onChange={(e) => {
+                  setTextAlign(e.target.value);
+                  updateSelectedStyle('textAlign', e.target.value);
+                }}
+                disabled={selectedObjects.length === 0}
+              >
+                <option value="">{selectedObjects.length === 0 ? '--' : ''}</option>
+                <option value="left">{t('alignLeft')}</option>
+                <option value="center">{t('alignCenter')}</option>
+                <option value="right">{t('alignRight')}</option>
+              </select>
+            </label>
 
-              <label>
-                {t('fontSize')}：
-                <input
-                  type="number"
-                  value={fontSize}
-                  onChange={(e) => {
-                    const size = parseInt(e.target.value) || 11;
-                    setFontSize(size);
-
-                    // 检查是否有选中的部分文字
-                    const canvas = fabricCanvasRef.current;
-                    const activeObject = canvas?.getActiveObject();
-                    const hasTextSelection = activeObject?.type === 'textbox' &&
-                                            activeObject.isEditing &&
-                                            activeObject.selectionStart !== activeObject.selectionEnd;
-
-                    if (hasTextSelection) {
-                      // 提示：正在修改选中文字的字号
-                      console.log('正在修改选中文字的字号');
-                    }
-
-                    updateSelectedStyle('fontSize', size);
-                  }}
-                  style={{ width: '60px' }}
-                  title={t('fontSizeTooltip')}
-                />
-              </label>
-
-              <button
-                className={`style-button ${isBold ? 'active' : ''}`}
-                onClick={() => {
-                  const canvas = fabricCanvasRef.current;
-                  const activeObject = canvas?.getActiveObject();
+            <label>
+              {t('fontSize')}：
+              <input
+                type="number"
+                value={selectedObjects.length > 0 ? fontSize : ''}
+                placeholder={selectedObjects.length === 0 ? '--' : ''}
+                onChange={(e) => {
+                  const size = parseInt(e.target.value) || 11;
+                  setFontSize(size);
 
                   // 检查是否有选中的部分文字
+                  const canvas = fabricCanvasRef.current;
+                  const activeObject = canvas?.getActiveObject();
                   const hasTextSelection = activeObject?.type === 'textbox' &&
                                           activeObject.isEditing &&
                                           activeObject.selectionStart !== activeObject.selectionEnd;
 
                   if (hasTextSelection) {
-                    // 对选中的文字切换加粗
-                    const currentStyles = activeObject.getSelectionStyles();
-                    const isCurrentlyBold = currentStyles.some(style => style.fontWeight === 'bold');
-                    updateSelectedStyle('fontWeight', isCurrentlyBold ? 'normal' : 'bold');
-                  } else {
-                    // 对整个文本框切换加粗
-                    const newBold = !isBold;
-                    setIsBold(newBold);
-                    updateSelectedStyle('fontWeight', newBold ? 'bold' : 'normal');
+                    // 提示：正在修改选中文字的字号
+                    console.log('正在修改选中文字的字号');
                   }
-                }}
-                title={t('boldTooltip')}
-                style={{
-                  fontWeight: 'bold',
-                  fontSize: '16px',
-                  padding: '2px 8px',
-                  backgroundColor: isBold ? '#2196F3' : 'transparent',
-                  color: isBold ? 'white' : 'black',
-                  border: '1px solid #ccc',
-                  borderRadius: '3px',
-                  cursor: 'pointer'
-                }}
-              >
-                B
-              </button>
 
-              <button
-                className={`style-button ${isItalic ? 'active' : ''}`}
-                onClick={() => {
-                  const canvas = fabricCanvasRef.current;
-                  const activeObject = canvas?.getActiveObject();
-
-                  // 检查是否有选中的部分文字
-                  const hasTextSelection = activeObject?.type === 'textbox' &&
-                                          activeObject.isEditing &&
-                                          activeObject.selectionStart !== activeObject.selectionEnd;
-
-                  if (hasTextSelection) {
-                    // 对选中的文字切换斜体
-                    const currentStyles = activeObject.getSelectionStyles();
-                    const isCurrentlyItalic = currentStyles.some(style => style.fontStyle === 'italic');
-                    updateSelectedStyle('fontStyle', isCurrentlyItalic ? 'normal' : 'italic');
-                  } else {
-                    // 对整个文本框切换斜体
-                    const newItalic = !isItalic;
-                    setIsItalic(newItalic);
-                    updateSelectedStyle('fontStyle', newItalic ? 'italic' : 'normal');
-                  }
+                  updateSelectedStyle('fontSize', size);
                 }}
-                title={t('italicTooltip')}
-                style={{
-                  fontStyle: 'italic',
-                  fontSize: '16px',
-                  padding: '2px 8px',
-                  backgroundColor: isItalic ? '#2196F3' : 'transparent',
-                  color: isItalic ? 'white' : 'black',
-                  border: '1px solid #ccc',
-                  borderRadius: '3px',
-                  cursor: 'pointer'
-                }}
-              >
-                I
-              </button>
+                style={{ width: '60px' }}
+                title={t('fontSizeTooltip')}
+                disabled={selectedObjects.length === 0}
+              />
+            </label>
 
-              <label>
-                行间距：
-                <input
-                  type="number"
-                  value={lineSpacing}
-                  min="0.8"
-                  max="2.0"
-                  step="0.1"
-                  onChange={(e) => {
-                    const spacing = parseFloat(e.target.value) || 1.2;
-                    setLineSpacing(spacing);
-                    updateSelectedStyle('lineHeight', spacing);
-                  }}
-                  style={{ width: '60px' }}
-                />
-              </label>
-            </div>
-          )}
+            <button
+              className={`style-button ${isBold ? 'active' : ''}`}
+              onClick={() => {
+                const canvas = fabricCanvasRef.current;
+                const activeObject = canvas?.getActiveObject();
+
+                // 检查是否有选中的部分文字
+                const hasTextSelection = activeObject?.type === 'textbox' &&
+                                        activeObject.isEditing &&
+                                        activeObject.selectionStart !== activeObject.selectionEnd;
+
+                if (hasTextSelection) {
+                  // 对选中的文字切换加粗
+                  const currentStyles = activeObject.getSelectionStyles();
+                  const isCurrentlyBold = currentStyles.some(style => style.fontWeight === 'bold');
+                  updateSelectedStyle('fontWeight', isCurrentlyBold ? 'normal' : 'bold');
+                } else {
+                  // 对整个文本框切换加粗
+                  const newBold = !isBold;
+                  setIsBold(newBold);
+                  updateSelectedStyle('fontWeight', newBold ? 'bold' : 'normal');
+                }
+              }}
+              title={t('boldTooltip')}
+              disabled={selectedObjects.length === 0}
+              style={{
+                fontWeight: 'bold',
+                fontSize: '16px',
+                padding: '2px 8px',
+                backgroundColor: isBold ? '#2196F3' : 'transparent',
+                color: isBold ? 'white' : 'black',
+                border: '1px solid #ccc',
+                borderRadius: '3px',
+                cursor: selectedObjects.length === 0 ? 'not-allowed' : 'pointer',
+                opacity: selectedObjects.length === 0 ? 0.5 : 1
+              }}
+            >
+              B
+            </button>
+
+            <button
+              className={`style-button ${isItalic ? 'active' : ''}`}
+              onClick={() => {
+                const canvas = fabricCanvasRef.current;
+                const activeObject = canvas?.getActiveObject();
+
+                // 检查是否有选中的部分文字
+                const hasTextSelection = activeObject?.type === 'textbox' &&
+                                        activeObject.isEditing &&
+                                        activeObject.selectionStart !== activeObject.selectionEnd;
+
+                if (hasTextSelection) {
+                  // 对选中的文字切换斜体
+                  const currentStyles = activeObject.getSelectionStyles();
+                  const isCurrentlyItalic = currentStyles.some(style => style.fontStyle === 'italic');
+                  updateSelectedStyle('fontStyle', isCurrentlyItalic ? 'normal' : 'italic');
+                } else {
+                  // 对整个文本框切换斜体
+                  const newItalic = !isItalic;
+                  setIsItalic(newItalic);
+                  updateSelectedStyle('fontStyle', newItalic ? 'italic' : 'normal');
+                }
+              }}
+              title={t('italicTooltip')}
+              disabled={selectedObjects.length === 0}
+              style={{
+                fontStyle: 'italic',
+                fontSize: '16px',
+                padding: '2px 8px',
+                backgroundColor: isItalic ? '#2196F3' : 'transparent',
+                color: isItalic ? 'white' : 'black',
+                border: '1px solid #ccc',
+                borderRadius: '3px',
+                cursor: selectedObjects.length === 0 ? 'not-allowed' : 'pointer',
+                opacity: selectedObjects.length === 0 ? 0.5 : 1
+              }}
+            >
+              I
+            </button>
+
+            <label>
+              行间距：
+              <input
+                type="number"
+                value={selectedObjects.length > 0 ? lineSpacing : ''}
+                placeholder={selectedObjects.length === 0 ? '--' : ''}
+                min="0.8"
+                max="2.0"
+                step="0.1"
+                onChange={(e) => {
+                  const spacing = parseFloat(e.target.value) || 1.2;
+                  setLineSpacing(spacing);
+                  updateSelectedStyle('lineHeight', spacing);
+                }}
+                style={{ width: '60px' }}
+                disabled={selectedObjects.length === 0}
+              />
+            </label>
+          </div>
         </div>
 
         {/* 右侧：固定的缩放控件和全局AI */}
