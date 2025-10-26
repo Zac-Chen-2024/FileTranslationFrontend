@@ -243,12 +243,39 @@
 
 .materialItem.active {
   border-color: var(--primary-blue);
-  background: rgba(59, 130, 246, 0.05);
-  box-shadow: var(--shadow-md);
+  border-width: 2px;
+  border-left: 4px solid var(--primary-blue);
+  background: rgba(59, 130, 246, 0.12);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  transform: translateX(4px);
+}
+
+[data-theme="dark"] .materialItem.active {
+  background: rgba(59, 130, 246, 0.2);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
 }
 
 .materialItem.confirmed {
   border-left: 4px solid var(--accent-green);
+}
+
+/* 当文件既是active又是confirmed时，active样式优先，但保留confirmed的绿色指示器 */
+.materialItem.active.confirmed {
+  border-left: 4px solid var(--primary-blue);
+  /* 在右侧添加小的绿色已确认标记 */
+  position: relative;
+}
+
+.materialItem.active.confirmed::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  background: var(--accent-green);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px white;
 }
 
 .materialName {
