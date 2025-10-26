@@ -5,7 +5,9 @@
   box-shadow: var(--shadow-md);
   display: flex;
   flex-direction: column;
-  min-height: 500px; /* 最小高度保证可用性 */
+  /* 占满父容器高度，与左侧等高 */
+  height: 100%;
+  overflow: hidden;
 }
 
 [data-theme="dark"] .previewSection {

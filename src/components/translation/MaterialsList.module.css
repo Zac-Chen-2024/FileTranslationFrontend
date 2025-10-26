@@ -4,8 +4,8 @@
   padding: var(--spacing-lg, 1.5rem);
   box-shadow: var(--shadow-md);
   overflow: hidden;
-  min-height: 500px; /* 最小高度保证可用性 */
-  max-height: calc(100vh - 200px); /* 最大高度适应屏幕 */
+  /* 占满父容器高度，与右侧等高 */
+  height: 100%;
   display: flex;
   flex-direction: column;
   transition: all var(--transition-slow, 300ms ease);

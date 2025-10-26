@@ -17,7 +17,9 @@
   flex: 1;
   width: 100%;
   max-width: none; /* 移除最大宽度限制 */
-  align-items: start; /* 子元素从顶部对齐 */
+  /* 让左右两侧等高，自适应屏幕 */
+  min-height: calc(100vh - 140px); /* 减去header和padding */
+  align-items: stretch; /* 让子元素拉伸到相同高度 */
 }
 
 .loadingContainer {
