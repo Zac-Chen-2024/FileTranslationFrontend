@@ -255,6 +255,21 @@
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
 }
 
+/* active状态hover时保持高亮样式不变 */
+.materialItem.active:hover {
+  border-color: var(--primary-blue);
+  border-width: 2px;
+  border-left: 4px solid var(--primary-blue);
+  background: rgba(59, 130, 246, 0.12);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  transform: translateX(4px);
+}
+
+[data-theme="dark"] .materialItem.active:hover {
+  background: rgba(59, 130, 246, 0.2);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
 .materialItem.confirmed {
   border-left: 4px solid var(--accent-green);
 }
