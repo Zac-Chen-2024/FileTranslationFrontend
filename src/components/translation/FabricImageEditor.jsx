@@ -541,6 +541,46 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       }
     });
 
+    // ==================== Markdown 编辑/显示模式切换 ====================
+
+    // 监听文本框开始编辑 - 恢复原始 markdown 文本
+    canvas.on('text:editing:entered', (e) => {
+      const textbox = e.target;
+      if (!textbox || textbox.type !== 'textbox') return;
+
+      // 如果有保存的原始 markdown 文本，恢复它
+      if (textbox._markdownText) {
+        textbox.text = textbox._markdownText;
+        textbox.setSelectionStyles({}, 0, textbox.text.length);
+        textbox.dirty = true;
+      }
+      canvas.renderAll();
+    });
+
+    // 监听文本框结束编辑 - 移除标记并应用样式
+    canvas.on('text:editing:exited', (e) => {
+      const textbox = e.target;
+      if (!textbox || textbox.type !== 'textbox') return;
+
+      const originalText = textbox.text;
+
+      // 保存原始 markdown 文本
+      textbox._markdownText = originalText;
+
+      // 移除 markdown 标记，得到纯文本
+      const displayText = removeMarkdownTags(originalText);
+
+      // 更新文本内容为不带标记的版本
+      textbox.text = displayText;
+      textbox.dirty = true;
+
+      // 应用 markdown 样式到纯文本
+      // 需要根据原始文本中的标记位置，计算出在新文本中的对应位置
+      applyMarkdownStylesToCleanText(textbox, originalText, displayText);
+
+      canvas.renderAll();
+    });
+
     // 监听键盘事件
     const handleKeyDown = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
@@ -878,7 +918,18 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         originX: 'left',
         originY: 'top'
       });
-      
+
+      // ========== Markdown 初始化处理 ==========
+      // 保存原始 markdown 文本
+      text._markdownText = textContent;
+
+      // 移除 markdown 标记，显示格式化后的文本
+      const displayText = removeMarkdownTags(textContent);
+      text.text = displayText;
+
+      // 应用 markdown 样式
+      applyMarkdownStylesToCleanText(text, textContent, displayText);
+
       // 添加自定义属性
       if (region.isMerged) {
         // 合并的文本不需要regionIndex，但可以添加标记
@@ -2500,7 +2551,205 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       saveHistory();
     }
   };
-  
+
+  // ==================== Markdown 功能 ====================
+
+  // 在选中文本周围插入 markdown 标记
+  const insertMarkdownTag = (startTag, endTag) => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
+
+    const activeObject = canvas.getActiveObject();
+
+    // 必须是文本框且正在编辑且有选中文字
+    if (!activeObject || activeObject.type !== 'textbox' || !activeObject.isEditing) return;
+    if (activeObject.selectionStart === activeObject.selectionEnd) return;
+
+    const text = activeObject.text;
+    const start = activeObject.selectionStart;
+    const end = activeObject.selectionEnd;
+    const selectedText = text.substring(start, end);
+
+    // 检查是否已经有标记，如果有则移除，否则添加
+    const beforeSelected = text.substring(Math.max(0, start - startTag.length), start);
+    const afterSelected = text.substring(end, Math.min(text.length, end + endTag.length));
+
+    let newText, newCursorPos;
+
+    if (beforeSelected === startTag && afterSelected === endTag) {
+      // 已有标记，移除
+      newText = text.substring(0, start - startTag.length) +
+                selectedText +
+                text.substring(end + endTag.length);
+      newCursorPos = start - startTag.length + selectedText.length;
+    } else {
+      // 没有标记，添加
+      newText = text.substring(0, start) +
+                startTag + selectedText + endTag +
+                text.substring(end);
+      newCursorPos = start + startTag.length + selectedText.length + endTag.length;
+    }
+
+    // 更新文本内容
+    activeObject.text = newText;
+    activeObject.setSelectionStart(newCursorPos);
+    activeObject.setSelectionEnd(newCursorPos);
+    activeObject.dirty = true;
+
+    canvas.renderAll();
+    saveHistory();
+  };
+
+  // 根据原始 markdown 文本，在移除标记后的文本上应用样式
+  const applyMarkdownStylesToCleanText = (textbox, originalText, cleanText) => {
+    if (!cleanText) return;
+
+    // 清除所有样式
+    textbox.setSelectionStyles({}, 0, cleanText.length);
+
+    // 构建一个映射：原文位置 -> 新文本位置
+    // 这样我们可以知道在移除标记后，原文的某个字符对应新文本的哪个位置
+    const positionMap = [];
+    let cleanIndex = 0;
+
+    for (let i = 0; i < originalText.length; i++) {
+      const char = originalText[i];
+      const nextChar = originalText[i + 1];
+      const prevChar = originalText[i - 1];
+
+      // 检测标记符号
+      const isBoldMarker = char === '*' && nextChar === '*';
+      const isItalicMarker = char === '*' && prevChar !== '*' && nextChar !== '*';
+      const isUnderscoreMarker = char === '_';
+      const isStrikeMarker = char === '~' && nextChar === '~';
+
+      if (isBoldMarker || isItalicMarker || isUnderscoreMarker || isStrikeMarker) {
+        // 这是标记字符，不映射到新文本
+        positionMap[i] = -1;
+      } else {
+        // 这是内容字符，映射到新文本
+        positionMap[i] = cleanIndex;
+        cleanIndex++;
+      }
+    }
+
+    // 现在解析 markdown 并应用样式
+    // **text** = 粗体
+    const boldRegex = /\*\*(.+?)\*\*/g;
+    let match;
+    while ((match = boldRegex.exec(originalText)) !== null) {
+      const contentStart = match.index + 2; // 跳过 **
+      const contentEnd = contentStart + match[1].length;
+
+      // 映射到新文本的位置
+      const newStart = positionMap[contentStart];
+      const newEnd = positionMap[contentEnd - 1] + 1;
+
+      if (newStart >= 0 && newEnd >= 0) {
+        textbox.setSelectionStyles({ fontWeight: 'bold' }, newStart, newEnd);
+      }
+    }
+
+    // *text* = 斜体 (但不是 **，需要排除粗体)
+    const italicRegex = /(?<!\*)\*([^*]+?)\*(?!\*)/g;
+    while ((match = italicRegex.exec(originalText)) !== null) {
+      const contentStart = match.index + 1;
+      const contentEnd = contentStart + match[1].length;
+
+      const newStart = positionMap[contentStart];
+      const newEnd = positionMap[contentEnd - 1] + 1;
+
+      if (newStart >= 0 && newEnd >= 0) {
+        textbox.setSelectionStyles({ fontStyle: 'italic' }, newStart, newEnd);
+      }
+    }
+
+    // _text_ = 斜体
+    const underscoreRegex = /_(.+?)_/g;
+    while ((match = underscoreRegex.exec(originalText)) !== null) {
+      const contentStart = match.index + 1;
+      const contentEnd = contentStart + match[1].length;
+
+      const newStart = positionMap[contentStart];
+      const newEnd = positionMap[contentEnd - 1] + 1;
+
+      if (newStart >= 0 && newEnd >= 0) {
+        textbox.setSelectionStyles({ fontStyle: 'italic' }, newStart, newEnd);
+      }
+    }
+
+    // ~~text~~ = 删除线
+    const strikeRegex = /~~(.+?)~~/g;
+    while ((match = strikeRegex.exec(originalText)) !== null) {
+      const contentStart = match.index + 2;
+      const contentEnd = contentStart + match[1].length;
+
+      const newStart = positionMap[contentStart];
+      const newEnd = positionMap[contentEnd - 1] + 1;
+
+      if (newStart >= 0 && newEnd >= 0) {
+        textbox.setSelectionStyles({ linethrough: true }, newStart, newEnd);
+      }
+    }
+  };
+
+  // 从文本中移除 markdown 标记（用于显示模式）
+  const removeMarkdownTags = (text) => {
+    if (!text) return '';
+
+    return text
+      .replace(/\*\*(.+?)\*\*/g, '$1')  // 移除 **bold**
+      .replace(/\*(.+?)\*/g, '$1')       // 移除 *italic*
+      .replace(/_(.+?)_/g, '$1')         // 移除 _italic_
+      .replace(/~~(.+?)~~/g, '$1');      // 移除 ~~strikethrough~~
+  };
+
+  // 解析 markdown 并返回样式数组（用于导出）
+  const parseMarkdownToStyles = (text) => {
+    const styles = [];
+    let currentIndex = 0;
+
+    // 创建一个临时数组来存储每个字符的样式
+    const charStyles = new Array(text.length).fill(null).map(() => ({}));
+
+    // 应用粗体样式 **text**
+    const boldRegex = /\*\*(.+?)\*\*/g;
+    let match;
+    while ((match = boldRegex.exec(text)) !== null) {
+      const contentStart = match.index + 2;
+      const contentEnd = contentStart + match[1].length;
+      for (let i = contentStart; i < contentEnd; i++) {
+        charStyles[i].fontWeight = 'bold';
+      }
+    }
+
+    // 应用斜体样式 *text* 或 _text_
+    const italicRegex = /[*_](.+?)[*_]/g;
+    while ((match = italicRegex.exec(text)) !== null) {
+      // 跳过已经被识别为粗体的 **
+      if (text[match.index - 1] === '*' || text[match.index + match[0].length] === '*') {
+        continue;
+      }
+      const contentStart = match.index + 1;
+      const contentEnd = contentStart + match[1].length;
+      for (let i = contentStart; i < contentEnd; i++) {
+        charStyles[i].fontStyle = 'italic';
+      }
+    }
+
+    // 应用删除线样式 ~~text~~
+    const strikeRegex = /~~(.+?)~~/g;
+    while ((match = strikeRegex.exec(text)) !== null) {
+      const contentStart = match.index + 2;
+      const contentEnd = contentStart + match[1].length;
+      for (let i = contentStart; i < contentEnd; i++) {
+        charStyles[i].linethrough = true;
+      }
+    }
+
+    return charStyles;
+  };
+
   // 获取当前的regions状态（文本框的位置和内容）
   const getCurrentRegions = () => {
     const canvas = fabricCanvasRef.current;
@@ -2516,8 +2765,9 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           // 原始文本框
           const regionData = {
             id: obj.regionId,
-            src: obj.originalText || obj.text,
-            dst: obj.text,
+            src: obj.originalText || obj._markdownText || obj.text,
+            // 保存原始 markdown 文本，而不是显示的纯文本
+            dst: obj._markdownText || obj.text,
             x: obj.left,
             y: obj.top,
             width: obj.width * obj.scaleX,
@@ -2544,8 +2794,9 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           // 合并的文本框（没有regionId）
           currentRegions.push({
             id: mergedId++, // 生成新的ID
-            src: obj.text, // 合并的文本没有原文
-            dst: obj.text,
+            src: obj._markdownText || obj.text, // 合并的文本没有原文
+            // 保存原始 markdown 文本
+            dst: obj._markdownText || obj.text,
             x: obj.left,
             y: obj.top,
             width: obj.width * obj.scaleX,
@@ -2916,27 +3167,10 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
             <button
               className={`style-button ${isBold ? 'active' : ''}`}
               onClick={() => {
-                const canvas = fabricCanvasRef.current;
-                const activeObject = canvas?.getActiveObject();
-
-                // 检查是否有选中的部分文字
-                const hasTextSelection = activeObject?.type === 'textbox' &&
-                                        activeObject.isEditing &&
-                                        activeObject.selectionStart !== activeObject.selectionEnd;
-
-                if (hasTextSelection) {
-                  // 对选中的文字切换加粗
-                  const currentStyles = activeObject.getSelectionStyles();
-                  const isCurrentlyBold = currentStyles.some(style => style.fontWeight === 'bold');
-                  updateSelectedStyle('fontWeight', isCurrentlyBold ? 'normal' : 'bold');
-                } else {
-                  // 对整个文本框切换加粗
-                  const newBold = !isBold;
-                  setIsBold(newBold);
-                  updateSelectedStyle('fontWeight', newBold ? 'bold' : 'normal');
-                }
+                // 使用 Markdown 标记模式：插入 **text**
+                insertMarkdownTag('**', '**');
               }}
-              title={t('boldTooltip')}
+              title={t('boldTooltip') + ' (Markdown: **text**)'}
               disabled={selectedObjects.length === 0}
               style={{
                 fontWeight: 'bold',
@@ -2956,27 +3190,10 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
             <button
               className={`style-button ${isItalic ? 'active' : ''}`}
               onClick={() => {
-                const canvas = fabricCanvasRef.current;
-                const activeObject = canvas?.getActiveObject();
-
-                // 检查是否有选中的部分文字
-                const hasTextSelection = activeObject?.type === 'textbox' &&
-                                        activeObject.isEditing &&
-                                        activeObject.selectionStart !== activeObject.selectionEnd;
-
-                if (hasTextSelection) {
-                  // 对选中的文字切换斜体
-                  const currentStyles = activeObject.getSelectionStyles();
-                  const isCurrentlyItalic = currentStyles.some(style => style.fontStyle === 'italic');
-                  updateSelectedStyle('fontStyle', isCurrentlyItalic ? 'normal' : 'italic');
-                } else {
-                  // 对整个文本框切换斜体
-                  const newItalic = !isItalic;
-                  setIsItalic(newItalic);
-                  updateSelectedStyle('fontStyle', newItalic ? 'italic' : 'normal');
-                }
+                // 使用 Markdown 标记模式：插入 *text*
+                insertMarkdownTag('*', '*');
               }}
-              title={t('italicTooltip')}
+              title={t('italicTooltip') + ' (Markdown: *text*)'}
               disabled={selectedObjects.length === 0}
               style={{
                 fontStyle: 'italic',
