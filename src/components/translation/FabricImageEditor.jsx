@@ -282,7 +282,8 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         e.target.manuallyEdited = true;
       }
 
-      if (e.target && e.target.type === 'textbox') {
+      // 如果在遮罩编辑模式下，不同步遮罩位置（避免用户手动编辑遮罩时被文本框覆盖）
+      if (e.target && e.target.type === 'textbox' && !maskEditMode) {
         syncMaskWithTextbox(e.target);
         canvas.renderAll();
       }
@@ -293,8 +294,8 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
       const activeObject = e.target;
 
-      // 处理单个文本框旋转
-      if (activeObject && activeObject.type === 'textbox') {
+      // 处理单个文本框旋转，但遮罩编辑模式下不同步
+      if (activeObject && activeObject.type === 'textbox' && !maskEditMode) {
         syncMaskWithTextbox(activeObject);
         canvas.renderAll();
       }
@@ -309,7 +310,8 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         e.target.manuallyEdited = true;
       }
 
-      if (e.target && e.target.type === 'textbox') {
+      // 遮罩编辑模式下不同步
+      if (e.target && e.target.type === 'textbox' && !maskEditMode) {
         syncMaskWithTextbox(e.target);
         canvas.renderAll();
       }
@@ -520,16 +522,19 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           console.log('标记遮罩为手动编辑:', modifiedObject);
         }
 
-        if (modifiedObject.type === 'textbox' && modifiedObject.bgRect) {
-          syncMaskWithTextbox(modifiedObject);
-        } else if (modifiedObject.type === 'activeSelection') {
-          // 多选修改完成后，同步所有文本框的遮罩
-          const textboxes = modifiedObject.getObjects().filter(obj => obj.type === 'textbox');
-          textboxes.forEach(textbox => {
-            if (textbox.bgRect) {
-              syncMaskWithTextbox(textbox);
-            }
-          });
+        // 遮罩编辑模式下不同步遮罩
+        if (!maskEditMode) {
+          if (modifiedObject.type === 'textbox' && modifiedObject.bgRect) {
+            syncMaskWithTextbox(modifiedObject);
+          } else if (modifiedObject.type === 'activeSelection') {
+            // 多选修改完成后，同步所有文本框的遮罩
+            const textboxes = modifiedObject.getObjects().filter(obj => obj.type === 'textbox');
+            textboxes.forEach(textbox => {
+              if (textbox.bgRect) {
+                syncMaskWithTextbox(textbox);
+              }
+            });
+          }
         }
         canvas.renderAll();
       }
@@ -2611,6 +2616,10 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     // 完全清除所有样式
     textbox.styles = {};
 
+    console.log('=== Markdown样式应用 ===');
+    console.log('原文:', originalText);
+    console.log('纯文本:', cleanText);
+
     // 构建精确的位置映射：原文每个字符 -> cleanText中的位置
     // 跳过标记符号，只映射实际内容字符
     let cleanPos = 0;
@@ -2625,27 +2634,34 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       // 检测各种markdown标记
       if (char === '*' && next === '*') {
         // ** 粗体标记的开始或结束，跳过这两个字符
+        console.log(`位置${i}: 跳过 ** 标记`);
         i += 2;
         continue;
       } else if (char === '*' && prev !== '*' && next !== '*') {
         // * 斜体标记（单星号），跳过
+        console.log(`位置${i}: 跳过 * 标记`);
         i += 1;
         continue;
       } else if (char === '_') {
         // _ 斜体标记，跳过
+        console.log(`位置${i}: 跳过 _ 标记`);
         i += 1;
         continue;
       } else if (char === '~' && next === '~') {
         // ~~ 删除线标记，跳过这两个字符
+        console.log(`位置${i}: 跳过 ~~ 标记`);
         i += 2;
         continue;
       } else {
         // 这是实际内容字符，映射到cleanText位置
+        console.log(`位置${i}(${char}) -> 纯文本位置${cleanPos}`);
         originalToCleanMap.set(i, cleanPos);
         cleanPos++;
         i++;
       }
     }
+
+    console.log('映射表:', Array.from(originalToCleanMap.entries()));
 
     // 现在用正则匹配markdown，并根据映射应用样式
 
@@ -2658,16 +2674,24 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       const contentStartInOriginal = match.index + 2; // 跳过 **
       const contentEndInOriginal = contentStartInOriginal + match[1].length - 1;
 
+      console.log(`粗体匹配: "${match[0]}", 内容: "${match[1]}"`);
+      console.log(`  原文位置: ${contentStartInOriginal}-${contentEndInOriginal}`);
+
       // 映射到cleanText的位置
       const cleanStart = originalToCleanMap.get(contentStartInOriginal);
       const cleanEnd = originalToCleanMap.get(contentEndInOriginal);
 
+      console.log(`  纯文本位置: ${cleanStart}-${cleanEnd}`);
+
       if (cleanStart !== undefined && cleanEnd !== undefined) {
+        console.log(`  应用粗体样式到: "${cleanText.substring(cleanStart, cleanEnd + 1)}"`);
         textbox.setSelectionStyles(
           { fontWeight: 'bold' },
           cleanStart,
           cleanEnd + 1  // setSelectionStyles 的结束位置是不包含的
         );
+      } else {
+        console.log(`  警告：映射失败！`);
       }
     }
 
