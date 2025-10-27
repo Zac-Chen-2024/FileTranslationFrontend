@@ -988,7 +988,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
         console.log('准备调用setLlmRegions...');
         setLlmRegions(updatedRegions);
         console.log('setLlmRegions调用完成');
-        actions.showNotification('AI优化完成', `成功优化 ${updatedRegions.length} 个翻译区域`, 'success');
+        actions.showNotification(t('aiOptimizationComplete'), t('aiOptimizationSuccessCount', { count: updatedRegions.length }), 'success');
       } else {
         console.error('data中没有llm_translations字段！', data);
       }
@@ -1196,32 +1196,32 @@ const ComparisonView = ({ material, onSelectResult }) => {
                     </div>
                   </div>
                   <h3 className={styles.processingTitle}>
-                    {(material.status === '拆分中' || material.processingStep === 'splitting') && '正在拆分PDF页面...'}
-                    {material.processingStep === 'uploaded' && '正在准备翻译...'}
-                    {(material.processingStep === 'translating' || (pdfSessionProgress && pdfSessionProgress.someTranslating)) && '正在翻译中...'}
-                    {llmLoading && '正在AI优化中...'}
-                    {!material.processingStep && !llmLoading && !material.status === '拆分中' && '处理中...'}
+                    {(material.status === '拆分中' || material.processingStep === 'splitting') && t('splittingPdfPages')}
+                    {material.processingStep === 'uploaded' && t('preparingTranslation')}
+                    {(material.processingStep === 'translating' || (pdfSessionProgress && pdfSessionProgress.someTranslating)) && t('statusTranslatingProgress')}
+                    {llmLoading && t('aiOptimizing')}
+                    {!material.processingStep && !llmLoading && !material.status === '拆分中' && t('statusProcessing')}
                   </h3>
                   <div className={styles.processingSteps}>
                     <div className={`${styles.processingStep} ${(pdfSessionProgress ? pdfSessionProgress.progress >= 33 : material.processingProgress >= 33) ? styles.active : ''}`}>
                       <div className={styles.stepIcon}>
                         {(pdfSessionProgress ? pdfSessionProgress.progress >= 33 : material.processingProgress >= 33) ? '✓' : '1'}
                       </div>
-                      <span>上传完成</span>
+                      <span>{t('uploadComplete')}</span>
                     </div>
                     <div className={styles.stepLine}></div>
                     <div className={`${styles.processingStep} ${(pdfSessionProgress ? pdfSessionProgress.progress >= 66 : material.processingProgress >= 66) ? styles.active : (material.processingStep === 'translating' || (pdfSessionProgress && pdfSessionProgress.someTranslating)) ? styles.current : ''}`}>
                       <div className={styles.stepIcon}>
                         {(pdfSessionProgress ? pdfSessionProgress.progress >= 66 : material.processingProgress >= 66) ? '✓' : '2'}
                       </div>
-                      <span>机器学习翻译</span>
+                      <span>{t('machineTranslation')}</span>
                     </div>
                     <div className={styles.stepLine}></div>
                     <div className={`${styles.processingStep} ${(pdfSessionProgress ? pdfSessionProgress.progress === 100 : material.processingProgress === 100) ? styles.active : llmLoading ? styles.current : ''}`}>
                       <div className={styles.stepIcon}>
                         {(pdfSessionProgress ? pdfSessionProgress.progress === 100 : material.processingProgress === 100) ? '✓' : '3'}
                       </div>
-                      <span>AI优化</span>
+                      <span>{t('aiOptimization')}</span>
                     </div>
                   </div>
                   <div className={styles.progressBarWrapper}>

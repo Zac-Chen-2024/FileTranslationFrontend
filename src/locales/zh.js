@@ -307,6 +307,18 @@ export const zh = {
   materialStatusUpdated: '材料状态已更新',
   refreshFailed: '刷新失败',
   cannotGetLatestStatus: '无法获取最新状态',
+
+  // Processing Status
+  splittingPdfPages: '正在拆分PDF页面...',
+  preparingTranslation: '正在准备翻译...',
+  statusTranslatingProgress: '正在翻译中...',
+  aiOptimizing: '正在AI优化中...',
+  statusProcessing: '处理中...',
+  uploadComplete: '上传完成',
+  machineTranslation: '机器学习翻译',
+  aiOptimization: 'AI优化',
+  aiOptimizationComplete: 'AI优化完成',
+  aiOptimizationSuccessCount: '成功优化 {count} 个翻译区域',
   confirmSuccess: '确认成功',
   unconfirmSuccess: '取消确认成功',
   materialConfirmedComplete: '{name} 已确认完成',

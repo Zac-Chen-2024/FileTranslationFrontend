@@ -307,6 +307,18 @@ export const en = {
   materialStatusUpdated: 'Material status updated',
   refreshFailed: 'Refresh Failed',
   cannotGetLatestStatus: 'Cannot get latest status',
+
+  // Processing Status
+  splittingPdfPages: 'Splitting PDF pages...',
+  preparingTranslation: 'Preparing translation...',
+  statusTranslatingProgress: 'Translating...',
+  aiOptimizing: 'AI optimizing...',
+  statusProcessing: 'Processing...',
+  uploadComplete: 'Upload Complete',
+  machineTranslation: 'Machine Translation',
+  aiOptimization: 'AI Optimization',
+  aiOptimizationComplete: 'AI Optimization Complete',
+  aiOptimizationSuccessCount: 'Successfully optimized {count} translation regions',
   confirmSuccess: 'Confirm Successful',
   unconfirmSuccess: 'Unconfirm Successful',
   materialConfirmedComplete: '{name} confirmed complete',
