@@ -551,7 +551,11 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       // 如果有保存的原始 markdown 文本，恢复它
       if (textbox._markdownText) {
         textbox.text = textbox._markdownText;
-        textbox.setSelectionStyles({}, 0, textbox.text.length);
+
+        // 完全清除所有字符级样式，恢复为纯文本显示
+        // 方法：将 styles 对象重置为空
+        textbox.styles = {};
+
         textbox.dirty = true;
       }
       canvas.renderAll();
@@ -2604,91 +2608,120 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
   const applyMarkdownStylesToCleanText = (textbox, originalText, cleanText) => {
     if (!cleanText) return;
 
-    // 清除所有样式
-    textbox.setSelectionStyles({}, 0, cleanText.length);
+    // 完全清除所有样式
+    textbox.styles = {};
 
-    // 构建一个映射：原文位置 -> 新文本位置
-    // 这样我们可以知道在移除标记后，原文的某个字符对应新文本的哪个位置
-    const positionMap = [];
-    let cleanIndex = 0;
+    // 构建精确的位置映射：原文每个字符 -> cleanText中的位置
+    // 跳过标记符号，只映射实际内容字符
+    let cleanPos = 0;
+    const originalToCleanMap = new Map(); // 原文index -> cleanText index
 
-    for (let i = 0; i < originalText.length; i++) {
+    let i = 0;
+    while (i < originalText.length) {
       const char = originalText[i];
-      const nextChar = originalText[i + 1];
-      const prevChar = originalText[i - 1];
+      const next = originalText[i + 1];
+      const prev = originalText[i - 1];
 
-      // 检测标记符号
-      const isBoldMarker = char === '*' && nextChar === '*';
-      const isItalicMarker = char === '*' && prevChar !== '*' && nextChar !== '*';
-      const isUnderscoreMarker = char === '_';
-      const isStrikeMarker = char === '~' && nextChar === '~';
-
-      if (isBoldMarker || isItalicMarker || isUnderscoreMarker || isStrikeMarker) {
-        // 这是标记字符，不映射到新文本
-        positionMap[i] = -1;
+      // 检测各种markdown标记
+      if (char === '*' && next === '*') {
+        // ** 粗体标记的开始或结束，跳过这两个字符
+        i += 2;
+        continue;
+      } else if (char === '*' && prev !== '*' && next !== '*') {
+        // * 斜体标记（单星号），跳过
+        i += 1;
+        continue;
+      } else if (char === '_') {
+        // _ 斜体标记，跳过
+        i += 1;
+        continue;
+      } else if (char === '~' && next === '~') {
+        // ~~ 删除线标记，跳过这两个字符
+        i += 2;
+        continue;
       } else {
-        // 这是内容字符，映射到新文本
-        positionMap[i] = cleanIndex;
-        cleanIndex++;
+        // 这是实际内容字符，映射到cleanText位置
+        originalToCleanMap.set(i, cleanPos);
+        cleanPos++;
+        i++;
       }
     }
 
-    // 现在解析 markdown 并应用样式
-    // **text** = 粗体
+    // 现在用正则匹配markdown，并根据映射应用样式
+
+    // 粗体 **text**
     const boldRegex = /\*\*(.+?)\*\*/g;
     let match;
     while ((match = boldRegex.exec(originalText)) !== null) {
-      const contentStart = match.index + 2; // 跳过 **
-      const contentEnd = contentStart + match[1].length;
+      // match.index 是 ** 的位置
+      // match[1] 是被包围的内容
+      const contentStartInOriginal = match.index + 2; // 跳过 **
+      const contentEndInOriginal = contentStartInOriginal + match[1].length - 1;
 
-      // 映射到新文本的位置
-      const newStart = positionMap[contentStart];
-      const newEnd = positionMap[contentEnd - 1] + 1;
+      // 映射到cleanText的位置
+      const cleanStart = originalToCleanMap.get(contentStartInOriginal);
+      const cleanEnd = originalToCleanMap.get(contentEndInOriginal);
 
-      if (newStart >= 0 && newEnd >= 0) {
-        textbox.setSelectionStyles({ fontWeight: 'bold' }, newStart, newEnd);
+      if (cleanStart !== undefined && cleanEnd !== undefined) {
+        textbox.setSelectionStyles(
+          { fontWeight: 'bold' },
+          cleanStart,
+          cleanEnd + 1  // setSelectionStyles 的结束位置是不包含的
+        );
       }
     }
 
-    // *text* = 斜体 (但不是 **，需要排除粗体)
+    // 斜体 *text* (单星号)
     const italicRegex = /(?<!\*)\*([^*]+?)\*(?!\*)/g;
     while ((match = italicRegex.exec(originalText)) !== null) {
-      const contentStart = match.index + 1;
-      const contentEnd = contentStart + match[1].length;
+      const contentStartInOriginal = match.index + 1;
+      const contentEndInOriginal = contentStartInOriginal + match[1].length - 1;
 
-      const newStart = positionMap[contentStart];
-      const newEnd = positionMap[contentEnd - 1] + 1;
+      const cleanStart = originalToCleanMap.get(contentStartInOriginal);
+      const cleanEnd = originalToCleanMap.get(contentEndInOriginal);
 
-      if (newStart >= 0 && newEnd >= 0) {
-        textbox.setSelectionStyles({ fontStyle: 'italic' }, newStart, newEnd);
+      if (cleanStart !== undefined && cleanEnd !== undefined) {
+        textbox.setSelectionStyles(
+          { fontStyle: 'italic' },
+          cleanStart,
+          cleanEnd + 1
+        );
       }
     }
 
-    // _text_ = 斜体
+    // 下划线斜体 _text_
     const underscoreRegex = /_(.+?)_/g;
     while ((match = underscoreRegex.exec(originalText)) !== null) {
-      const contentStart = match.index + 1;
-      const contentEnd = contentStart + match[1].length;
+      const contentStartInOriginal = match.index + 1;
+      const contentEndInOriginal = contentStartInOriginal + match[1].length - 1;
 
-      const newStart = positionMap[contentStart];
-      const newEnd = positionMap[contentEnd - 1] + 1;
+      const cleanStart = originalToCleanMap.get(contentStartInOriginal);
+      const cleanEnd = originalToCleanMap.get(contentEndInOriginal);
 
-      if (newStart >= 0 && newEnd >= 0) {
-        textbox.setSelectionStyles({ fontStyle: 'italic' }, newStart, newEnd);
+      if (cleanStart !== undefined && cleanEnd !== undefined) {
+        textbox.setSelectionStyles(
+          { fontStyle: 'italic' },
+          cleanStart,
+          cleanEnd + 1
+        );
       }
     }
 
-    // ~~text~~ = 删除线
+    // 删除线 ~~text~~
     const strikeRegex = /~~(.+?)~~/g;
     while ((match = strikeRegex.exec(originalText)) !== null) {
-      const contentStart = match.index + 2;
-      const contentEnd = contentStart + match[1].length;
+      const contentStartInOriginal = match.index + 2;
+      const contentEndInOriginal = contentStartInOriginal + match[1].length - 1;
 
-      const newStart = positionMap[contentStart];
-      const newEnd = positionMap[contentEnd - 1] + 1;
+      const cleanStart = originalToCleanMap.get(contentStartInOriginal);
+      const cleanEnd = originalToCleanMap.get(contentEndInOriginal);
 
-      if (newStart >= 0 && newEnd >= 0) {
-        textbox.setSelectionStyles({ linethrough: true }, newStart, newEnd);
+      if (cleanStart !== undefined && cleanEnd !== undefined) {
+        textbox.setSelectionStyles(
+          { linethrough: true },
+          cleanStart,
+          cleanEnd + 1
+        );
       }
     }
   };
