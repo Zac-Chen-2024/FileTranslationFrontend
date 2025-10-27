@@ -2308,11 +2308,21 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           charSpacing: textbox.charSpacing
         };
 
-        // 更新文本，同时恢复原有属性
+        // ========== Markdown 处理 ==========
+        // AI返回的文本可能包含markdown标记，需要处理
+        textbox._markdownText = newText; // 保存原始markdown文本
+
+        // 移除markdown标记，得到纯文本
+        const cleanText = removeMarkdownTags(newText);
+
+        // 更新文本为纯文本，同时恢复原有属性
         textbox.set({
-          text: newText,
+          text: cleanText,
           ...originalProps
         });
+
+        // 应用markdown样式
+        applyMarkdownStylesToCleanText(textbox, newText, cleanText);
       });
       canvas.renderAll();
       saveHistory();
@@ -2339,11 +2349,21 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         charSpacing: textbox.charSpacing
       };
 
-      // 更新文本，同时恢复原有属性
+      // ========== Markdown 处理 ==========
+      // AI返回的文本可能包含markdown标记，需要处理
+      textbox._markdownText = newText; // 保存原始markdown文本
+
+      // 移除markdown标记，得到纯文本
+      const cleanText = removeMarkdownTags(newText);
+
+      // 更新文本为纯文本，同时恢复原有属性
       textbox.set({
-        text: newText,
+        text: cleanText,
         ...originalProps
       });
+
+      // 应用markdown样式
+      applyMarkdownStylesToCleanText(textbox, newText, cleanText);
     });
 
     canvas.renderAll();
@@ -2449,8 +2469,14 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       }
     }
 
+    // ========== Markdown 处理 ==========
+    // 保存原始markdown文本
+    const markdownText = newText;
+    // 移除markdown标记
+    const cleanText = removeMarkdownTags(newText);
+
     // 创建合并的文本框，使用记忆的设置
-    const mergedTextObj = new window.fabric.Textbox(newText, {
+    const mergedTextObj = new window.fabric.Textbox(cleanText, {
       left: mergedBounds.left,
       top: mergedBounds.top,
       width: mergedBounds.width,
@@ -2471,6 +2497,12 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       originY: 'top',
       lockScalingFlip: true
     });
+
+    // 保存原始markdown文本
+    mergedTextObj._markdownText = markdownText;
+
+    // 应用markdown样式
+    applyMarkdownStylesToCleanText(mergedTextObj, markdownText, cleanText);
 
     if (blurBackground) {
       blurBackground.textObj = mergedTextObj;
@@ -2610,144 +2642,176 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
   };
 
   // 根据原始 markdown 文本，在移除标记后的文本上应用样式
+  // 使用更稳健的方式：直接操作 Fabric.js styles 对象
   const applyMarkdownStylesToCleanText = (textbox, originalText, cleanText) => {
     if (!cleanText) return;
 
-    // 完全清除所有样式
-    textbox.styles = {};
-
-    console.log('=== Markdown样式应用 ===');
+    console.log('=== Markdown样式应用（直接操作styles对象） ===');
     console.log('原文:', originalText);
     console.log('纯文本:', cleanText);
 
-    // 构建精确的位置映射：原文每个字符 -> cleanText中的位置
-    // 跳过标记符号，只映射实际内容字符
+    // 1. 构建位置映射：原文字符位置 -> 纯文本字符位置
+    const originalToCleanMap = new Map();
     let cleanPos = 0;
-    const originalToCleanMap = new Map(); // 原文index -> cleanText index
 
-    let i = 0;
-    while (i < originalText.length) {
+    for (let i = 0; i < originalText.length; i++) {
       const char = originalText[i];
-      const next = originalText[i + 1];
-      const prev = originalText[i - 1];
+      const next = originalText[i + 1] || '';
+      const prev = originalText[i - 1] || '';
 
-      // 检测各种markdown标记
-      if (char === '*' && next === '*') {
-        // ** 粗体标记的开始或结束，跳过这两个字符
-        console.log(`位置${i}: 跳过 ** 标记`);
-        i += 2;
-        continue;
-      } else if (char === '*' && prev !== '*' && next !== '*') {
-        // * 斜体标记（单星号），跳过
-        console.log(`位置${i}: 跳过 * 标记`);
-        i += 1;
-        continue;
-      } else if (char === '_') {
-        // _ 斜体标记，跳过
-        console.log(`位置${i}: 跳过 _ 标记`);
-        i += 1;
-        continue;
-      } else if (char === '~' && next === '~') {
-        // ~~ 删除线标记，跳过这两个字符
-        console.log(`位置${i}: 跳过 ~~ 标记`);
-        i += 2;
-        continue;
-      } else {
-        // 这是实际内容字符，映射到cleanText位置
-        console.log(`位置${i}(${char}) -> 纯文本位置${cleanPos}`);
+      // 判断是否是markdown标记
+      const isMarkdownChar = (
+        (char === '*' && next === '*') ||  // ** 开始
+        (char === '*' && prev === '*') ||  // ** 结束
+        (char === '*' && prev !== '*' && next !== '*') ||  // 单 *
+        (char === '_') ||  // 下划线
+        (char === '~' && next === '~') ||  // ~~ 开始
+        (char === '~' && prev === '~')     // ~~ 结束
+      );
+
+      if (!isMarkdownChar) {
+        // 这是内容字符，记录映射
         originalToCleanMap.set(i, cleanPos);
         cleanPos++;
-        i++;
       }
     }
 
-    console.log('映射表:', Array.from(originalToCleanMap.entries()));
+    // 2. 初始化 styles 对象结构
+    // Fabric.js 使用 styles[lineIndex][charIndex] = {样式} 的结构
+    const lines = cleanText.split('\n');
+    textbox.styles = {};
 
-    // 现在用正则匹配markdown，并根据映射应用样式
+    // 初始化每一行的样式对象
+    lines.forEach((_line, lineIndex) => {
+      textbox.styles[lineIndex] = {};
+    });
 
-    // 粗体 **text**
-    const boldRegex = /\*\*(.+?)\*\*/g;
+    // 3. 辅助函数：将全局字符位置转换为 (lineIndex, charIndex)
+    const getLineAndCharIndex = (globalCharIndex) => {
+      let currentPos = 0;
+      for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+        const lineLength = lines[lineIndex].length;
+        if (globalCharIndex < currentPos + lineLength) {
+          // 在当前行
+          return { lineIndex, charIndex: globalCharIndex - currentPos };
+        }
+        currentPos += lineLength + 1; // +1 for newline character
+      }
+      return null;
+    };
+
+    // 4. 应用粗体样式 **text**
+    const boldRegex = /\*\*(.+?)\*\*/gs; // s flag for multiline
     let match;
     while ((match = boldRegex.exec(originalText)) !== null) {
-      // match.index 是 ** 的位置
-      // match[1] 是被包围的内容
-      const contentStartInOriginal = match.index + 2; // 跳过 **
-      const contentEndInOriginal = contentStartInOriginal + match[1].length - 1;
+      const contentStartInOriginal = match.index + 2;
+      const content = match[1];
 
-      console.log(`粗体匹配: "${match[0]}", 内容: "${match[1]}"`);
-      console.log(`  原文位置: ${contentStartInOriginal}-${contentEndInOriginal}`);
+      console.log(`\n[粗体] 匹配: "${match[0]}"`);
+      console.log(`  内容: "${content}"`);
 
-      // 映射到cleanText的位置
-      const cleanStart = originalToCleanMap.get(contentStartInOriginal);
-      const cleanEnd = originalToCleanMap.get(contentEndInOriginal);
+      // 遍历内容的每个字符，应用样式
+      for (let i = 0; i < content.length; i++) {
+        const originalPos = contentStartInOriginal + i;
+        const cleanPos = originalToCleanMap.get(originalPos);
 
-      console.log(`  纯文本位置: ${cleanStart}-${cleanEnd}`);
-
-      if (cleanStart !== undefined && cleanEnd !== undefined) {
-        console.log(`  应用粗体样式到: "${cleanText.substring(cleanStart, cleanEnd + 1)}"`);
-        textbox.setSelectionStyles(
-          { fontWeight: 'bold' },
-          cleanStart,
-          cleanEnd + 1  // setSelectionStyles 的结束位置是不包含的
-        );
-      } else {
-        console.log(`  警告：映射失败！`);
+        if (cleanPos !== undefined) {
+          const pos = getLineAndCharIndex(cleanPos);
+          if (pos) {
+            if (!textbox.styles[pos.lineIndex]) {
+              textbox.styles[pos.lineIndex] = {};
+            }
+            textbox.styles[pos.lineIndex][pos.charIndex] = {
+              ...(textbox.styles[pos.lineIndex][pos.charIndex] || {}),
+              fontWeight: 'bold'
+            };
+          }
+        }
       }
     }
 
-    // 斜体 *text* (单星号)
-    const italicRegex = /(?<!\*)\*([^*]+?)\*(?!\*)/g;
+    // 5. 应用斜体样式 *text* (单星号，不能前后有星号)
+    const italicRegex = /(?<!\*)\*([^*\n]+?)\*(?!\*)/g;
     while ((match = italicRegex.exec(originalText)) !== null) {
       const contentStartInOriginal = match.index + 1;
-      const contentEndInOriginal = contentStartInOriginal + match[1].length - 1;
+      const content = match[1];
 
-      const cleanStart = originalToCleanMap.get(contentStartInOriginal);
-      const cleanEnd = originalToCleanMap.get(contentEndInOriginal);
+      console.log(`\n[斜体*] 匹配: "${match[0]}"`);
 
-      if (cleanStart !== undefined && cleanEnd !== undefined) {
-        textbox.setSelectionStyles(
-          { fontStyle: 'italic' },
-          cleanStart,
-          cleanEnd + 1
-        );
+      for (let i = 0; i < content.length; i++) {
+        const originalPos = contentStartInOriginal + i;
+        const cleanPos = originalToCleanMap.get(originalPos);
+
+        if (cleanPos !== undefined) {
+          const pos = getLineAndCharIndex(cleanPos);
+          if (pos) {
+            if (!textbox.styles[pos.lineIndex]) {
+              textbox.styles[pos.lineIndex] = {};
+            }
+            textbox.styles[pos.lineIndex][pos.charIndex] = {
+              ...(textbox.styles[pos.lineIndex][pos.charIndex] || {}),
+              fontStyle: 'italic'
+            };
+          }
+        }
       }
     }
 
-    // 下划线斜体 _text_
-    const underscoreRegex = /_(.+?)_/g;
-    while ((match = underscoreRegex.exec(originalText)) !== null) {
+    // 6. 应用斜体样式 _text_
+    const underscoreItalicRegex = /_([^_\n]+?)_/g;
+    while ((match = underscoreItalicRegex.exec(originalText)) !== null) {
       const contentStartInOriginal = match.index + 1;
-      const contentEndInOriginal = contentStartInOriginal + match[1].length - 1;
+      const content = match[1];
 
-      const cleanStart = originalToCleanMap.get(contentStartInOriginal);
-      const cleanEnd = originalToCleanMap.get(contentEndInOriginal);
+      console.log(`\n[斜体_] 匹配: "${match[0]}"`);
 
-      if (cleanStart !== undefined && cleanEnd !== undefined) {
-        textbox.setSelectionStyles(
-          { fontStyle: 'italic' },
-          cleanStart,
-          cleanEnd + 1
-        );
+      for (let i = 0; i < content.length; i++) {
+        const originalPos = contentStartInOriginal + i;
+        const cleanPos = originalToCleanMap.get(originalPos);
+
+        if (cleanPos !== undefined) {
+          const pos = getLineAndCharIndex(cleanPos);
+          if (pos) {
+            if (!textbox.styles[pos.lineIndex]) {
+              textbox.styles[pos.lineIndex] = {};
+            }
+            textbox.styles[pos.lineIndex][pos.charIndex] = {
+              ...(textbox.styles[pos.lineIndex][pos.charIndex] || {}),
+              fontStyle: 'italic'
+            };
+          }
+        }
       }
     }
 
-    // 删除线 ~~text~~
-    const strikeRegex = /~~(.+?)~~/g;
-    while ((match = strikeRegex.exec(originalText)) !== null) {
+    // 7. 应用删除线样式 ~~text~~
+    const strikethroughRegex = /~~(.+?)~~/gs;
+    while ((match = strikethroughRegex.exec(originalText)) !== null) {
       const contentStartInOriginal = match.index + 2;
-      const contentEndInOriginal = contentStartInOriginal + match[1].length - 1;
+      const content = match[1];
 
-      const cleanStart = originalToCleanMap.get(contentStartInOriginal);
-      const cleanEnd = originalToCleanMap.get(contentEndInOriginal);
+      console.log(`\n[删除线] 匹配: "${match[0]}"`);
 
-      if (cleanStart !== undefined && cleanEnd !== undefined) {
-        textbox.setSelectionStyles(
-          { linethrough: true },
-          cleanStart,
-          cleanEnd + 1
-        );
+      for (let i = 0; i < content.length; i++) {
+        const originalPos = contentStartInOriginal + i;
+        const cleanPos = originalToCleanMap.get(originalPos);
+
+        if (cleanPos !== undefined) {
+          const pos = getLineAndCharIndex(cleanPos);
+          if (pos) {
+            if (!textbox.styles[pos.lineIndex]) {
+              textbox.styles[pos.lineIndex] = {};
+            }
+            textbox.styles[pos.lineIndex][pos.charIndex] = {
+              ...(textbox.styles[pos.lineIndex][pos.charIndex] || {}),
+              linethrough: true
+            };
+          }
+        }
       }
     }
+
+    console.log('=== 样式应用完成 ===\n');
   };
 
   // 从文本中移除 markdown 标记（用于显示模式）
