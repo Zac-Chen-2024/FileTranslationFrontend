@@ -889,6 +889,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           top: maskTop,
           width: maskWidth,
           height: maskHeight,
+          angle: region.maskAngle || 0, // 恢复遮罩旋转角度
           fill: 'transparent',
           stroke: 'transparent',
           strokeWidth: 0,
@@ -915,6 +916,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         left: minX,
         top: minY,
         width: width,
+        angle: region.angle || 0, // 恢复旋转角度
         // 使用保存的格式属性，如果没有则使用默认值
         fontSize: region.fontSize || calculatedFontSize,
         fontFamily: region.fontFamily || selectedFont,
@@ -2893,6 +2895,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
             y: obj.top,
             width: obj.width * obj.scaleX,
             height: obj.height * obj.scaleY,
+            angle: obj.angle || 0, // 保存旋转角度
             // 保存文本格式属性
             fontSize: obj.fontSize,
             fontFamily: obj.fontFamily,
@@ -2908,6 +2911,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
             regionData.maskY = obj.bgRect.top;
             regionData.maskWidth = obj.bgRect.width * obj.bgRect.scaleX;
             regionData.maskHeight = obj.bgRect.height * obj.bgRect.scaleY;
+            regionData.maskAngle = obj.bgRect.angle || 0; // 保存遮罩旋转角度
           }
 
           currentRegions.push(regionData);
@@ -2922,6 +2926,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
             y: obj.top,
             width: obj.width * obj.scaleX,
             height: obj.height * obj.scaleY,
+            angle: obj.angle || 0, // 保存旋转角度
             isMerged: true, // 标记为合并的文本
             mergedIndexes: obj.mergedIndexes || [], // 保存合并的索引信息
             // 保存文本格式属性
