@@ -905,6 +905,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           top: minY,
           width: width,
           height: height,
+          angle: region.angle || 0, // 恢复旋转角度
           textObj: null, // 稍后关联
           mergedIndexes: region.mergedIndexes || [],
           mergedBounds: { left: minX, top: minY, width, height }
@@ -1408,7 +1409,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
   
   // 创建简单的模糊背景矩形（保留为兼容）
   const createBlurBackground = (options) => {
-    const { left, top, width, height, textObj, mergedIndexes } = options;
+    const { left, top, width, height, angle, textObj, mergedIndexes } = options;
 
     if (!imageRef.current) {
       console.error('createBlurBackground: imageRef.current is null');
@@ -1562,6 +1563,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       top: expandedTop,
       width: expandedWidth,
       height: expandedHeight,
+      angle: angle || 0, // 设置旋转角度
       selectable: false,
       evented: false,
       originX: 'left',
