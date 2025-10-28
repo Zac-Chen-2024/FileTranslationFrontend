@@ -2906,6 +2906,11 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
             fill: obj.fill
           };
 
+          // 保存遮罩的角度（所有文本框的遮罩都应该保存角度）
+          if (obj.bgRect) {
+            regionData.maskAngle = obj.bgRect.angle || 0;
+          }
+
           // 如果有手动编辑过的遮罩，保存遮罩的位置和大小
           if (obj.bgRect && obj.bgRect.manuallyEdited) {
             regionData.maskManuallyEdited = true;
@@ -2913,7 +2918,6 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
             regionData.maskY = obj.bgRect.top;
             regionData.maskWidth = obj.bgRect.width * obj.bgRect.scaleX;
             regionData.maskHeight = obj.bgRect.height * obj.bgRect.scaleY;
-            regionData.maskAngle = obj.bgRect.angle || 0; // 保存遮罩旋转角度
           }
 
           currentRegions.push(regionData);
