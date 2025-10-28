@@ -130,6 +130,7 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
   const scrollContainerRef = useRef(null);
   const scrollTimeoutRef = useRef(null);
   const dragCounter = useRef(0);
+  const materialsSectionRef = useRef(null); // 外层容器ref，用于监听高度变化
 
   // 使用useMemo优化材料列表的计算 - 包含PDF合并逻辑
   const clientMaterials = useMemo(() => {
@@ -248,25 +249,40 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
     }, SCROLL_DEBOUNCE);
   }, []);
 
-  // 监听容器尺寸变化（使用 ResizeObserver 而不是 window.resize）
+  // 监听容器尺寸变化（监听外层容器，计算滚动区域的实际可用高度）
   useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
+    const scrollContainer = scrollContainerRef.current;
+    const outerContainer = materialsSectionRef.current;
+
+    if (!scrollContainer || !outerContainer) return;
 
     const updateHeight = () => {
-      setContainerHeight(container.clientHeight);
+      // 方法1: 直接使用滚动容器的 clientHeight
+      // 这样可以自动计算出 flex: 1 后的实际高度
+      const availableHeight = scrollContainer.clientHeight;
+
+      console.log('[VirtualList] 容器高度更新:', {
+        outerHeight: outerContainer.clientHeight,
+        scrollHeight: availableHeight
+      });
+
+      setContainerHeight(availableHeight);
     };
 
     // 初始化时设置高度
     updateHeight();
 
-    // 使用 ResizeObserver 监听容器自身的尺寸变化
-    // 这样当右边预览区域组件换行导致容器高度变化时，也能响应
+    // 使用 ResizeObserver 监听外层容器的尺寸变化
+    // 当右边预览区域组件换行导致整体容器高度变化时，会触发更新
     const resizeObserver = new ResizeObserver(() => {
-      updateHeight();
+      // 延迟一帧，确保布局完成
+      requestAnimationFrame(() => {
+        updateHeight();
+      });
     });
 
-    resizeObserver.observe(container);
+    // 监听外层容器
+    resizeObserver.observe(outerContainer);
 
     // 同时监听 window resize（兼容性）
     window.addEventListener('resize', updateHeight);
@@ -564,6 +580,7 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
 
   return (
     <div
+      ref={materialsSectionRef}
       className={`${styles.materialsSection} ${isDragging ? styles.dragging : ''}`}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
