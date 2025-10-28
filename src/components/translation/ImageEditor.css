@@ -10,6 +10,7 @@
   padding-bottom: var(--spacing-md, 1rem);
   border-bottom: 1px solid var(--color-gray-300, #dee2e6);
   gap: var(--spacing-md, 1rem);
+  flex-wrap: wrap; /* 允许换行 */
 }
 
 .toolbar-left {
@@ -25,6 +26,7 @@
   gap: var(--spacing-md, 1rem);
   align-items: center;
   flex-shrink: 0;
+  flex-wrap: wrap; /* 允许换行 */
 }
 
 /* 全局AI按钮 */
@@ -489,20 +491,32 @@
 }
 
 /* 响应式设计 */
+@media (max-width: 1200px) {
+  /* 中等屏幕：工具栏元素开始换行 */
+  .toolbar-left,
+  .toolbar-right {
+    min-width: 100%; /* 强制换行 */
+  }
+
+  .toolbar-right {
+    justify-content: flex-start; /* 左对齐，避免拉伸 */
+  }
+}
+
 @media (max-width: 1024px) {
   .canvas-container {
     flex-direction: column;
   }
-  
+
   .canvas-wrapper {
     width: 100%;
   }
-  
+
   .edit-canvas {
     max-width: 100%;
     max-height: 300px;
   }
-  
+
   .region-controls {
     flex: none;
     width: 100%;
@@ -515,13 +529,57 @@
     flex-direction: column;
     align-items: stretch;
   }
-  
+
+  .toolbar-left,
+  .toolbar-right {
+    width: 100%;
+    min-width: auto;
+  }
+
   .style-controls {
     flex-direction: column;
     align-items: flex-start;
   }
-  
+
+  /* 缩放控件在小屏幕时保持紧凑 */
+  .zoom-controls {
+    width: fit-content;
+  }
+
   .edit-canvas {
     max-height: 250px;
+  }
+}
+
+@media (max-width: 480px) {
+  /* 超小屏幕：进一步调整 */
+  .toolbar-left {
+    gap: var(--spacing-sm, 0.5rem);
+  }
+
+  .toolbar-right {
+    gap: var(--spacing-sm, 0.5rem);
+  }
+
+  /* 按钮文字更紧凑 */
+  .process-button,
+  .merge-button,
+  .undo-button,
+  .redo-button,
+  .export-button,
+  .save-button {
+    padding: var(--spacing-xs, 0.5rem) var(--spacing-md, 1rem);
+    font-size: var(--font-size-sm, 0.85rem);
+    min-height: 36px;
+  }
+
+  .global-ai-button {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .zoom-controls {
+    padding: var(--spacing-xs, 0.5rem);
+    height: 36px;
   }
 }
