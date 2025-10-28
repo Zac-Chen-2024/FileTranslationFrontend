@@ -249,69 +249,69 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
     }, SCROLL_DEBOUNCE);
   }, []);
 
-  // 监听容器尺寸变化（监听外层容器，计算滚动区域的实际可用高度）
+  // 更新高度的核心函数（提取出来供其他地方调用）
+  const updateContainerHeight = useCallback(() => {
+    const scrollContainer = scrollContainerRef.current;
+    const outerContainer = materialsSectionRef.current;
+
+    if (!scrollContainer || !outerContainer) return;
+
+    const availableHeight = scrollContainer.clientHeight;
+
+    console.log('[VirtualList] 容器高度更新:', {
+      outerHeight: outerContainer.clientHeight,
+      scrollHeight: availableHeight,
+      材料数量: clientMaterials.length,
+      虚拟内容总高度: totalHeight
+    });
+
+    setContainerHeight(availableHeight);
+  }, [clientMaterials.length, totalHeight]);
+
+  // 监听容器尺寸变化
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current;
     const outerContainer = materialsSectionRef.current;
 
     if (!scrollContainer || !outerContainer) return;
 
-    const updateHeight = () => {
-      // 方法1: 直接使用滚动容器的 clientHeight
-      // 这样可以自动计算出 flex: 1 后的实际高度
-      const availableHeight = scrollContainer.clientHeight;
-
-      console.log('[VirtualList] 容器高度更新:', {
-        outerHeight: outerContainer.clientHeight,
-        scrollHeight: availableHeight
-      });
-
-      setContainerHeight(availableHeight);
-    };
-
     // 初始化时设置高度
-    updateHeight();
+    updateContainerHeight();
 
-    // 使用 ResizeObserver 监听外层容器的尺寸变化
-    // 当右边预览区域组件换行导致整体容器高度变化时，会触发更新
+    // 使用 ResizeObserver 监听容器的尺寸变化
     const resizeObserver = new ResizeObserver(() => {
-      // 使用双重 requestAnimationFrame 确保所有子元素布局都完成
-      // 第一个 rAF: 等待浏览器布局计算完成
+      // 使用 requestAnimationFrame 确保布局完成
       requestAnimationFrame(() => {
-        // 第二个 rAF: 确保所有子元素（包括右边预览区的工具栏）都重新布局完毕
-        requestAnimationFrame(() => {
-          updateHeight();
-        });
+        updateContainerHeight();
       });
     });
 
     // 监听外层容器
     resizeObserver.observe(outerContainer);
-    // 同时监听内层滚动容器（当 flex 布局完成后，内层也会触发 resize）
+    // 同时监听内层滚动容器
     resizeObserver.observe(scrollContainer);
 
-    // 同时监听 window resize（兼容性）
-    window.addEventListener('resize', updateHeight);
-
-    // 使用轮询作为最后的保险（解决grid被动拉伸不触发resize的问题）
-    // 当右边内容变化导致grid容器拉伸左边时，ResizeObserver可能不触发
-    const pollInterval = setInterval(() => {
-      const currentHeight = scrollContainer.clientHeight;
-      if (currentHeight !== containerHeight) {
-        console.log('[VirtualList] 轮询检测到高度变化:', containerHeight, '→', currentHeight);
-        updateHeight();
-      }
-    }, 500); // 每500ms检查一次
+    // 同时监听 window resize
+    window.addEventListener('resize', updateContainerHeight);
 
     return () => {
       resizeObserver.disconnect();
-      window.removeEventListener('resize', updateHeight);
-      clearInterval(pollInterval);
+      window.removeEventListener('resize', updateContainerHeight);
       if (scrollTimeoutRef.current) {
         clearTimeout(scrollTimeoutRef.current);
       }
     };
-  }, [containerHeight]); // 添加 containerHeight 依赖以便轮询比较
+  }, [updateContainerHeight]);
+
+  // 当选择材料时，延迟更新高度（因为右边内容会变化）
+  useEffect(() => {
+    // 当材料变化时，右边内容会重新渲染，需要等待布局完成
+    const timer = setTimeout(() => {
+      updateContainerHeight();
+    }, 100); // 给右边内容100ms渲染时间
+
+    return () => clearTimeout(timer);
+  }, [currentMaterial?.id, updateContainerHeight]);
 
   const handleMaterialSelect = useCallback((material) => {
     // 如果是PDF会话,选择第一页
