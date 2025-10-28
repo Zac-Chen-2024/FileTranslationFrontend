@@ -248,19 +248,32 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
     }, SCROLL_DEBOUNCE);
   }, []);
 
-  // 监听容器尺寸变化
+  // 监听容器尺寸变化（使用 ResizeObserver 而不是 window.resize）
   useEffect(() => {
-    const handleResize = () => {
-      if (scrollContainerRef.current) {
-        setContainerHeight(scrollContainerRef.current.clientHeight);
-      }
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const updateHeight = () => {
+      setContainerHeight(container.clientHeight);
     };
 
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    
+    // 初始化时设置高度
+    updateHeight();
+
+    // 使用 ResizeObserver 监听容器自身的尺寸变化
+    // 这样当右边预览区域组件换行导致容器高度变化时，也能响应
+    const resizeObserver = new ResizeObserver(() => {
+      updateHeight();
+    });
+
+    resizeObserver.observe(container);
+
+    // 同时监听 window resize（兼容性）
+    window.addEventListener('resize', updateHeight);
+
     return () => {
-      window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateHeight);
       if (scrollTimeoutRef.current) {
         clearTimeout(scrollTimeoutRef.current);
       }
