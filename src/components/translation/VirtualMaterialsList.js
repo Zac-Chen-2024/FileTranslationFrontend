@@ -293,14 +293,25 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
     // 同时监听 window resize（兼容性）
     window.addEventListener('resize', updateHeight);
 
+    // 使用轮询作为最后的保险（解决grid被动拉伸不触发resize的问题）
+    // 当右边内容变化导致grid容器拉伸左边时，ResizeObserver可能不触发
+    const pollInterval = setInterval(() => {
+      const currentHeight = scrollContainer.clientHeight;
+      if (currentHeight !== containerHeight) {
+        console.log('[VirtualList] 轮询检测到高度变化:', containerHeight, '→', currentHeight);
+        updateHeight();
+      }
+    }, 500); // 每500ms检查一次
+
     return () => {
       resizeObserver.disconnect();
       window.removeEventListener('resize', updateHeight);
+      clearInterval(pollInterval);
       if (scrollTimeoutRef.current) {
         clearTimeout(scrollTimeoutRef.current);
       }
     };
-  }, []);
+  }, [containerHeight]); // 添加 containerHeight 依赖以便轮询比较
 
   const handleMaterialSelect = useCallback((material) => {
     // 如果是PDF会话,选择第一页
