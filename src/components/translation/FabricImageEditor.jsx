@@ -2396,39 +2396,13 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
     textboxes.forEach(textObj => {
-      const regionIndex = textObj.regionIndex;
-      let regionMinX, regionMinY, regionMaxX, regionMaxY;
-
-      if (regionIndex !== undefined && regions[regionIndex]) {
-        const region = regions[regionIndex];
-
-        if (region.x !== undefined && region.width !== undefined) {
-          regionMinX = region.x;
-          regionMinY = region.y;
-          regionMaxX = region.x + region.width;
-          regionMaxY = region.y + region.height;
-        } else if (region.points && region.points.length >= 4) {
-          const points = region.points;
-          regionMinX = Math.min(...points.map(p => p.x));
-          regionMinY = Math.min(...points.map(p => p.y));
-          regionMaxX = Math.max(...points.map(p => p.x));
-          regionMaxY = Math.max(...points.map(p => p.y));
-        } else {
-          // 使用文本框的实际边界框（考虑旋转、缩放等变换）
-          const bounds = textObj.getBoundingRect();
-          regionMinX = bounds.left;
-          regionMinY = bounds.top;
-          regionMaxX = bounds.left + bounds.width;
-          regionMaxY = bounds.top + bounds.height;
-        }
-      } else {
-        // 没有region信息时，使用文本框的实际边界框
-        const bounds = textObj.getBoundingRect();
-        regionMinX = bounds.left;
-        regionMinY = bounds.top;
-        regionMaxX = bounds.left + bounds.width;
-        regionMaxY = bounds.top + bounds.height;
-      }
+      // 始终使用文本框的实际边界框（考虑旋转、缩放、移动等所有变换）
+      // 不依赖 regions prop，因为它不会随 undo/redo 更新
+      const bounds = textObj.getBoundingRect();
+      const regionMinX = bounds.left;
+      const regionMinY = bounds.top;
+      const regionMaxX = bounds.left + bounds.width;
+      const regionMaxY = bounds.top + bounds.height;
 
       minX = Math.min(minX, regionMinX);
       minY = Math.min(minY, regionMinY);
