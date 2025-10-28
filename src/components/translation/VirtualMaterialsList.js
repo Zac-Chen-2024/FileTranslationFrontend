@@ -275,14 +275,20 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
     // 使用 ResizeObserver 监听外层容器的尺寸变化
     // 当右边预览区域组件换行导致整体容器高度变化时，会触发更新
     const resizeObserver = new ResizeObserver(() => {
-      // 延迟一帧，确保布局完成
+      // 使用双重 requestAnimationFrame 确保所有子元素布局都完成
+      // 第一个 rAF: 等待浏览器布局计算完成
       requestAnimationFrame(() => {
-        updateHeight();
+        // 第二个 rAF: 确保所有子元素（包括右边预览区的工具栏）都重新布局完毕
+        requestAnimationFrame(() => {
+          updateHeight();
+        });
       });
     });
 
     // 监听外层容器
     resizeObserver.observe(outerContainer);
+    // 同时监听内层滚动容器（当 flex 布局完成后，内层也会触发 resize）
+    resizeObserver.observe(scrollContainer);
 
     // 同时监听 window resize（兼容性）
     window.addEventListener('resize', updateHeight);
