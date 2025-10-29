@@ -5,8 +5,7 @@
   box-shadow: var(--shadow-md);
   display: flex;
   flex-direction: column;
-  /* 高度根据内容自适应，左侧跟随此高度 */
-  min-height: 400px;
+  /* 内容自然展开，不设置高度 */
   overflow: hidden;
 }
 
