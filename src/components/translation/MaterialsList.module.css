@@ -183,12 +183,11 @@
 }
 
 .materialsList {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-md, 1rem);
-  overflow-y: auto;
   flex: 1;
   min-height: 0;
+  /* Remove gap since virtual scrolling handles spacing */
+  /* Remove overflow-y since it's set inline in the component */
+  /* Remove display: flex since virtual scrolling needs normal flow */
   padding-right: var(--spacing-xs, 0.5rem);
 }
 
@@ -679,9 +678,7 @@
 
 /* 大屏幕优化 (>1024px) */
 @media (min-width: 1025px) {
-  .materialsList {
-    max-height: calc(100vh - 350px);
-  }
+  /* max-height removed - virtual scrolling handles this automatically */
 }
 
 /* 中等屏幕 (768px - 1024px) */

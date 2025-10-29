@@ -236,7 +236,6 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
     Math.ceil((scrollTop + containerHeight) / itemWithGapHeight) + BUFFER_SIZE
   );
   const visibleItems = clientMaterials.slice(startIndex, endIndex);
-  const offsetY = startIndex * itemWithGapHeight;
 
   // 处理滚动事件
   const handleScroll = useCallback((e) => {
@@ -663,27 +662,28 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
         className={styles.materialsList}
         onScroll={handleScroll}
         style={{
-          position: 'relative'
+          position: 'relative',
+          overflowY: 'auto'
         }}
       >
-        <div style={{ height: totalHeight, position: 'relative' }}>
-          <div
-            style={{
-              transform: `translateY(${offsetY}px)`,
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0
-            }}
-          >
-            {visibleItems.map((material, index) => {
-              // 判断是否为当前激活的材料
-              // 对于PDF会话，需要检查currentMaterial是否是该会话的某一页
-              const isActive = material.isPdfSession
-                ? currentMaterial?.pdfSessionId === material.id
-                : currentMaterial?.id === material.id;
+        {/* Virtual spacer to create scrollable height */}
+        <div style={{
+          height: totalHeight,
+          position: 'relative',
+          width: '100%'
+        }}>
+          {/* Render only visible items */}
+          {visibleItems.map((material, index) => {
+            // 判断是否为当前激活的材料
+            // 对于PDF会话，需要检查currentMaterial是否是该会话的某一页
+            const isActive = material.isPdfSession
+              ? currentMaterial?.pdfSessionId === material.id
+              : currentMaterial?.id === material.id;
 
-              return (
+            const actualIndex = startIndex + index;
+            const top = actualIndex * itemWithGapHeight;
+
+            return (
               <VirtualMaterialItem
                 key={material.id}
                 material={material}
@@ -695,16 +695,14 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
                 t={t}
                 style={{
                   position: 'absolute',
-                  top: index * itemWithGapHeight,
+                  top: top,
                   left: 0,
                   right: 0,
-                  minHeight: ITEM_HEIGHT,
-                  marginBottom: ITEM_GAP
+                  height: ITEM_HEIGHT
                 }}
               />
-              );
-            })}
-          </div>
+            );
+          })}
         </div>
       </div>
 
