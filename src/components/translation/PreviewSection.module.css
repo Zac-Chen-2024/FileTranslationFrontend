@@ -5,7 +5,8 @@
   box-shadow: var(--shadow-md);
   display: flex;
   flex-direction: column;
-  /* 内容自然展开，不设置高度 */
+  /* 占满Grid分配的高度 */
+  height: 100%;
   overflow: hidden;
 }
 

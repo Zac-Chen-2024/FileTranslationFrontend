@@ -1,9 +1,10 @@
 .translation {
-  min-height: 100vh;
+  height: 100vh;
   background: var(--neutral-100);
   color: var(--neutral-800);
   display: flex;
   flex-direction: column;
+  overflow: hidden; /* 防止整体页面滚动 */
 }
 
 
@@ -14,11 +15,12 @@
   gap: 2rem;
   padding: 2rem 5%; /* 左右各5%的空白，总共10% */
   margin: 0; /* 移除auto居中，直接占满容器 */
-  flex: 1;
+  flex: 1; /* 占满剩余空间 */
   width: 100%;
   max-width: none; /* 移除最大宽度限制 */
-  /* 右侧自然展开，左侧跟随 */
-  min-height: 0; /* 让内容自然撑开 */
+  /* 占满视窗高度 */
+  min-height: 0; /* 允许收缩 */
+  overflow: hidden; /* 防止内容溢出 */
   align-items: stretch; /* 让两侧保持同高 */
 }
 
