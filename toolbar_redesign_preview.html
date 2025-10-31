@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工具栏重设计预览</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        /* ============ 主工具栏设计 ============ */
+        .editor-toolbar {
+            display: flex;
+            align-items: center;
+            height: 52px;
+            padding: 0 12px;
+            background: linear-gradient(to bottom, #ffffff, #fafafa);
+            border-bottom: 1px solid #e0e0e0;
+            gap: 12px;
+        }
+
+        /* 分组容器 */
+        .toolbar-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* 分隔符 */
+        .toolbar-divider {
+            width: 1px;
+            height: 24px;
+            background: #d0d0d0;
+            margin: 0 4px;
+        }
+
+        /* ============ 按钮基础样式 ============ */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: 36px;
+            padding: 0 12px;
+            border: 1px solid #d0d0d0;
+            background: white;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #333;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+            user-select: none;
+        }
+
+        .btn:hover {
+            background: #f8f8f8;
+            border-color: #999;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+            box-shadow: none;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* 图标按钮 */
+        .btn-icon {
+            width: 36px;
+            padding: 0;
+            font-size: 18px;
+        }
+
+        .btn-icon-sm {
+            width: 32px;
+            height: 32px;
+            font-size: 16px;
+        }
+
+        /* 主要按钮 */
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-color: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #5a6fd1, #6b4299);
+        }
+
+        /* 切换按钮 */
+        .btn-toggle {
+            background: white;
+        }
+
+        .btn-toggle.active {
+            background: #e3f2fd;
+            border-color: #2196f3;
+            color: #2196f3;
+        }
+
+        /* ============ 字体样式控件组 ============ */
+        .style-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            margin: 0 8px;
+        }
+
+        /* 下拉选择器 */
+        .select-wrapper {
+            position: relative;
+        }
+
+        .select {
+            height: 32px;
+            padding: 0 24px 0 8px;
+            border: 1px solid #d0d0d0;
+            background: white;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 4px center;
+            background-size: 16px;
+        }
+
+        .select:hover {
+            border-color: #999;
+        }
+
+        .select:focus {
+            outline: none;
+            border-color: #2196f3;
+            box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+        }
+
+        /* 颜色选择器 */
+        .color-picker-wrapper {
+            position: relative;
+        }
+
+        .color-picker {
+            width: 32px;
+            height: 32px;
+            padding: 4px;
+            border: 1px solid #d0d0d0;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+        }
+
+        .color-picker:hover {
+            border-color: #999;
+        }
+
+        .color-preview {
+            width: 100%;
+            height: 100%;
+            border-radius: 2px;
+            border: 1px solid #e0e0e0;
+        }
+
+        /* 数字输入框 */
+        .input-number {
+            width: 60px;
+            height: 32px;
+            padding: 0 4px 0 8px;
+            border: 1px solid #d0d0d0;
+            border-radius: 4px;
+            font-size: 13px;
+            text-align: center;
+        }
+
+        .input-number:hover {
+            border-color: #999;
+        }
+
+        .input-number:focus {
+            outline: none;
+            border-color: #2196f3;
+            box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+        }
+
+        /* 格式按钮组 */
+        .format-group {
+            display: flex;
+            gap: 2px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            padding: 2px;
+        }
+
+        .format-btn {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            background: transparent;
+            border-radius: 3px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .format-btn:hover {
+            background: white;
+        }
+
+        .format-btn.active {
+            background: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        /* 对齐按钮组 */
+        .align-group {
+            display: flex;
+            gap: 0;
+            border: 1px solid #d0d0d0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .align-btn {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            background: white;
+            font-size: 12px;
+            cursor: pointer;
+            border-right: 1px solid #d0d0d0;
+        }
+
+        .align-btn:last-child {
+            border-right: none;
+        }
+
+        .align-btn:hover {
+            background: #f5f5f5;
+        }
+
+        .align-btn.active {
+            background: #e3f2fd;
+            color: #2196f3;
+        }
+
+        /* ============ 右侧控件 ============ */
+        .toolbar-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: auto;
+        }
+
+        /* 缩放控件 */
+        .zoom-control {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            background: #f5f5f5;
+            border-radius: 6px;
+        }
+
+        .zoom-btn {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            background: transparent;
+            border-radius: 3px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .zoom-btn:hover {
+            background: white;
+        }
+
+        .zoom-value {
+            min-width: 50px;
+            text-align: center;
+            font-size: 13px;
+            color: #666;
+            user-select: none;
+        }
+
+        /* AI按钮 */
+        .btn-ai {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            color: white;
+            padding: 0 16px;
+            font-weight: 500;
+        }
+
+        .btn-ai:hover {
+            background: linear-gradient(135deg, #5a6fd1, #6b4299);
+        }
+
+        /* 更多菜单 */
+        .btn-menu {
+            width: 36px;
+            padding: 0;
+        }
+
+        /* ============ 次要工具栏（可折叠） ============ */
+        .secondary-toolbar {
+            display: flex;
+            align-items: center;
+            height: 40px;
+            padding: 0 12px;
+            background: #f9f9f9;
+            border-bottom: 1px solid #e0e0e0;
+            gap: 12px;
+            transition: all 0.3s;
+        }
+
+        .secondary-toolbar.collapsed {
+            height: 0;
+            overflow: hidden;
+            padding: 0;
+            border: none;
+        }
+
+        /* ============ 画布区域 ============ */
+        .canvas-area {
+            height: 500px;
+            background: #fafafa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .canvas-mock {
+            width: 600px;
+            height: 400px;
+            background: white;
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-size: 18px;
+        }
+
+        /* ============ 标签提示 ============ */
+        .tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            margin-bottom: 8px;
+            padding: 4px 8px;
+            background: #333;
+            color: white;
+            font-size: 12px;
+            border-radius: 4px;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .btn:hover .tooltip {
+            opacity: 1;
+        }
+
+        /* ============ 响应式设计 ============ */
+        @media (max-width: 1200px) {
+            .style-controls {
+                flex-wrap: wrap;
+            }
+
+            .editor-toolbar {
+                height: auto;
+                min-height: 52px;
+                padding: 8px 12px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .style-controls > *:nth-child(n+5) {
+                display: none;
+            }
+
+            .secondary-toolbar {
+                display: flex !important;
+            }
+        }
+
+        /* ============ 状态指示 ============ */
+        .status-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            width: 8px;
+            height: 8px;
+            background: #4caf50;
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+
+        /* 版本对比 */
+        .version-comparison {
+            margin-top: 40px;
+            padding: 20px;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+
+        .version-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            color: #333;
+        }
+
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .feature-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .feature-list li:last-child {
+            border-bottom: none;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            background: #4caf50;
+            color: white;
+            font-size: 11px;
+            border-radius: 12px;
+            margin-left: 8px;
+        }
+
+        .badge.new {
+            background: #ff9800;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 新设计方案 -->
+        <div class="version-comparison">
+            <div class="version-title">🎨 重新设计的工具栏（基于使用频率优化）</div>
+        </div>
+
+        <!-- 主工具栏 -->
+        <div class="editor-toolbar">
+            <!-- 核心操作组（最常用） -->
+            <div class="toolbar-group">
+                <button class="btn btn-icon-sm" title="撤销 (Ctrl+Z)">
+                    ↶
+                </button>
+                <button class="btn btn-icon-sm" title="重做 (Ctrl+Y)">
+                    ↷
+                </button>
+            </div>
+
+            <div class="toolbar-divider"></div>
+
+            <!-- 字体样式组（常用，直接显示） -->
+            <div class="style-controls">
+                <!-- 字体选择 -->
+                <div class="select-wrapper">
+                    <select class="select" style="width: 120px;">
+                        <option>Arial</option>
+                        <option>宋体</option>
+                        <option>黑体</option>
+                        <option>微软雅黑</option>
+                    </select>
+                </div>
+
+                <!-- 字号 -->
+                <input type="number" class="input-number" value="14" min="8" max="72" title="字号">
+
+                <!-- 颜色 -->
+                <div class="color-picker-wrapper">
+                    <div class="color-picker" title="文字颜色">
+                        <div class="color-preview" style="background: #000000;"></div>
+                    </div>
+                </div>
+
+                <!-- 格式按钮 -->
+                <div class="format-group">
+                    <button class="format-btn" title="加粗 (Ctrl+B)">B</button>
+                    <button class="format-btn" style="font-style: italic;" title="斜体 (Ctrl+I)">I</button>
+                    <button class="format-btn" style="text-decoration: underline;" title="下划线 (Ctrl+U)">U</button>
+                </div>
+
+                <!-- 对齐方式 -->
+                <div class="align-group">
+                    <button class="align-btn active" title="左对齐">≡</button>
+                    <button class="align-btn" title="居中">≡</button>
+                    <button class="align-btn" title="右对齐">≡</button>
+                </div>
+
+                <!-- 行间距 -->
+                <div class="select-wrapper">
+                    <select class="select" style="width: 70px;" title="行间距">
+                        <option>1.0</option>
+                        <option>1.15</option>
+                        <option selected>1.5</option>
+                        <option>2.0</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- 右侧控件 -->
+            <div class="toolbar-right">
+                <!-- 合并按钮（条件显示） -->
+                <button class="btn" style="display: none;">
+                    合并文本框 (2)
+                </button>
+
+                <!-- 缩放控件 -->
+                <div class="zoom-control">
+                    <button class="zoom-btn" title="缩小">−</button>
+                    <span class="zoom-value">100%</span>
+                    <button class="zoom-btn" title="放大">+</button>
+                </div>
+
+                <!-- AI助手 -->
+                <button class="btn btn-ai">
+                    ✨ AI助手
+                </button>
+
+                <!-- 更多菜单 -->
+                <button class="btn btn-menu" title="更多选项">
+                    ⋮
+                </button>
+            </div>
+        </div>
+
+        <!-- 次要工具栏（不常用功能） -->
+        <div class="secondary-toolbar">
+            <div class="toolbar-group">
+                <button class="btn btn-toggle" title="遮罩编辑模式">
+                    🎭 遮罩模式
+                </button>
+                <button class="btn" title="创建新文本框">
+                    ➕ 新建文本框
+                </button>
+                <button class="btn" title="添加自定义遮罩">
+                    ➕ 添加遮罩
+                </button>
+            </div>
+
+            <div class="toolbar-divider"></div>
+
+            <div class="toolbar-group">
+                <button class="btn" title="保存编辑">
+                    💾 保存
+                </button>
+                <button class="btn" title="导出图片">
+                    📥 导出
+                </button>
+            </div>
+        </div>
+
+        <!-- 画布区域 -->
+        <div class="canvas-area">
+            <div class="canvas-mock">
+                编辑画布（空间最大化）
+            </div>
+        </div>
+    </div>
+
+    <!-- 特性对比 -->
+    <div class="container" style="margin-top: 20px;">
+        <div class="version-comparison">
+            <div class="version-title">✨ 改进要点</div>
+            <ul class="feature-list">
+                <li>
+                    <strong>主工具栏高度：</strong>52px（原 80-120px）
+                    <span class="badge new">节省 50%</span>
+                </li>
+                <li>
+                    <strong>字体样式：</strong>直接显示在主工具栏，无需展开
+                    <span class="badge">常用优先</span>
+                </li>
+                <li>
+                    <strong>次要功能：</strong>移至可折叠的次要工具栏
+                    <span class="badge">可隐藏</span>
+                </li>
+                <li>
+                    <strong>布局逻辑：</strong>撤销/重做 → 字体样式（核心） → 辅助功能
+                </li>
+                <li>
+                    <strong>响应式：</strong>1200px以下自动折行，768px以下显示精简版
+                </li>
+                <li>
+                    <strong>画布空间：</strong>增加约 35% 可用编辑区域
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 原设计对比（简化展示） -->
+    <div class="container" style="margin-top: 20px; opacity: 0.6;">
+        <div class="version-comparison">
+            <div class="version-title">📌 原设计问题</div>
+        </div>
+        <div style="padding: 20px; background: #fff;">
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; padding: 15px; background: #f5f5f5; border: 1px solid #ddd;">
+                <button style="padding: 10px 20px;">↶ 撤销</button>
+                <button style="padding: 10px 20px;">↷ 重做</button>
+                <span style="border-left: 1px solid #999; margin: 0 10px;"></span>
+                <button style="padding: 10px 20px;">🎭 遮罩模式</button>
+                <button style="padding: 10px 20px;">➕ 添加遮罩</button>
+                <button style="padding: 10px 20px;">➕ 新建文本框</button>
+                <button style="padding: 10px 20px;">合并文本框</button>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; padding: 15px; background: #f5f5f5; border: 1px solid #ddd; margin-top: 10px;">
+                <label>字体：<select><option>Arial</option></select></label>
+                <label>字号：<input type="number" value="14" style="width: 50px;"></label>
+                <label>颜色：<input type="color"></label>
+                <label>对齐：<select><option>左对齐</option></select></label>
+                <button>B</button>
+                <button>I</button>
+                <label>行间距：<input type="number" value="1.5" style="width: 50px;"></label>
+            </div>
+            <div style="text-align: center; padding: 20px; color: #999;">
+                问题：占用过多垂直空间，布局松散，样式控件与主要操作混在一起
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 模拟交互
+        document.querySelectorAll('.btn-toggle').forEach(btn => {
+            btn.addEventListener('click', function() {
+                this.classList.toggle('active');
+            });
+        });
+
+        document.querySelectorAll('.format-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                this.classList.toggle('active');
+            });
+        });
+
+        document.querySelectorAll('.align-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.align-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+
+        // 缩放控制
+        let zoomLevel = 100;
+        document.querySelectorAll('.zoom-btn').forEach((btn, index) => {
+            btn.addEventListener('click', function() {
+                if (index === 0 && zoomLevel > 25) {
+                    zoomLevel -= 25;
+                } else if (index === 1 && zoomLevel < 200) {
+                    zoomLevel += 25;
+                }
+                document.querySelector('.zoom-value').textContent = zoomLevel + '%';
+            });
+        });
+
+        // 折叠次要工具栏演示
+        document.querySelector('.btn-menu').addEventListener('click', function() {
+            document.querySelector('.secondary-toolbar').classList.toggle('collapsed');
+        });
+    </script>
+</body>
+</html>
