@@ -79,6 +79,7 @@ export const zh = {
   exitMaskEditMode: '退出遮罩编辑模式',
   addCustomMask: '添加自定义遮罩',
   mergeTextboxes: '合并文本框',
+  createNewTextbox: '创建新文本框',
   saveEdits: '保存修改',
   saving: '保存中',
   savingEdits: '正在保存编辑...',

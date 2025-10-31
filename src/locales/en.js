@@ -79,6 +79,7 @@ export const en = {
   exitMaskEditMode: 'Exit Mask Edit Mode',
   addCustomMask: 'Add Custom Mask',
   mergeTextboxes: 'Merge Textboxes',
+  createNewTextbox: 'Create New Textbox',
   saveEdits: 'Save Edits',
   saving: 'Saving',
   savingEdits: 'Saving edits...',
