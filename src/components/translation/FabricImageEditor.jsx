@@ -222,17 +222,55 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
       // 同步背景矩形（bgRect）
       if (textbox.bgRect) {
-        // 如果遮罩被手动编辑过，不自动同步
-        if (textbox.bgRect.manuallyEdited) {
-          // 只确保层级关系正确，不改变位置和大小
-          const textIndex = canvas.getObjects().indexOf(textbox);
-          const maskIndex = canvas.getObjects().indexOf(textbox.bgRect);
-          if (maskIndex > textIndex) {
-            canvas.moveTo(textbox.bgRect, textIndex - 1);
+        const bgRect = textbox.bgRect;
+
+        // 确保层级关系正确
+        const textIndex = canvas.getObjects().indexOf(textbox);
+        const maskIndex = canvas.getObjects().indexOf(bgRect);
+        if (maskIndex > textIndex) {
+          canvas.moveTo(bgRect, textIndex - 1);
+        }
+
+        // 根据遮罩类型决定同步行为
+        if (bgRect.isCustomMask) {
+          // 自定义遮罩：完全独立，不同步
+          return;
+        } else if (bgRect.manuallyEdited) {
+          // 手动编辑过的遮罩：不自动同步位置和大小
+          return;
+        } else if (bgRect.isMergedMask) {
+          // 合并文本框的遮罩：保持原始大小，仅在文本超出时扩大
+          const textBounds = textbox.getBoundingRect();
+          const originalBounds = bgRect.originalBounds || {
+            width: bgRect.width * bgRect.scaleX,
+            height: bgRect.height * bgRect.scaleY
+          };
+
+          // 保存原始边界（首次）
+          if (!bgRect.originalBounds) {
+            bgRect.originalBounds = {
+              width: bgRect.width * bgRect.scaleX,
+              height: bgRect.height * bgRect.scaleY
+            };
           }
+
+          // 计算是否需要扩大遮罩
+          const neededWidth = Math.max(originalBounds.width, textBounds.width);
+          const neededHeight = Math.max(originalBounds.height, textBounds.height);
+
+          bgRect.set({
+            left: textbox.left,
+            top: textbox.top,
+            width: neededWidth,
+            height: neededHeight,
+            scaleX: 1,
+            scaleY: 1,
+            angle: textbox.angle
+          });
+          bgRect.setCoords();
         } else {
-          // 未手动编辑的遮罩，自动同步到文本框
-          textbox.bgRect.set({
+          // 普通文本框遮罩：完全同步到文本框
+          bgRect.set({
             left: textbox.left,
             top: textbox.top,
             width: textbox.width * textbox.scaleX,
@@ -241,14 +279,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
             scaleY: 1,
             angle: textbox.angle
           });
-          textbox.bgRect.setCoords();
-
-          // 确保遮罩在文本框下层
-          const textIndex = canvas.getObjects().indexOf(textbox);
-          const maskIndex = canvas.getObjects().indexOf(textbox.bgRect);
-          if (maskIndex > textIndex) {
-            canvas.moveTo(textbox.bgRect, textIndex - 1);
-          }
+          bgRect.setCoords();
         }
       }
 
@@ -898,7 +929,11 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         regionIndex: index,
         manuallyEdited: region.maskManuallyEdited || false,
         isMergedMask: region.isMerged || false, // 标记是否为合并文本的遮罩
-        mergedIndexes: region.mergedIndexes || []
+        mergedIndexes: region.mergedIndexes || [],
+        originalBounds: region.isMerged ? {  // 合并遮罩保存原始边界
+          width: maskWidth,
+          height: maskHeight
+        } : null
       });
       
       // 创建文本对象
@@ -2112,8 +2147,12 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       strokeWidth: 0,
       selectable: false,
       evented: false,
-      isMergedMask: true,
-      mergedIndexes: mergedIndexes
+      isMergedMask: true,  // 标记为合并遮罩
+      mergedIndexes: mergedIndexes,
+      originalBounds: {    // 保存原始边界
+        width: mergedBounds.width,
+        height: mergedBounds.height
+      }
     });
 
     // 将白色遮罩添加到canvas
@@ -2484,8 +2523,12 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       strokeWidth: 0,
       selectable: false,
       evented: false,
-      isMergedMask: true,
-      mergedIndexes: mergedIndexes
+      isMergedMask: true,  // 标记为合并遮罩
+      mergedIndexes: mergedIndexes,
+      originalBounds: {    // 保存原始边界
+        width: mergedBounds.width,
+        height: mergedBounds.height
+      }
     });
 
     if (mergedMaskRect) {
