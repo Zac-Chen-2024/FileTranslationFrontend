@@ -2101,20 +2101,24 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     console.log('合并矩形:', mergedBounds);
     console.log('========================');
 
-    // 创建模糊背景作为独立的canvas对象，而不是修改背景图像
-    const blurBackground = createBlurBackground({
+    // 创建统一的白色遮罩（替代原来的模糊背景）
+    const mergedMaskRect = new window.fabric.Rect({
       left: mergedBounds.left,
       top: mergedBounds.top,
       width: mergedBounds.width,
       height: mergedBounds.height,
-      textObj: null, // 稍后关联
-      mergedIndexes: mergedIndexes,
-      mergedBounds: mergedBounds
+      fill: 'white',
+      stroke: 'transparent',
+      strokeWidth: 0,
+      selectable: false,
+      evented: false,
+      isMergedMask: true,
+      mergedIndexes: mergedIndexes
     });
 
-    // 将模糊背景添加到canvas
-    if (blurBackground) {
-      canvas.add(blurBackground);
+    // 将白色遮罩添加到canvas
+    if (mergedMaskRect) {
+      canvas.add(mergedMaskRect);
       // 确保遮罩层在所有文本框之下
       // 找到第一个文本框的位置
       const objects = canvas.getObjects();
@@ -2122,10 +2126,10 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
       if (firstTextboxIndex !== -1) {
         // 将遮罩层移到第一个文本框之前
-        canvas.moveTo(blurBackground, firstTextboxIndex);
+        canvas.moveTo(mergedMaskRect, firstTextboxIndex);
       } else {
         // 如果没有文本框，放到最上层（背景图之上）
-        canvas.bringToFront(blurBackground);
+        canvas.bringToFront(mergedMaskRect);
       }
     }
 
@@ -2152,10 +2156,10 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       lockScalingFlip: true  // 防止翻转
     });
 
-    // 关联模糊背景和文本对象
-    if (blurBackground) {
-      blurBackground.textObj = mergedTextObj;
-      mergedTextObj.blurBackground = blurBackground;
+    // 关联白色遮罩和文本对象
+    if (mergedMaskRect) {
+      mergedMaskRect.textObj = mergedTextObj;
+      mergedTextObj.bgRect = mergedMaskRect;  // 统一使用bgRect属性
     }
     
     // 保存原始边界信息和合并索引到文本对象
