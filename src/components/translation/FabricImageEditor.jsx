@@ -267,7 +267,13 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
             scaleY: 1,
             angle: textbox.angle
           });
+
+          // 强制更新矩形的尺寸和填充
+          bgRect.dirty = true;  // 标记对象需要重绘
           bgRect.setCoords();
+
+          // 确保画布重新渲染这个对象
+          canvas.requestRenderAll();
         } else {
           // 普通文本框遮罩：完全同步到文本框
           bgRect.set({
