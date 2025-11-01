@@ -1040,12 +1040,9 @@ const ComparisonView = ({ material, onSelectResult }) => {
       {getImageUrl() && (
         <div className={styles.llmEditorSection}>
           <div className={styles.llmEditorHeader}>
-            <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
               <h2 className={styles.llmEditorTitle}>{t('customEdit')}</h2>
-              {llmLoading && <p className={styles.sectionDescription}>
-                <span style={{ color: '#007bff' }}>{t('loading')}</span>
-              </p>}
-              {/* PDF页面导航 */}
+              {/* PDF页面导航 - 移到标题右边 */}
               {pdfPages.length > 0 && (
                 <div className={styles.pdfNavigation}>
                   <button
@@ -1089,6 +1086,9 @@ const ComparisonView = ({ material, onSelectResult }) => {
                 </div>
               )}
             </div>
+            {llmLoading && <p className={styles.sectionDescription}>
+              <span style={{ color: '#007bff' }}>{t('loading')}</span>
+            </p>}
             {/* 旋转、开始翻译、重新翻译和保存修改按钮 */}
             {!llmLoading && (
               <div style={{ display: 'flex', gap: '10px' }}>
