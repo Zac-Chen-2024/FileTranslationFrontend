@@ -364,7 +364,7 @@
   flex: 1;
   display: flex;
   justify-content: center;
-  align-items: flex-start;
+  align-items: center; /* 🔧 居中对齐 */
   overflow: auto;
   min-height: 0; /* 🔧 允许 flex 收缩 */
   max-height: none; /* 🔧 移除固定高度限制，允许填充整个容器 */
