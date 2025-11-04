@@ -3577,8 +3577,8 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           </div>
         </div>
       </div>
-      
-      <div className="canvas-container">
+
+      <div className="editor-canvas-container">
         <div ref={canvasWrapperRef} className="canvas-wrapper">
           <canvas ref={canvasRef} id={`fabric-canvas-${editorKey}`} />
         </div>

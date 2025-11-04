@@ -352,7 +352,7 @@
   }
 }
 
-.canvas-container {
+.editor-canvas-container {
   flex: 1; /* 🔧 关键！占据剩余空间，确保容器能延伸到底部 */
   display: flex;
   flex-direction: row; /* 明确横向排列 */
@@ -513,7 +513,7 @@
 }
 
 @media (max-width: 1024px) {
-  .canvas-container {
+  .editor-canvas-container {
     flex-direction: column;
   }
 
