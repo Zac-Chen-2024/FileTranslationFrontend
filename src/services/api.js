@@ -42,7 +42,18 @@ api.interceptors.response.use(
       // 未授权，清除本地存储并重定向到登录页
       localStorage.removeItem('auth_token');
       localStorage.removeItem('user_info');
-      window.location.href = '/signin';
+
+      // 使用 basename 确保路径正确
+      // 从 package.json 的 homepage 获取基础路径
+      const basename = process.env.PUBLIC_URL || '';
+      window.location.href = `${basename}/signin`;
+    }
+
+    // 404错误处理 - 可能是路由问题或资源不存在
+    if (error.response?.status === 404) {
+      console.warn('404 Not Found:', error.config?.url);
+      // 如果是API请求404，不需要重定向，只是记录警告
+      // 页面路由的404由React Router处理
     }
 
     // 返回更友好的错误信息

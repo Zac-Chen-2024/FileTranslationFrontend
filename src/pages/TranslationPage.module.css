@@ -12,6 +12,7 @@
 .content {
   display: grid;
   grid-template-columns: 20% 70%;
+  grid-template-rows: 1fr; /* 🔧 让行占满整个容器高度 */
   gap: 2rem;
   padding: 2rem 5%; /* 左右各5%的空白，总共10% */
   margin: 0; /* 移除auto居中，直接占满容器 */

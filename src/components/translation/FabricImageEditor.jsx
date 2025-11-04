@@ -55,6 +55,13 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
   // 遮罩层编辑模式状态
   const [maskEditMode, setMaskEditMode] = useState(false);
+  const maskEditModeRef = useRef(false); // 🔧 使用 ref 保存最新值，供事件处理器使用
+
+  // 🔍 监控 maskEditMode 变化，并同步到 ref
+  useEffect(() => {
+    console.log('🎭 maskEditMode 状态变化:', maskEditMode);
+    maskEditModeRef.current = maskEditMode; // 同步到 ref
+  }, [maskEditMode]);
 
   // 检查 Fabric.js 是否已加载
   useEffect(() => {
@@ -692,7 +699,14 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
   // 加载图片
   useEffect(() => {
-    console.log('Image loading effect:', { fabricLoaded, imageSrc: !!imageSrc, canvas: !!fabricCanvasRef.current, initialized: initializedRef.current });
+    console.log('🖼️ Image loading effect:', {
+      fabricLoaded,
+      imageSrc: !!imageSrc,
+      canvas: !!fabricCanvasRef.current,
+      initialized: initializedRef.current,
+      regionsLength: regions?.length,
+      maskEditMode
+    });
     if (!fabricLoaded || !imageSrc || !fabricCanvasRef.current) return;
 
     // 检查图片URL是否改变（用于旋转等场景）
@@ -700,7 +714,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
     // 如果已经初始化过，且图片URL没有改变，则跳过
     if (initializedRef.current && !imageChanged) {
-      console.log('Already initialized and same image, skipping...');
+      console.log('⏭️ Already initialized and same image, skipping...');
       return;
     }
 
@@ -1715,6 +1729,9 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
   // 切换遮罩层编辑模式
   const toggleMaskEditMode = () => {
+    console.log('🎭 toggleMaskEditMode 被调用，当前模式:', maskEditMode, '即将切换为:', !maskEditMode);
+    console.trace('🎭 调用堆栈:'); // 打印调用堆栈，看是哪里调用的
+
     const canvas = fabricCanvasRef.current;
     if (!canvas) return;
 
@@ -1753,6 +1770,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
   // 创建新遮罩层
   const createNewMask = () => {
+    console.log('🎨 createNewMask 被调用，当前遮罩模式:', maskEditMode);
     const canvas = fabricCanvasRef.current;
     if (!canvas || !imageRef.current) return;
 
@@ -1859,13 +1877,24 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     if (!canvas) return;
 
     const activeObject = canvas.getActiveObject();
-    if (!activeObject) return;
+    if (!activeObject) {
+      console.log('⚠️ 没有选中对象');
+      return;
+    }
+
+    // 🔧 使用 ref 获取最新的 maskEditMode 值
+    const currentMaskEditMode = maskEditModeRef.current;
+
+    console.log('🗑️ handleDeleteSelected 被调用');
+    console.log('  - State maskEditMode:', maskEditMode);
+    console.log('  - Ref maskEditModeRef.current:', currentMaskEditMode);
+    console.log('  - 活动对象类型:', activeObject.type);
 
     let objectsToDelete = [];
     let masksToDelete = [];
 
     // 在遮罩编辑模式下，优先处理遮罩删除
-    if (maskEditMode) {
+    if (currentMaskEditMode) {
       // 处理多选
       if (activeObject.type === 'activeSelection') {
         const selectedMasks = activeObject.getObjects().filter(obj => {
@@ -1887,9 +1916,24 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       }
       // 处理单选遮罩
       else if (activeObject.type === 'rect' || activeObject.type === 'image') {
+        console.log('🔍 检查对象:', {
+          type: activeObject.type,
+          isBlurBackground: activeObject.isBlurBackground,
+          regionIndex: activeObject.regionIndex,
+          mergedIndexes: activeObject.mergedIndexes,
+          isCustomMask: activeObject.isCustomMask,
+          selectable: activeObject.selectable,
+          evented: activeObject.evented,
+          fill: activeObject.fill,
+          stroke: activeObject.stroke
+        });
+
         const isMask = activeObject.isBlurBackground || activeObject.regionIndex !== undefined ||
                       activeObject.mergedIndexes || activeObject.isCustomMask ||
                       activeObject === activeObject.associatedTextbox?.bgRect;
+
+        console.log('🔍 isMask 判断结果:', isMask);
+
         if (isMask) {
           // 如果是关联的bgRect，断开关联
           if (activeObject.associatedTextbox) {
@@ -1898,7 +1942,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           canvas.remove(activeObject);
           canvas.renderAll();
           saveHistory();
-          console.log('删除遮罩层');
+          console.log('✅ 删除遮罩层成功');
           return;
         }
       }
