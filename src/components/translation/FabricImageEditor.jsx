@@ -3579,7 +3579,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       </div>
       
       <div className="canvas-container">
-        <div ref={canvasWrapperRef} className="canvas-wrapper" style={{ flex: regionsCollapsed ? '1' : 'unset' }}>
+        <div ref={canvasWrapperRef} className="canvas-wrapper">
           <canvas ref={canvasRef} id={`fabric-canvas-${editorKey}`} />
         </div>
 
