@@ -1,5 +1,10 @@
 .image-editor {
   width: 100%;
+  /* 🔧 关键！让编辑器参与 flex 布局链，占据剩余高度 */
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0; /* 允许收缩 */
 }
 
 .editor-toolbar {
@@ -348,8 +353,11 @@
 }
 
 .canvas-container {
+  flex: 1; /* 🔧 关键！占据剩余空间，确保容器能延伸到底部 */
   display: flex;
+  flex-direction: row; /* 明确横向排列 */
   gap: var(--spacing-lg, 1.5rem);
+  min-height: 0; /* 允许 flex 收缩 */
 }
 
 .canvas-wrapper {
@@ -358,7 +366,8 @@
   justify-content: center;
   align-items: flex-start;
   overflow: auto;
-  max-height: 600px;
+  min-height: 0; /* 🔧 允许 flex 收缩 */
+  max-height: none; /* 🔧 移除固定高度限制，允许填充整个容器 */
   background-color: var(--color-gray-100, #f0f0f0);
   border-radius: var(--radius-md, 8px);
   padding: var(--spacing-md, 1rem);

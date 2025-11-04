@@ -752,20 +752,75 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
       imageRef.current = img;
 
-      // 设置画布大小
-      canvas.setWidth(img.width);
-      canvas.setHeight(img.height);
+      // 🔧 延迟计算缩放，确保容器已完全渲染和展开
+      // 使用 setTimeout + requestAnimationFrame 双重延迟确保容器布局完成
+      setTimeout(() => {
+        requestAnimationFrame(() => {
+          if (!fabricCanvasRef.current || !canvasWrapperRef.current) {
+            console.warn('⚠️ Canvas or wrapper destroyed during delayed initialization');
+            return;
+          }
 
-      // 设置图片为背景
-      canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
+        // 🔧 智能计算初始缩放比例
+        const calculateOptimalZoom = () => {
+          // 获取容器尺寸（减去 padding）
+          const containerWidth = canvasWrapperRef.current.clientWidth - 32; // padding 左右各 1rem
+          const containerHeight = canvasWrapperRef.current.clientHeight - 32;
 
-      console.log('Image loaded successfully');
+          console.log('📐 Container size:', { containerWidth, containerHeight });
+          console.log('📐 Image size:', { width: img.width, height: img.height });
 
-      // 初始化文本区域
-      initializeTextRegions(regions);
+          // 🔧 检查容器尺寸是否有效（至少要有 200px 才合理）
+          if (containerWidth < 200 || containerHeight < 200) {
+            console.warn('⚠️ Container size too small or not ready, using default zoom 100%');
+            console.warn('   Container:', { containerWidth, containerHeight });
+            return 100;
+          }
 
-      // 标记为已初始化
-      initializedRef.current = true;
+          // 计算宽度和高度的缩放比例
+          const scaleX = containerWidth / img.width;
+          const scaleY = containerHeight / img.height;
+
+          // 选择较小的缩放比例，确保图片完整显示在容器内
+          // 同时不超过 100%（原始大小）
+          const optimalScale = Math.min(scaleX, scaleY, 1);
+          const optimalZoom = Math.round(optimalScale * 100);
+
+          // 🔧 确保缩放比例不会太小（至少 25%）
+          const finalZoom = Math.max(optimalZoom, 25);
+
+          console.log('🔍 Calculated optimal zoom:', {
+            scaleX: (scaleX * 100).toFixed(1) + '%',
+            scaleY: (scaleY * 100).toFixed(1) + '%',
+            optimalZoom: optimalZoom + '%',
+            finalZoom: finalZoom + '%'
+          });
+
+          return finalZoom;
+        };
+
+        const initialZoom = calculateOptimalZoom();
+        setZoomLevel(initialZoom);
+
+        const scale = initialZoom / 100;
+
+        // 设置画布大小（应用缩放）
+        canvas.setWidth(img.width * scale);
+        canvas.setHeight(img.height * scale);
+        canvas.setZoom(scale);
+
+        // 设置图片为背景
+        canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
+
+        console.log('✅ Image loaded successfully with zoom:', initialZoom + '%');
+
+        // 初始化文本区域
+        initializeTextRegions(regions);
+
+        // 标记为已初始化
+        initializedRef.current = true;
+        });
+      }, 100); // 延迟 100ms 确保容器布局完成
     }, {
       crossOrigin: 'anonymous'
     });
