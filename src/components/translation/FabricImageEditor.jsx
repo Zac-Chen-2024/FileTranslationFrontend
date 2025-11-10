@@ -188,13 +188,9 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     canvas.on('selection:created', (e) => {
       const selected = e.selected || [];
 
-      // 在遮罩编辑模式下，筛选出遮罩对象（检查多个可能的属性）
+      // 在遮罩编辑模式下，筛选出遮罩对象（只检查统一的 isMask 属性）
       if (maskEditMode) {
-        const masks = selected.filter(obj =>
-          obj.type === 'rect' &&
-          (obj.isMaskBackground || obj.isCustomMask || obj.isMergedMask ||
-           (obj.fill && obj.fill.includes && (obj.fill.includes('white') || obj.fill.includes('255'))))
-        );
+        const masks = selected.filter(obj => obj.type === 'rect' && obj.isMask === true);
         setSelectedMasks(masks);
         // 如果选中了遮罩，获取第一个遮罩的颜色作为当前颜色
         if (masks.length > 0) {
@@ -220,13 +216,9 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     canvas.on('selection:updated', (e) => {
       const selected = e.selected || [];
 
-      // 在遮罩编辑模式下，筛选出遮罩对象（检查多个可能的属性）
+      // 在遮罩编辑模式下，筛选出遮罩对象（只检查统一的 isMask 属性）
       if (maskEditMode) {
-        const masks = selected.filter(obj =>
-          obj.type === 'rect' &&
-          (obj.isMaskBackground || obj.isCustomMask || obj.isMergedMask ||
-           (obj.fill && obj.fill.includes && (obj.fill.includes('white') || obj.fill.includes('255'))))
-        );
+        const masks = selected.filter(obj => obj.type === 'rect' && obj.isMask === true);
         setSelectedMasks(masks);
         // 如果选中了遮罩，获取第一个遮罩的颜色作为当前颜色
         if (masks.length > 0) {
@@ -1037,6 +1029,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         strokeWidth: 0,
         selectable: false,
         evented: false,
+        isMask: true, // 统一的遮罩标识
         regionIndex: index,
         manuallyEdited: region.maskManuallyEdited || false,
         isMergedMask: region.isMerged || false, // 标记是否为合并文本的遮罩
@@ -1838,18 +1831,21 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           selectable: !newMode,
           evented: !newMode
         });
-      } else if (obj.type === 'rect' || obj.type === 'image') {
-        // 检查是否是遮罩层（bgRect、blurBackground或自定义遮罩）
-        const isMask = obj.isBlurBackground || (obj.regionIndex !== undefined) || obj.mergedIndexes || obj.isCustomMask;
-        if (isMask) {
-          // 在遮罩编辑模式下，让遮罩可选择和可编辑
-          obj.set({
-            selectable: newMode,
-            evented: newMode,
-            stroke: newMode ? '#FF6B6B' : 'transparent',
-            strokeWidth: newMode ? 2 : 0
-          });
-        }
+      } else if (obj.type === 'rect' && obj.isMask === true) {
+        // 使用统一的 isMask 属性来识别遮罩
+        // 在遮罩编辑模式下，让遮罩可选择和可编辑
+        obj.set({
+          selectable: newMode,
+          evented: newMode,
+          stroke: newMode ? '#FF6B6B' : 'transparent',
+          strokeWidth: newMode ? 2 : 0
+        });
+      } else if (obj.type === 'image' && obj.isBlurBackground) {
+        // 处理模糊背景图片（如果有的话）
+        obj.set({
+          selectable: newMode,
+          evented: newMode
+        });
       }
     });
 
@@ -1934,8 +1930,8 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       evented: maskEditMode,
       originX: 'left',
       originY: 'top',
-      isCustomMask: true, // 标记为用户创建的自定义遮罩
-      isMaskBackground: true // 添加统一的遮罩标识
+      isMask: true, // 统一的遮罩标识
+      isCustomMask: true // 标记为用户创建的自定义遮罩
     });
 
     canvas.add(newMask);
@@ -1976,6 +1972,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       strokeWidth: 0,
       selectable: false,
       evented: false,
+      isMask: true, // 统一的遮罩标识
       isUserCreated: true // 标记为用户创建的
     });
 
@@ -2340,6 +2337,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       strokeWidth: 0,
       selectable: false,
       evented: false,
+      isMask: true, // 统一的遮罩标识
       isMergedMask: true,  // 标记为合并遮罩
       mergedIndexes: mergedIndexes,
       originalBounds: {    // 保存原始边界
@@ -2716,6 +2714,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       strokeWidth: 0,
       selectable: false,
       evented: false,
+      isMask: true, // 统一的遮罩标识
       isMergedMask: true,  // 标记为合并遮罩
       mergedIndexes: mergedIndexes,
       originalBounds: {    // 保存原始边界
