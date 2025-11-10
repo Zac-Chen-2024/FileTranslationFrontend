@@ -1879,7 +1879,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     });
 
     // 保存到历史记录
-    saveCanvasState();
+    saveHistory();
     canvas.renderAll();
 
     console.log(`应用颜色 ${tempMaskColor} 到 ${selectedMasks.length} 个遮罩`);
