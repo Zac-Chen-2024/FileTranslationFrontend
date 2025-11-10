@@ -57,6 +57,13 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
   const [maskEditMode, setMaskEditMode] = useState(false);
   const maskEditModeRef = useRef(false); // 🔧 使用 ref 保存最新值，供事件处理器使用
 
+  // 遮罩颜色编辑相关状态
+  const [selectedMasks, setSelectedMasks] = useState([]); // 选中的遮罩列表
+  const [maskColor, setMaskColor] = useState('#FFD700'); // 默认金色
+  const [tempMaskColor, setTempMaskColor] = useState('#FFD700'); // 临时颜色（预览用）
+  const [showColorPalette, setShowColorPalette] = useState(false); // 是否显示颜色板
+  const presetColors = ['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFDAB9', '#E6E6FA', '#FFA07A'];
+
   // 🔍 监控 maskEditMode 变化，并同步到 ref
   useEffect(() => {
     console.log('🎭 maskEditMode 状态变化:', maskEditMode);
@@ -182,35 +189,57 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     // 事件监听
     canvas.on('selection:created', (e) => {
       const selected = e.selected || [];
-      setSelectedObjects(selected);
-      updateAIButton(selected);
 
-      // 如果选中了单个文本框，显示它的当前样式
-      if (selected.length === 1 && selected[0].type === 'textbox') {
-        const textObj = selected[0];
-        setFontSize(textObj.fontSize || 11);
-        setTextAlign(textObj.textAlign || 'left');
-        setLineSpacing(textObj.lineHeight || 1.2);
-        setSelectedFont(textObj.fontFamily || 'Arial');
-        setIsBold(textObj.fontWeight === 'bold');
-        setIsItalic(textObj.fontStyle === 'italic');
+      // 在遮罩编辑模式下，筛选出遮罩对象
+      if (maskEditMode) {
+        const masks = selected.filter(obj => obj.type === 'rect' && obj.isMaskBackground);
+        setSelectedMasks(masks);
+        // 如果选中了遮罩，获取第一个遮罩的颜色作为当前颜色
+        if (masks.length > 0) {
+          setTempMaskColor(masks[0].fill || '#FFD700');
+        }
+      } else {
+        setSelectedObjects(selected);
+        updateAIButton(selected);
+
+        // 如果选中了单个文本框，显示它的当前样式
+        if (selected.length === 1 && selected[0].type === 'textbox') {
+          const textObj = selected[0];
+          setFontSize(textObj.fontSize || 11);
+          setTextAlign(textObj.textAlign || 'left');
+          setLineSpacing(textObj.lineHeight || 1.2);
+          setSelectedFont(textObj.fontFamily || 'Arial');
+          setIsBold(textObj.fontWeight === 'bold');
+          setIsItalic(textObj.fontStyle === 'italic');
+        }
       }
     });
 
     canvas.on('selection:updated', (e) => {
       const selected = e.selected || [];
-      setSelectedObjects(selected);
-      updateAIButton(selected);
 
-      // 如果选中了单个文本框，显示它的当前样式
-      if (selected.length === 1 && selected[0].type === 'textbox') {
-        const textObj = selected[0];
-        setFontSize(textObj.fontSize || 11);
-        setTextAlign(textObj.textAlign || 'left');
-        setLineSpacing(textObj.lineHeight || 1.2);
-        setSelectedFont(textObj.fontFamily || 'Arial');
-        setIsBold(textObj.fontWeight === 'bold');
-        setIsItalic(textObj.fontStyle === 'italic');
+      // 在遮罩编辑模式下，筛选出遮罩对象
+      if (maskEditMode) {
+        const masks = selected.filter(obj => obj.type === 'rect' && obj.isMaskBackground);
+        setSelectedMasks(masks);
+        // 如果选中了遮罩，获取第一个遮罩的颜色作为当前颜色
+        if (masks.length > 0) {
+          setTempMaskColor(masks[0].fill || '#FFD700');
+        }
+      } else {
+        setSelectedObjects(selected);
+        updateAIButton(selected);
+
+        // 如果选中了单个文本框，显示它的当前样式
+        if (selected.length === 1 && selected[0].type === 'textbox') {
+          const textObj = selected[0];
+          setFontSize(textObj.fontSize || 11);
+          setTextAlign(textObj.textAlign || 'left');
+          setLineSpacing(textObj.lineHeight || 1.2);
+          setSelectedFont(textObj.fontFamily || 'Arial');
+          setIsBold(textObj.fontWeight === 'bold');
+          setIsItalic(textObj.fontStyle === 'italic');
+        }
       }
     });
 
@@ -218,6 +247,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       setSelectedObjects([]);
       setSelectedTextboxes([]);
       setAiButtonPosition(null);
+      setSelectedMasks([]); // 清空选中的遮罩
     });
 
     // 同步遮罩位置和大小到文本框
@@ -1823,6 +1853,57 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     console.log(`遮罩编辑模式: ${newMode ? '开启' : '关闭'}`);
   };
 
+  // 处理遮罩颜色预览（实时更新）
+  const handleColorPreview = (color) => {
+    setTempMaskColor(color);
+    // 实时更新选中遮罩的颜色预览
+    selectedMasks.forEach(mask => {
+      mask.set('fill', color);
+    });
+    const canvas = fabricCanvasRef.current;
+    if (canvas) {
+      canvas.renderAll();
+    }
+  };
+
+  // 应用颜色到选中的遮罩
+  const applyMaskColor = () => {
+    if (selectedMasks.length === 0) return;
+
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
+
+    setMaskColor(tempMaskColor);
+    selectedMasks.forEach(mask => {
+      mask.set('fill', tempMaskColor);
+    });
+
+    // 保存到历史记录
+    saveCanvasState();
+    canvas.renderAll();
+
+    console.log(`应用颜色 ${tempMaskColor} 到 ${selectedMasks.length} 个遮罩`);
+  };
+
+  // 吸管取色功能
+  const activateEyedropper = async () => {
+    // 检查浏览器是否支持 EyeDropper API
+    if ('EyeDropper' in window) {
+      try {
+        const eyeDropper = new window.EyeDropper();
+        const result = await eyeDropper.open();
+        setTempMaskColor(result.sRGBHex);
+        handleColorPreview(result.sRGBHex);
+        console.log('吸管取色:', result.sRGBHex);
+      } catch (e) {
+        // 用户取消了取色
+        console.log('取色已取消');
+      }
+    } else {
+      alert('您的浏览器不支持吸管取色功能');
+    }
+  };
+
   // 创建新遮罩层
   const createNewMask = () => {
     console.log('🎨 createNewMask 被调用，当前遮罩模式:', maskEditMode);
@@ -3370,8 +3451,10 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
         <div className="toolbar-divider"></div>
 
-        {/* 文本控制组 - 优雅的单行设计 */}
-        <div className="text-controls">
+        {/* 根据模式显示不同的控制组 */}
+        {!maskEditMode ? (
+          /* 文本控制组 - 优雅的单行设计 */
+          <div className="text-controls">
           {/* 字体选择 */}
           <select
             className="font-select-compact"
@@ -3513,6 +3596,64 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
             disabled={selectedObjects.length === 0}
           />
         </div>
+        ) : (
+          /* 遮罩编辑控制组 */
+          <div className="mask-controls">
+            {/* 选中的遮罩数量显示 */}
+            <span className="selected-count">
+              选中: {selectedMasks.length} 个遮罩
+            </span>
+
+            {/* 颜色选择器 */}
+            <div className="color-picker-group">
+              <input
+                type="color"
+                className="mask-color-picker"
+                value={tempMaskColor}
+                onChange={(e) => handleColorPreview(e.target.value)}
+                title="选择遮罩颜色"
+              />
+
+              {/* 吸管工具按钮 */}
+              <button
+                className="eyedropper-button"
+                onClick={activateEyedropper}
+                title="吸管取色"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M2 22l9.5-9.5"/>
+                  <path d="M12 12L22 2"/>
+                  <path d="M19 5l-2-2"/>
+                  <path d="M5.5 18.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/>
+                  <path d="M14.5 9.5L9.5 14.5"/>
+                </svg>
+              </button>
+
+              {/* 预设颜色板 */}
+              <div className="color-palette">
+                {presetColors.map(color => (
+                  <button
+                    key={color}
+                    className={`color-preset ${tempMaskColor === color ? 'active' : ''}`}
+                    style={{ backgroundColor: color }}
+                    onClick={() => handleColorPreview(color)}
+                    title={color}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* 应用按钮 */}
+            <button
+              className="apply-color-button"
+              onClick={applyMaskColor}
+              disabled={selectedMasks.length === 0}
+              title="应用颜色到选中的遮罩"
+            >
+              Apply Color
+            </button>
+          </div>
+        )}
 
         <div className="toolbar-divider"></div>
 
