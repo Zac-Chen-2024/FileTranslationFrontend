@@ -61,8 +61,6 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
   const [selectedMasks, setSelectedMasks] = useState([]); // 选中的遮罩列表
   const [maskColor, setMaskColor] = useState('#FFD700'); // 默认金色
   const [tempMaskColor, setTempMaskColor] = useState('#FFD700'); // 临时颜色（预览用）
-  const [showColorPalette, setShowColorPalette] = useState(false); // 是否显示颜色板
-  const presetColors = ['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFDAB9', '#E6E6FA', '#FFA07A'];
 
   // 🔍 监控 maskEditMode 变化，并同步到 ref
   useEffect(() => {
@@ -190,9 +188,13 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     canvas.on('selection:created', (e) => {
       const selected = e.selected || [];
 
-      // 在遮罩编辑模式下，筛选出遮罩对象
+      // 在遮罩编辑模式下，筛选出遮罩对象（检查多个可能的属性）
       if (maskEditMode) {
-        const masks = selected.filter(obj => obj.type === 'rect' && obj.isMaskBackground);
+        const masks = selected.filter(obj =>
+          obj.type === 'rect' &&
+          (obj.isMaskBackground || obj.isCustomMask || obj.isMergedMask ||
+           (obj.fill && obj.fill.includes && (obj.fill.includes('white') || obj.fill.includes('255'))))
+        );
         setSelectedMasks(masks);
         // 如果选中了遮罩，获取第一个遮罩的颜色作为当前颜色
         if (masks.length > 0) {
@@ -218,9 +220,13 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     canvas.on('selection:updated', (e) => {
       const selected = e.selected || [];
 
-      // 在遮罩编辑模式下，筛选出遮罩对象
+      // 在遮罩编辑模式下，筛选出遮罩对象（检查多个可能的属性）
       if (maskEditMode) {
-        const masks = selected.filter(obj => obj.type === 'rect' && obj.isMaskBackground);
+        const masks = selected.filter(obj =>
+          obj.type === 'rect' &&
+          (obj.isMaskBackground || obj.isCustomMask || obj.isMergedMask ||
+           (obj.fill && obj.fill.includes && (obj.fill.includes('white') || obj.fill.includes('255'))))
+        );
         setSelectedMasks(masks);
         // 如果选中了遮罩，获取第一个遮罩的颜色作为当前颜色
         if (masks.length > 0) {
@@ -1928,7 +1934,8 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       evented: maskEditMode,
       originX: 'left',
       originY: 'top',
-      isCustomMask: true // 标记为用户创建的自定义遮罩
+      isCustomMask: true, // 标记为用户创建的自定义遮罩
+      isMaskBackground: true // 添加统一的遮罩标识
     });
 
     canvas.add(newMask);
@@ -3628,19 +3635,6 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
                   <path d="M14.5 9.5L9.5 14.5"/>
                 </svg>
               </button>
-
-              {/* 预设颜色板 */}
-              <div className="color-palette">
-                {presetColors.map(color => (
-                  <button
-                    key={color}
-                    className={`color-preset ${tempMaskColor === color ? 'active' : ''}`}
-                    style={{ backgroundColor: color }}
-                    onClick={() => handleColorPreview(color)}
-                    title={color}
-                  />
-                ))}
-              </div>
             </div>
 
             {/* 应用按钮 */}
