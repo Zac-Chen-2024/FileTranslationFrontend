@@ -61,6 +61,30 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
   const [selectedMasks, setSelectedMasks] = useState([]); // 选中的遮罩列表
   const [maskColor, setMaskColor] = useState('#FFD700'); // 默认金色
   const [tempMaskColor, setTempMaskColor] = useState('#FFD700'); // 临时颜色（预览用）
+  const [maskOpacity, setMaskOpacity] = useState(1); // 遮罩透明度
+
+  // Helper function: Convert RGBA/RGB color to hex format
+  const colorToHex = (color) => {
+    if (!color) return '#FFD700';
+
+    // If already hex, return as is
+    if (color.startsWith('#')) return color;
+
+    // Parse rgba/rgb
+    const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+      const r = parseInt(match[1]).toString(16).padStart(2, '0');
+      const g = parseInt(match[2]).toString(16).padStart(2, '0');
+      const b = parseInt(match[3]).toString(16).padStart(2, '0');
+      return `#${r}${g}${b}`;
+    }
+
+    // If color is a named color like 'white', convert it
+    if (color === 'white') return '#FFFFFF';
+    if (color === 'black') return '#000000';
+
+    return '#FFD700'; // Default fallback
+  };
 
   // 🔍 监控 maskEditMode 变化，并同步到 ref
   useEffect(() => {
@@ -189,12 +213,17 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       const selected = e.selected || [];
 
       // 在遮罩编辑模式下，筛选出遮罩对象（只检查统一的 isMask 属性）
-      if (maskEditMode) {
+      // 使用 maskEditModeRef.current 获取最新的状态值
+      if (maskEditModeRef.current) {
         const masks = selected.filter(obj => obj.type === 'rect' && obj.isMask === true);
+        console.log('🎭 遮罩编辑模式 - 选中遮罩数量:', masks.length, masks);
         setSelectedMasks(masks);
-        // 如果选中了遮罩，获取第一个遮罩的颜色作为当前颜色
+        // 如果选中了遮罩，获取第一个遮罩的颜色和透明度作为当前值
         if (masks.length > 0) {
-          setTempMaskColor(masks[0].fill || '#FFD700');
+          const hexColor = colorToHex(masks[0].fill);
+          setTempMaskColor(hexColor);
+          setMaskOpacity(masks[0].opacity || 1);
+          console.log('🎨 设置颜色选择器颜色:', masks[0].fill, '->', hexColor, '透明度:', masks[0].opacity);
         }
       } else {
         setSelectedObjects(selected);
@@ -217,12 +246,17 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       const selected = e.selected || [];
 
       // 在遮罩编辑模式下，筛选出遮罩对象（只检查统一的 isMask 属性）
-      if (maskEditMode) {
+      // 使用 maskEditModeRef.current 获取最新的状态值
+      if (maskEditModeRef.current) {
         const masks = selected.filter(obj => obj.type === 'rect' && obj.isMask === true);
+        console.log('🎭 遮罩编辑模式(更新) - 选中遮罩数量:', masks.length, masks);
         setSelectedMasks(masks);
-        // 如果选中了遮罩，获取第一个遮罩的颜色作为当前颜色
+        // 如果选中了遮罩，获取第一个遮罩的颜色和透明度作为当前值
         if (masks.length > 0) {
-          setTempMaskColor(masks[0].fill || '#FFD700');
+          const hexColor = colorToHex(masks[0].fill);
+          setTempMaskColor(hexColor);
+          setMaskOpacity(masks[0].opacity || 1);
+          console.log('🎨 更新颜色选择器颜色:', masks[0].fill, '->', hexColor, '透明度:', masks[0].opacity);
         }
       } else {
         setSelectedObjects(selected);
@@ -245,7 +279,9 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       setSelectedObjects([]);
       setSelectedTextboxes([]);
       setAiButtonPosition(null);
-      setSelectedMasks([]); // 清空选中的遮罩
+      // 清空选中的遮罩 - 不管在什么模式下都清空
+      setSelectedMasks([]);
+      console.log('🎭 清空所有选择');
     });
 
     // 同步遮罩位置和大小到文本框
@@ -844,6 +880,37 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
         // 初始化文本区域
         initializeTextRegions(regions);
+
+        // 初始化后确保滚动位置正确
+        requestAnimationFrame(() => {
+          const wrapper = canvasWrapperRef.current;
+          if (wrapper) {
+            // 获取内部包装层的实际尺寸
+            const innerWrapper = wrapper.querySelector('.canvas-inner-wrapper');
+            const canvasElement = wrapper.querySelector('.canvas-container');
+
+            if (innerWrapper && canvasElement) {
+              // 计算canvas实际占用的空间（包括padding）
+              const totalWidth = canvasElement.offsetWidth + 32; // padding左右各16px
+              const totalHeight = canvasElement.offsetHeight + 32;
+
+              // 如果内容大于容器，滚动到中心位置
+              if (totalWidth > wrapper.clientWidth) {
+                wrapper.scrollLeft = (wrapper.scrollWidth - wrapper.clientWidth) / 2;
+              }
+              if (totalHeight > wrapper.clientHeight) {
+                wrapper.scrollTop = (wrapper.scrollHeight - wrapper.clientHeight) / 2;
+              }
+
+              console.log('✅ 滚动位置已初始化', {
+                scrollLeft: wrapper.scrollLeft,
+                scrollTop: wrapper.scrollTop,
+                scrollWidth: wrapper.scrollWidth,
+                scrollHeight: wrapper.scrollHeight
+              });
+            }
+          }
+        });
 
         // 标记为已初始化
         initializedRef.current = true;
@@ -1823,6 +1890,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     setMaskEditMode(newMode);
 
     // 获取所有文本框和遮罩
+    let maskCount = 0;
     canvas.getObjects().forEach(obj => {
       if (obj.type === 'textbox') {
         // 切换文本框的可见性
@@ -1834,6 +1902,14 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       } else if (obj.type === 'rect' && obj.isMask === true) {
         // 使用统一的 isMask 属性来识别遮罩
         // 在遮罩编辑模式下，让遮罩可选择和可编辑
+        maskCount++;
+        console.log(`🎭 发现遮罩 #${maskCount}:`, {
+          type: obj.type,
+          isMask: obj.isMask,
+          selectable: obj.selectable,
+          evented: obj.evented,
+          fill: obj.fill
+        });
         obj.set({
           selectable: newMode,
           evented: newMode,
@@ -1849,6 +1925,8 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       }
     });
 
+    console.log(`🎭 遮罩编辑模式切换完成: 共找到 ${maskCount} 个遮罩，新模式: ${newMode ? '编辑模式' : '正常模式'}`);
+
     canvas.discardActiveObject();
     canvas.renderAll();
 
@@ -1856,11 +1934,28 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
   };
 
   // 处理遮罩颜色预览（实时更新）
-  const handleColorPreview = (color) => {
+  const handleColorPreview = (color, resetOpacity = false) => {
     setTempMaskColor(color);
     // 实时更新选中遮罩的颜色预览
     selectedMasks.forEach(mask => {
       mask.set('fill', color);
+      // 如果是从取色器取色，重置透明度为1以匹配取到的颜色
+      if (resetOpacity) {
+        mask.set('opacity', 1);
+      }
+    });
+    const canvas = fabricCanvasRef.current;
+    if (canvas) {
+      canvas.renderAll();
+    }
+  };
+
+  // 处理透明度变化
+  const handleOpacityChange = (opacity) => {
+    setMaskOpacity(opacity);
+    // 实时更新选中遮罩的透明度
+    selectedMasks.forEach(mask => {
+      mask.set('opacity', opacity);
     });
     const canvas = fabricCanvasRef.current;
     if (canvas) {
@@ -1877,14 +1972,17 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
     setMaskColor(tempMaskColor);
     selectedMasks.forEach(mask => {
-      mask.set('fill', tempMaskColor);
+      mask.set({
+        fill: tempMaskColor,
+        opacity: maskOpacity
+      });
     });
 
     // 保存到历史记录
     saveHistory();
     canvas.renderAll();
 
-    console.log(`应用颜色 ${tempMaskColor} 到 ${selectedMasks.length} 个遮罩`);
+    console.log(`应用颜色 ${tempMaskColor} 和透明度 ${maskOpacity} 到 ${selectedMasks.length} 个遮罩`);
   };
 
   // 吸管取色功能
@@ -1894,9 +1992,56 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       try {
         const eyeDropper = new window.EyeDropper();
         const result = await eyeDropper.open();
-        setTempMaskColor(result.sRGBHex);
-        handleColorPreview(result.sRGBHex);
-        console.log('吸管取色:', result.sRGBHex);
+        const pickedColor = result.sRGBHex;
+
+        console.log('🎨 取色器原始颜色:', pickedColor);
+
+        // 直接使用取到的颜色，不做任何转换
+        setTempMaskColor(pickedColor);
+
+        // 应用颜色到遮罩，并重置透明度
+        selectedMasks.forEach(mask => {
+          // 先记录原始状态
+          const originalFill = mask.fill;
+          const originalOpacity = mask.opacity;
+          console.log(`🎨 遮罩原始状态: fill=${originalFill}, opacity=${originalOpacity}`);
+
+          // 设置新颜色
+          mask.set({
+            fill: pickedColor,
+            opacity: 1,  // 确保完全不透明
+            // 确保没有其他属性影响颜色
+            globalCompositeOperation: 'source-over',  // 标准合成模式
+            shadow: null  // 移除任何阴影
+          });
+
+          // 立即检查实际应用的值
+          console.log(`🎨 设置遮罩颜色: 期望fill=${pickedColor}, 实际fill=${mask.fill}, opacity=${mask.opacity}`);
+
+          // 如果颜色不匹配，尝试强制设置
+          if (mask.fill !== pickedColor) {
+            console.warn(`🎨 颜色不匹配！尝试强制设置...`);
+            mask.fill = pickedColor;
+            mask.dirty = true;  // 标记对象需要重新渲染
+          }
+        });
+
+        // 更新透明度滑块
+        setMaskOpacity(1);
+
+        const canvas = fabricCanvasRef.current;
+        if (canvas) {
+          canvas.renderAll();
+
+          // 验证颜色是否正确应用
+          setTimeout(() => {
+            selectedMasks.forEach(mask => {
+              console.log(`🎨 验证遮罩颜色: fill=${mask.fill}, opacity=${mask.opacity}`);
+            });
+          }, 100);
+        }
+
+        console.log(`🎨 吸管取色完成: ${pickedColor}`);
       } catch (e) {
         // 用户取消了取色
         console.log('取色已取消');
@@ -1923,7 +2068,8 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       top: centerY - defaultHeight / 2,
       width: defaultWidth,
       height: defaultHeight,
-      fill: 'rgba(255, 255, 255, 0.9)',
+      fill: '#FFFFFF',  // Use white instead of rgba
+      opacity: 0.9,     // Set transparency using opacity property
       stroke: '#FF6B6B',
       strokeWidth: 2,
       selectable: maskEditMode,
@@ -2818,18 +2964,61 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
   // 处理缩放
   const handleZoom = (delta) => {
     const canvas = fabricCanvasRef.current;
-    if (!canvas) return;
-    
+    const wrapper = canvasWrapperRef.current;
+    if (!canvas || !wrapper) return;
+
+    // 获取当前视口中心点在内容中的位置
+    const viewportCenterX = wrapper.scrollLeft + wrapper.clientWidth / 2;
+    const viewportCenterY = wrapper.scrollTop + wrapper.clientHeight / 2;
+
+    // 计算中心点在当前内容中的比例位置
+    const centerRatioX = viewportCenterX / wrapper.scrollWidth;
+    const centerRatioY = viewportCenterY / wrapper.scrollHeight;
+
     const newZoom = zoomLevel + delta;
     const zoom = Math.max(25, Math.min(200, newZoom));
     setZoomLevel(zoom);
-    
-    canvas.setZoom(zoom / 100);
-    canvas.setDimensions({
-      width: imageRef.current.width * zoom / 100,
-      height: imageRef.current.height * zoom / 100
-    });
+
+    const scale = zoom / 100;
+
+    // 使用与初始化时相同的方法设置canvas尺寸
+    canvas.setZoom(scale);
+    canvas.setWidth(imageRef.current.width * scale);
+    canvas.setHeight(imageRef.current.height * scale);
     canvas.renderAll();
+
+    // 使用 requestAnimationFrame 确保 DOM 更新后再调整滚动位置
+    requestAnimationFrame(() => {
+      if (wrapper) {
+        // 获取新的滚动范围
+        const newScrollWidth = wrapper.scrollWidth;
+        const newScrollHeight = wrapper.scrollHeight;
+
+        // 计算新的中心点位置
+        const newCenterX = centerRatioX * newScrollWidth;
+        const newCenterY = centerRatioY * newScrollHeight;
+
+        // 调整滚动位置，使视口中心保持在相同的内容点
+        wrapper.scrollLeft = Math.max(0, Math.min(
+          newCenterX - wrapper.clientWidth / 2,
+          newScrollWidth - wrapper.clientWidth
+        ));
+
+        wrapper.scrollTop = Math.max(0, Math.min(
+          newCenterY - wrapper.clientHeight / 2,
+          newScrollHeight - wrapper.clientHeight
+        ));
+
+        console.log('🔍 Zoom applied:', {
+          zoom: zoom + '%',
+          scrollWidth: newScrollWidth,
+          scrollHeight: newScrollHeight,
+          scrollLeft: wrapper.scrollLeft,
+          scrollTop: wrapper.scrollTop,
+          centerRatio: { x: centerRatioX, y: centerRatioY }
+        });
+      }
+    });
   };
   
   // 更新选中文本的样式
@@ -3636,14 +3825,30 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
               </button>
             </div>
 
+            {/* 透明度滑块 */}
+            <div className="opacity-slider-group">
+              <label className="opacity-label">透明度:</label>
+              <input
+                type="range"
+                className="opacity-slider"
+                min="0"
+                max="1"
+                step="0.1"
+                value={maskOpacity}
+                onChange={(e) => handleOpacityChange(parseFloat(e.target.value))}
+                title={`透明度: ${Math.round(maskOpacity * 100)}%`}
+              />
+              <span className="opacity-value">{Math.round(maskOpacity * 100)}%</span>
+            </div>
+
             {/* 应用按钮 */}
             <button
               className="apply-color-button"
               onClick={applyMaskColor}
               disabled={selectedMasks.length === 0}
-              title="应用颜色到选中的遮罩"
+              title="应用颜色和透明度到选中的遮罩"
             >
-              Apply Color
+              Apply
             </button>
           </div>
         )}
@@ -3714,7 +3919,9 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
       <div className="editor-canvas-container">
         <div ref={canvasWrapperRef} className="canvas-wrapper">
-          <canvas ref={canvasRef} id={`fabric-canvas-${editorKey}`} />
+          <div className="canvas-inner-wrapper">
+            <canvas ref={canvasRef} id={`fabric-canvas-${editorKey}`} />
+          </div>
         </div>
 
         {!regionsCollapsed && (

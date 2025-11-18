@@ -362,14 +362,22 @@
 
 .canvas-wrapper {
   flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center; /* 🔧 居中对齐 */
+  position: relative;
   overflow: auto;
   min-height: 0; /* 🔧 允许 flex 收缩 */
   max-height: none; /* 🔧 移除固定高度限制，允许填充整个容器 */
   background-color: var(--color-gray-100, #f0f0f0);
   border-radius: var(--radius-md, 8px);
+}
+
+/* Canvas容器内部包装层 - 用于处理居中 */
+.canvas-inner-wrapper {
+  position: relative;
+  min-width: 100%;
+  min-height: 100%;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
   padding: var(--spacing-md, 1rem);
 }
 
@@ -1204,4 +1212,66 @@
 
 .apply-color-button:active:not(:disabled) {
   transform: translateY(0);
+}
+
+/* 透明度滑块组样式 */
+.opacity-slider-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 10px;
+}
+
+.opacity-label {
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.opacity-slider {
+  width: 100px;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #e2e8f0;
+  border-radius: 2px;
+  outline: none;
+}
+
+.opacity-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  background: #3b82f6;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.opacity-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  background: #2563eb;
+}
+
+.opacity-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: #3b82f6;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.opacity-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+  background: #2563eb;
+}
+
+.opacity-value {
+  font-size: 12px;
+  color: #475569;
+  min-width: 35px;
+  text-align: right;
 }

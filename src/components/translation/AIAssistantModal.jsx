@@ -20,11 +20,16 @@ const AIAssistantModal = ({
 
   const isMultiple = selectedTextboxes.length > 1;
 
+  // 智能重排的固定提示词
+  const SMART_REFORMAT_PROMPT = '不修改原文，只修正错误和缺失。用合理的换行让分段更合理，比如一段话或者一个子标题换一次行。给所有的标题加粗。';
+
   if (!isOpen) return null;
 
   // 提交修改指令
-  const handleSubmit = async () => {
-    if (!instruction.trim()) {
+  const handleSubmit = async (customInstruction = null) => {
+    const finalInstruction = customInstruction || instruction;
+
+    if (!finalInstruction.trim()) {
       alert(t('enterModificationOpinion'));
       return;
     }
@@ -44,7 +49,7 @@ const AIAssistantModal = ({
         },
         body: JSON.stringify({
           texts: texts,
-          instruction: instruction,
+          instruction: finalInstruction,
           mode: processingMode
         })
       });
@@ -65,6 +70,11 @@ const AIAssistantModal = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  // 处理智能重排
+  const handleSmartReformat = async () => {
+    await handleSubmit(SMART_REFORMAT_PROMPT);
   };
 
   // 采纳修改
@@ -148,70 +158,32 @@ const AIAssistantModal = ({
       </div>
 
       <div className="ai-panel-body">
-          {/* 多选时显示处理模式选择 */}
-          {isMultiple && !results.length && (
-            <div className="processing-mode-section">
-              <h4>{t('selectedTextboxes', { count: selectedTextboxes.length })}</h4>
-              <div className="mode-options">
-                <label className={processingMode === 'unified' ? 'active' : ''}>
-                  <input
-                    type="radio"
-                    value="unified"
-                    checked={processingMode === 'unified'}
-                    onChange={(e) => setProcessingMode(e.target.value)}
-                  />
-                  <div className="mode-content">
-                    <strong>{t('unifiedModification')}</strong>
-                    <span>{t('unifiedModificationDesc')}</span>
-                  </div>
-                </label>
-
-                <label className={processingMode === 'merge' ? 'active' : ''}>
-                  <input
-                    type="radio"
-                    value="merge"
-                    checked={processingMode === 'merge'}
-                    onChange={(e) => setProcessingMode(e.target.value)}
-                  />
-                  <div className="mode-content">
-                    <strong>{t('mergeAndModify')}</strong>
-                    <span>{t('mergeAndModifyDesc')}</span>
-                  </div>
-                </label>
-
-                <label className={processingMode === 'individual' ? 'active' : ''}>
-                  <input
-                    type="radio"
-                    value="individual"
-                    checked={processingMode === 'individual'}
-                    onChange={(e) => setProcessingMode(e.target.value)}
-                  />
-                  <div className="mode-content">
-                    <strong>{t('modifyIndividually')}</strong>
-                    <span>{t('modifyIndividuallyDesc')}</span>
-                  </div>
-                </label>
-              </div>
-            </div>
-          )}
-
-          {/* 输入区域 */}
+          {/* 输入和操作区域 - 简化版 */}
           {!results.length && (
-            <div className="instruction-section">
-              <label>{t('modificationOpinion')}</label>
+            <div className="ai-simple-card">
+              <button
+                onClick={handleSmartReformat}
+                disabled={loading || selectedTextboxes.length === 0}
+                className="ai-reformat-button"
+              >
+                <span>✨</span> 智能重排
+              </button>
+
               <textarea
                 value={instruction}
                 onChange={(e) => setInstruction(e.target.value)}
-                placeholder={getPlaceholder()}
+                placeholder="输入修改意见..."
                 rows={4}
                 disabled={loading}
+                className="ai-input"
               />
+
               <button
-                onClick={handleSubmit}
+                onClick={() => handleSubmit()}
                 disabled={loading || !instruction.trim()}
-                className="submit-button"
+                className="ai-submit-button"
               >
-                {loading ? t('aiProcessing') : t('submitModification')}
+                {loading ? '处理中...' : '修改'}
               </button>
             </div>
           )}
