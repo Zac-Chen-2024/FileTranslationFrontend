@@ -483,17 +483,30 @@ export const AppProvider = ({ children }) => {
     }
   }, [state.currentMaterial, actions]);
 
+  const handleLLMStarted = useCallback((data) => {
+    if (data.material_id) {
+      // ✅ LLM 开始时更新状态
+      actions.updateMaterial(data.material_id, {
+        processingProgress: data.progress || 70,
+        processingStep: 'llm_translating',  // 设置为LLM翻译中
+        status: '处理中'  // 保持处理中状态
+      });
+    }
+  }, [actions]);
+
   const handleLLMCompleted = useCallback((data) => {
     if (data.material_id) {
-      // ✅ 只需调用updateMaterial，Reducer会自动同步更新currentMaterial
+      // ✅ 更新完整状态：progress, translations, status, processing_step
       actions.updateMaterial(data.material_id, {
         processingProgress: data.progress || 100,
-        llmTranslationResult: data.translations
+        llmTranslationResult: data.translations,
+        status: '已翻译',  // 设置为已翻译状态
+        processingStep: 'llm_translated'  // 设置处理步骤
       });
 
       actions.showNotification('LLM优化完成', `成功优化 ${data.translations?.length || 0} 个翻译区域`, 'success');
     }
-  }, [state.currentMaterial, actions]);
+  }, [actions]);
 
   const handleTranslationStarted = useCallback((data) => {
     actions.showNotification('翻译开始', data.message || '正在翻译...', 'info');
@@ -525,7 +538,7 @@ export const AppProvider = ({ children }) => {
       wsService.on('material_updated', handleMaterialUpdated);
       wsService.on('translation_completed', handleTranslationCompleted);
       wsService.on('material_error', handleMaterialError);
-      wsService.on('llm_started', handleMaterialUpdated); // LLM 开始也是材料更新
+      wsService.on('llm_started', handleLLMStarted); // 使用专门的LLM开始处理函数
       wsService.on('llm_completed', handleLLMCompleted);
       wsService.on('llm_error', handleMaterialError);
 
@@ -535,13 +548,13 @@ export const AppProvider = ({ children }) => {
         wsService.off('material_updated', handleMaterialUpdated);
         wsService.off('translation_completed', handleTranslationCompleted);
         wsService.off('material_error', handleMaterialError);
-        wsService.off('llm_started', handleMaterialUpdated);
+        wsService.off('llm_started', handleLLMStarted);
         wsService.off('llm_completed', handleLLMCompleted);
         wsService.off('llm_error', handleMaterialError);
       };
     }
   }, [state.currentClient?.cid, handleTranslationStarted, handleMaterialUpdated,
-      handleTranslationCompleted, handleMaterialError, handleLLMCompleted]);
+      handleTranslationCompleted, handleMaterialError, handleLLMStarted, handleLLMCompleted]);
 
   const value = {
     state,
