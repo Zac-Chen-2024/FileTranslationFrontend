@@ -1389,7 +1389,14 @@ const ComparisonView = ({ material, onSelectResult }) => {
             {/* 只有在真正翻译进行中时才显示加载界面 */}
             {/* 排除实体识别相关状态：entity_recognizing, entity_pending_confirm, entity_confirmed */}
             {(() => {
-              const baseCondition = llmLoading || material.status === '处理中' || material.status === '拆分中' || material.processingStep === 'splitting' || (material.processingStep === 'uploaded' && material.status !== '已上传') || material.processingStep === 'translating' || (material.processingStep === 'translated' && !material.translationTextInfo);
+              // 修复：只在真正处理中才显示加载界面
+              const baseCondition = llmLoading ||
+                material.status === '处理中' ||
+                material.status === '拆分中' ||
+                material.processingStep === 'splitting' ||
+                material.processingStep === 'translating' ||
+                (material.processingStep === 'translated' && !material.translationTextInfo) ||
+                (material.processingStep === 'uploaded' && material.status === '处理中');  // ← 修复：只在处理中才显示
               const excludeEntitySteps = !['entity_recognizing', 'entity_pending_confirm', 'entity_confirmed'].includes(material.processingStep);
               const shouldShowLoading = baseCondition && excludeEntitySteps;
 
