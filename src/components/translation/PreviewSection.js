@@ -1322,59 +1322,58 @@ const ComparisonView = ({ material, onSelectResult }) => {
       {/* 只要有图片就显示编辑器 - Reference App.jsx 第355行完整复刻 */}
       {getImageUrl() && (
         <div className={styles.llmEditorSection}>
+          {/* 控制按钮栏 - 一行显示所有控制按钮 */}
           <div className={styles.llmEditorHeader}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <h2 className={styles.llmEditorTitle}>{t('customEdit')}</h2>
-              {/* PDF页面导航 - 移到标题右边 */}
-              {pdfPages.length > 0 && (
-                <div className={styles.pdfNavigation}>
-                  <button
-                    className={styles.pdfNavBtn}
-                    onClick={() => handlePageChange(currentPageIndex - 1)}
-                    disabled={currentPageIndex === 0}
-                    title="上一页"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M15 18l-6-6 6-6"/>
-                    </svg>
-                    {t('previousPage')}
-                  </button>
-                  <span className={styles.pdfPageInfo}>
-                    {t('currentPage', { current: currentPageIndex + 1, total: pdfPages.length })}
-                  </span>
-                  <button
-                    className={styles.pdfNavBtn}
-                    onClick={() => handlePageChange(currentPageIndex + 1)}
-                    disabled={currentPageIndex === pdfPages.length - 1}
-                    title={t('nextPage')}
-                  >
-                    {t('nextPage')}
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M9 18l6-6-6-6"/>
-                    </svg>
-                  </button>
-                  {/* 页面选择下拉菜单 */}
-                  <select
-                    className={styles.pdfPageSelect}
-                    value={currentPageIndex}
-                    onChange={(e) => handlePageChange(parseInt(e.target.value))}
-                    title={t('selectPage')}
-                  >
-                    {pdfPages.map((_, index) => (
-                      <option key={index} value={index}>
-                        {t('pageSelector', { page: index + 1 })}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-            {llmLoading && <p className={styles.sectionDescription}>
-              <span style={{ color: '#007bff' }}>{t('loading')}</span>
-            </p>}
-            {/* 旋转、开始翻译、重新翻译和保存修改按钮 */}
-            {!llmLoading && (
-              <div style={{ display: 'flex', gap: '10px' }}>
+            {llmLoading ? (
+              <p className={styles.sectionDescription}>
+                <span style={{ color: '#007bff' }}>{t('loading')}</span>
+              </p>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                {/* PDF页面导航 */}
+                {pdfPages.length > 0 && (
+                  <div className={styles.pdfNavigation}>
+                    <button
+                      className={styles.pdfNavBtn}
+                      onClick={() => handlePageChange(currentPageIndex - 1)}
+                      disabled={currentPageIndex === 0}
+                      title="上一页"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M15 18l-6-6 6-6"/>
+                      </svg>
+                      {t('previousPage')}
+                    </button>
+                    <span className={styles.pdfPageInfo}>
+                      {t('currentPage', { current: currentPageIndex + 1, total: pdfPages.length })}
+                    </span>
+                    <button
+                      className={styles.pdfNavBtn}
+                      onClick={() => handlePageChange(currentPageIndex + 1)}
+                      disabled={currentPageIndex === pdfPages.length - 1}
+                      title={t('nextPage')}
+                    >
+                      {t('nextPage')}
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M9 18l6-6-6-6"/>
+                      </svg>
+                    </button>
+                    {/* 页面选择下拉菜单 */}
+                    <select
+                      className={styles.pdfPageSelect}
+                      value={currentPageIndex}
+                      onChange={(e) => handlePageChange(parseInt(e.target.value))}
+                      title={t('selectPage')}
+                    >
+                      {pdfPages.map((_, index) => (
+                        <option key={index} value={index}>
+                          {t('pageSelector', { page: index + 1 })}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 {/* 旋转按钮 - 始终显示 */}
                 <button
                   className={styles.rotateButton}
@@ -1410,57 +1409,57 @@ const ComparisonView = ({ material, onSelectResult }) => {
                 <button
                   className={styles.saveEditButton}
                   onClick={async () => {
-                  // ✅ 重构：保存regions数据 + 生成最终图片
-                  if (window.currentFabricEditor && window.currentFabricEditor.getCurrentRegions) {
-                    try {
-                      actions.showNotification(t('saving'), t('savingEdits'), 'info');
+                    // ✅ 重构：保存regions数据 + 生成最终图片
+                    if (window.currentFabricEditor && window.currentFabricEditor.getCurrentRegions) {
+                      try {
+                        actions.showNotification(t('saving'), t('savingEdits'), 'info');
 
-                      // 获取当前的regions数据
-                      const currentRegions = window.currentFabricEditor.getCurrentRegions();
+                        // 获取当前的regions数据
+                        const currentRegions = window.currentFabricEditor.getCurrentRegions();
 
-                      if (!currentRegions || currentRegions.length === 0) {
-                        throw new Error(t('noEditContent'));
-                      }
-
-                      const { materialAPI } = await import('../../services/api');
-
-                      // 1. 保存regions数据到后端
-                      const response = await materialAPI.saveRegions(material.id, currentRegions);
-
-                      if (!response.success) {
-                        throw new Error(response.error || t('saveFailed'));
-                      }
-
-                      // 2. 生成并上传最终图片
-                      if (window.currentFabricEditor.generateFinalImage) {
-                        try {
-                          const finalImage = await window.currentFabricEditor.generateFinalImage();
-                          if (finalImage && finalImage.blob) {
-                            await materialAPI.saveFinalImage(material.id, finalImage.blob);
-                            console.log('✓ 最终图片已生成并上传');
-                          }
-                        } catch (imageError) {
-                          console.warn('生成最终图片失败:', imageError);
-                          // 不阻止保存流程
+                        if (!currentRegions || currentRegions.length === 0) {
+                          throw new Error(t('noEditContent'));
                         }
+
+                        const { materialAPI } = await import('../../services/api');
+
+                        // 1. 保存regions数据到后端
+                        const response = await materialAPI.saveRegions(material.id, currentRegions);
+
+                        if (!response.success) {
+                          throw new Error(response.error || t('saveFailed'));
+                        }
+
+                        // 2. 生成并上传最终图片
+                        if (window.currentFabricEditor.generateFinalImage) {
+                          try {
+                            const finalImage = await window.currentFabricEditor.generateFinalImage();
+                            if (finalImage && finalImage.blob) {
+                              await materialAPI.saveFinalImage(material.id, finalImage.blob);
+                              console.log('✓ 最终图片已生成并上传');
+                            }
+                          } catch (imageError) {
+                            console.warn('生成最终图片失败:', imageError);
+                            // 不阻止保存流程
+                          }
+                        }
+
+                        // 更新材料数据
+                        actions.updateMaterial(material.id, {
+                          editedRegions: currentRegions,
+                          hasEditedVersion: true
+                        });
+
+                        actions.showNotification(t('saveSuccess'), t('savingEdits'), 'success');
+                      } catch (error) {
+                        console.error('保存编辑失败:', error);
+                        actions.showNotification(t('saveFailed'), error.message || t('saveFailed'), 'error');
                       }
-
-                      // 更新材料数据
-                      actions.updateMaterial(material.id, {
-                        editedRegions: currentRegions,
-                        hasEditedVersion: true
-                      });
-
-                      actions.showNotification(t('saveSuccess'), t('savingEdits'), 'success');
-                    } catch (error) {
-                      console.error('保存编辑失败:', error);
-                      actions.showNotification(t('saveFailed'), error.message || t('saveFailed'), 'error');
                     }
-                  }
-                }}
-              >
-                {t('saveEdits')}
-              </button>
+                  }}
+                >
+                  {t('saveEdits')}
+                </button>
               </div>
             )}
           </div>
