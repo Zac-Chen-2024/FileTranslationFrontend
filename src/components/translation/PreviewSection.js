@@ -932,26 +932,39 @@ const ComparisonView = ({ material, onSelectResult }) => {
       }
     }
     // 禁用实体识别时，OCR完成后自动触发LLM翻译
-    else if (step === 'translated' && !material.entityRecognitionEnabled) {
+    else if (step === 'translated' && !material.entityRecognitionEnabled && material.translationTextInfo) {
+      console.log('🔍 检查LLM触发条件:', {
+        已触发: llmTriggeredRef.current[material.id],
+        已有结果: !!material.llmTranslationResult,
+        有翻译数据: !!material.translationTextInfo,
+        baiduRegions长度: baiduRegions?.length || 0
+      });
+
       // 检查是否已触发过LLM翻译（避免重复）
       if (llmTriggeredRef.current[material.id]) {
+        console.log('⏭️ 已触发过LLM，跳过');
         return;
       }
 
       // 检查是否已有LLM翻译结果
       if (material.llmTranslationResult) {
+        console.log('⏭️ 已有LLM结果，跳过');
+        return;
+      }
+
+      // 必须等待baiduRegions准备好
+      if (!baiduRegions || baiduRegions.length === 0) {
+        console.log('⏭️ baiduRegions未就绪，等待下次触发');
         return;
       }
 
       // 标记为已触发
       llmTriggeredRef.current[material.id] = true;
 
-      console.log('🚀 实体识别已禁用，自动触发LLM翻译');
+      console.log('🚀 实体识别已禁用，自动触发LLM翻译，regions数量:', baiduRegions.length);
 
       // 触发LLM翻译
-      if (baiduRegions && baiduRegions.length > 0) {
-        handleLLMTranslate(baiduRegions);
-      }
+      handleLLMTranslate(baiduRegions);
     }
 
     // 快速实体识别完成，显示结果让用户选择

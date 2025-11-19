@@ -307,11 +307,10 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           return;
         } else if (bgRect.isMergedMask) {
           // 合并文本框的遮罩：保持原始大小，仅在文本超出时扩大
-          const textBounds = textbox.getBoundingRect();
-          const originalBounds = bgRect.originalBounds || {
-            width: bgRect.width * bgRect.scaleX,
-            height: bgRect.height * bgRect.scaleY
-          };
+
+          // 获取文本框的实际尺寸（包含缩放）
+          const textActualWidth = textbox.width * textbox.scaleX;
+          const textActualHeight = textbox.height * textbox.scaleY;
 
           // 保存原始边界（首次）
           if (!bgRect.originalBounds) {
@@ -321,9 +320,11 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
             };
           }
 
-          // 计算是否需要扩大遮罩
-          const neededWidth = Math.max(originalBounds.width, textBounds.width);
-          const neededHeight = Math.max(originalBounds.height, textBounds.height);
+          const originalBounds = bgRect.originalBounds;
+
+          // 计算是否需要扩大遮罩 - 使用实际尺寸比较
+          const neededWidth = Math.max(originalBounds.width, textActualWidth);
+          const neededHeight = Math.max(originalBounds.height, textActualHeight);
 
           bgRect.set({
             left: textbox.left,
