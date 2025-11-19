@@ -6,6 +6,8 @@ import LaTeXEditModal from '../modals/LaTeXEditModal';
 import LaTeXEditModalV2 from '../modals/LaTeXEditModalV2';
 import LLMTranslationPanel from './LLMTranslationPanel';
 import FabricImageEditor from './FabricImageEditor';
+import EntityRecognitionModal from './EntityRecognitionModal';
+import EntityResultModal from './EntityResultModal';
 import styles from './PreviewSection.module.css';
 
 // API URL配置
@@ -307,7 +309,7 @@ const PreviewSection = () => {
       />
 
       {/* LaTeX编辑模态框 V2 */}
-      <LaTeXEditModalV2 
+      <LaTeXEditModalV2
         isOpen={showLatexEditorV2}
         onClose={() => setShowLatexEditorV2(false)}
         material={currentMaterial}
@@ -329,6 +331,13 @@ const ComparisonView = ({ material, onSelectResult }) => {
   const [pdfSessionProgress, setPdfSessionProgress] = React.useState(null); // PDF整体进度
   const isChangingPageRef = React.useRef(false); // 标记是否正在切换页面
   const previousPdfSessionId = React.useRef(null); // 记录上一个PDF Session ID
+
+  // Entity Recognition states
+  const [showEntityModal, setShowEntityModal] = React.useState(false);
+  const [showEntityResultModal, setShowEntityResultModal] = React.useState(false);
+  const [entityResultMode, setEntityResultMode] = React.useState('fast_result');
+  const [entityResults, setEntityResults] = React.useState([]);
+  const [entityLoading, setEntityLoading] = React.useState(false);
 
   // 加载PDF会话的所有页面
   React.useEffect(() => {
@@ -618,25 +627,162 @@ const ComparisonView = ({ material, onSelectResult }) => {
   const handleStartTranslation = useCallback(async () => {
     if (!material || !material.clientId) return;
 
+    // 显示实体识别模式选择对话框
+    setShowEntityModal(true);
+  }, [material]);
+
+  // 处理实体识别模式选择
+  const handleEntityModeConfirm = useCallback(async (mode) => {
+    if (!material) return;
+
+    setShowEntityModal(false);
+
     try {
-      actions.showNotification('开始翻译', '正在启动翻译任务...', 'info');
-
       const { materialAPI } = await import('../../services/api');
-      await materialAPI.startTranslation(material.clientId);
 
-      const pageCount = pdfPages.length > 0 ? pdfPages.length : 0;
-      actions.showNotification(
-        '翻译已启动',
-        pageCount > 0
-          ? `正在翻译PDF的${pageCount}页，请稍候...`
-          : '正在翻译图片，请稍候...',
-        'success'
-      );
+      if (mode === 'disabled') {
+        // 路径A: 不启用实体识别，直接进行OCR翻译
+        await materialAPI.enableEntityRecognition(material.id, false);
+
+        actions.showNotification('开始翻译', '正在启动翻译任务...', 'info');
+        await materialAPI.startTranslation(material.clientId);
+
+        const pageCount = pdfPages.length > 0 ? pdfPages.length : 0;
+        actions.showNotification(
+          '翻译已启动',
+          pageCount > 0
+            ? `正在翻译PDF的${pageCount}页，请稍候...`
+            : '正在翻译图片，请稍候...',
+          'success'
+        );
+      } else if (mode === 'deep') {
+        // 路径B: 深度模式 - 全自动流程
+        await materialAPI.enableEntityRecognition(material.id, true);
+
+        // 先启动OCR翻译
+        actions.showNotification('开始翻译', '正在启动翻译任务...', 'info');
+        await materialAPI.startTranslation(material.clientId);
+
+        // 显示等待提示
+        actions.showNotification(
+          '深度识别启动',
+          '翻译完成后将自动进行深度实体识别（预计30-120秒），请稍候...',
+          'info'
+        );
+
+        // WebSocket会监听OCR完成状态，然后自动触发深度识别
+        // 深度识别将在后端自动完成并确认
+      } else if (mode === 'standard') {
+        // 路径C: 标准模式 - 快速识别 + 用户选择
+        await materialAPI.enableEntityRecognition(material.id, true);
+
+        // 先启动OCR翻译
+        actions.showNotification('开始翻译', '正在启动翻译任务...', 'info');
+        await materialAPI.startTranslation(material.clientId);
+
+        actions.showNotification(
+          '标准模式启动',
+          '翻译完成后将进行快速实体识别，请稍候...',
+          'info'
+        );
+
+        // WebSocket会监听OCR完成状态，然后触发快速识别
+        // 快速识别完成后会显示EntityResultModal让用户选择
+      }
     } catch (error) {
       console.error('启动翻译失败:', error);
       actions.showNotification('启动失败', error.message || '无法启动翻译', 'error');
     }
   }, [material, pdfPages.length, actions]);
+
+  // 确认实体并继续LLM翻译
+  const handleConfirmEntities = useCallback(async (finalEntities) => {
+    if (!material) return;
+
+    setShowEntityResultModal(false);
+    try {
+      const { materialAPI } = await import('../../services/api');
+
+      // 构建翻译指导
+      const translationGuidance = {
+        entities: finalEntities.reduce((acc, entity) => {
+          if (entity.chinese_name && entity.english_name) {
+            acc[entity.chinese_name] = entity.english_name;
+          }
+          return acc;
+        }, {})
+      };
+
+      // 确认实体
+      await materialAPI.confirmEntities(material.id, finalEntities, translationGuidance);
+
+      actions.showNotification(
+        '实体确认成功',
+        '已确认实体翻译，LLM翻译将自动开始',
+        'success'
+      );
+    } catch (error) {
+      console.error('确认实体失败:', error);
+      actions.showNotification('确认失败', error.message || '无法确认实体', 'error');
+    }
+  }, [material, actions]);
+
+  // 处理快速识别结果 - AI优化
+  const handleEntityAIOptimize = useCallback(async () => {
+    if (!material || entityResults.length === 0) return;
+
+    setEntityLoading(true);
+    try {
+      const { materialAPI } = await import('../../services/api');
+      const response = await materialAPI.entityRecognitionManualAdjust(
+        material.id,
+        entityResults
+      );
+
+      if (response.success && response.result.entities) {
+        // 显示AI优化结果
+        setEntityResults(response.result.entities);
+        setEntityResultMode('ai_result');
+        setEntityLoading(false);
+      } else {
+        throw new Error(response.error || 'AI优化失败');
+      }
+    } catch (error) {
+      console.error('AI优化失败:', error);
+      actions.showNotification('AI优化失败', error.message || 'AI优化时出现错误', 'error');
+      setEntityLoading(false);
+    }
+  }, [material, entityResults, actions]);
+
+  // 处理快速识别结果 - 人工编辑或确认
+  const handleEntityManualEdit = useCallback(async (entities) => {
+    // 如果当前是 fast_result 模式，切换到编辑模式
+    if (entityResultMode === 'fast_result') {
+      setEntityResults(entities);
+      setEntityResultMode('edit');
+    } else {
+      // 如果是 edit 或 ai_result 模式，直接确认实体
+      await handleConfirmEntities(entities);
+    }
+  }, [entityResultMode, handleConfirmEntities]);
+
+  // 处理跳过实体识别
+  const handleEntitySkip = useCallback(async () => {
+    if (!material) return;
+
+    setShowEntityResultModal(false);
+    try {
+      const { materialAPI } = await import('../../services/api');
+
+      // 禁用实体识别，继续LLM翻译
+      await materialAPI.enableEntityRecognition(material.id, false);
+
+      actions.showNotification('跳过实体识别', '将直接进行LLM翻译', 'info');
+    } catch (error) {
+      console.error('跳过实体识别失败:', error);
+      actions.showNotification('操作失败', error.message || '无法跳过实体识别', 'error');
+    }
+  }, [material, actions]);
 
   const handleRetryTranslation = useCallback(async (translationType) => {
     if (!material) return;
@@ -1351,6 +1497,25 @@ const ComparisonView = ({ material, onSelectResult }) => {
           <p>无法获取材料图片</p>
         </div>
       )}
+
+      {/* 实体识别模式选择对话框 */}
+      <EntityRecognitionModal
+        isOpen={showEntityModal}
+        onClose={() => setShowEntityModal(false)}
+        onConfirm={handleEntityModeConfirm}
+      />
+
+      {/* 实体识别结果展示和编辑对话框 */}
+      <EntityResultModal
+        isOpen={showEntityResultModal}
+        onClose={() => setShowEntityResultModal(false)}
+        entities={entityResults}
+        onAIOptimize={handleEntityAIOptimize}
+        onManualEdit={handleEntityManualEdit}
+        onSkip={handleEntitySkip}
+        loading={entityLoading}
+        mode={entityResultMode}
+      />
     </div>
   );
 };

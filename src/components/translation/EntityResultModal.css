@@ -1,0 +1,245 @@
+/* 实体结果模态框遮罩 */
+.entity-result-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.2s ease;
+}
+
+/* 模态框内容 */
+.entity-result-content {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease;
+}
+
+/* 头部 */
+.entity-result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e0e0e0;
+  flex-shrink: 0;
+}
+
+.entity-result-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+.entity-result-close {
+  background: none;
+  border: none;
+  font-size: 28px;
+  color: #999;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.entity-result-close:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+/* 主体 */
+.entity-result-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.entity-result-desc {
+  margin: 0 0 16px 0;
+  color: #666;
+  font-size: 14px;
+}
+
+/* 实体列表（快速识别结果） */
+.entity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.entity-item {
+  padding: 12px 16px;
+  background: #f5f5f5;
+  border-radius: 6px;
+  color: #333;
+  font-size: 14px;
+}
+
+/* 实体表格（编辑/AI结果） */
+.entity-table {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.entity-table-header {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.entity-table-row {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.entity-table-row:last-child {
+  border-bottom: none;
+}
+
+.entity-col-chinese,
+.entity-col-english {
+  padding: 12px 16px;
+  font-size: 14px;
+}
+
+.entity-col-chinese {
+  font-weight: 500;
+  color: #333;
+  border-right: 1px solid #e0e0e0;
+}
+
+.entity-col-english {
+  color: #666;
+}
+
+.entity-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+.entity-input:focus {
+  outline: none;
+  border-color: #1a73e8;
+}
+
+/* 底部 */
+.entity-result-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #e0e0e0;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+.entity-skip-btn,
+.entity-edit-btn,
+.entity-ai-btn,
+.entity-cancel-btn,
+.entity-confirm-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.entity-skip-btn {
+  background: #f5f5f5;
+  color: #666;
+}
+
+.entity-skip-btn:hover:not(:disabled) {
+  background: #ebebeb;
+}
+
+.entity-edit-btn {
+  background: #f59e0b;
+  color: white;
+}
+
+.entity-edit-btn:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.entity-ai-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.entity-ai-btn:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.entity-ai-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.entity-cancel-btn {
+  background: #f5f5f5;
+  color: #666;
+}
+
+.entity-cancel-btn:hover {
+  background: #ebebeb;
+}
+
+.entity-confirm-btn {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+}
+
+.entity-confirm-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+/* 响应式 */
+@media (max-width: 600px) {
+  .entity-result-content {
+    width: 95%;
+    max-width: none;
+  }
+
+  .entity-table-header,
+  .entity-table-row {
+    grid-template-columns: 1fr 1.5fr;
+  }
+
+  .entity-result-footer {
+    flex-wrap: wrap;
+  }
+
+  .entity-result-footer button {
+    flex: 1;
+    min-width: 100px;
+  }
+}

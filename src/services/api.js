@@ -238,8 +238,62 @@ export const materialAPI = {
   },
 
   // LLM翻译优化
-  llmTranslateMaterial: async (materialId) => {
-    return await api.post(`/api/materials/${materialId}/llm-translate`, {}, {
+  llmTranslateMaterial: async (materialId, translationGuidance = null) => {
+    const body = translationGuidance ? { translationGuidance } : {};
+    return await api.post(`/api/materials/${materialId}/llm-translate`, body, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  },
+
+  // 实体识别 - 快速模式
+  entityRecognitionFast: async (materialId) => {
+    return await api.post(`/api/materials/${materialId}/entity-recognition/fast`, {}, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  },
+
+  // 实体识别 - 深度模式
+  entityRecognitionDeep: async (materialId) => {
+    return await api.post(`/api/materials/${materialId}/entity-recognition/deep`, {}, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      timeout: 150000, // 150秒超时
+    });
+  },
+
+  // 实体识别 - AI优化
+  entityRecognitionManualAdjust: async (materialId, fastResults) => {
+    return await api.post(`/api/materials/${materialId}/entity-recognition/manual-adjust`, {
+      fast_results: fastResults
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  },
+
+  // 确认实体
+  confirmEntities: async (materialId, entities, translationGuidance) => {
+    return await api.post(`/api/materials/${materialId}/confirm-entities`, {
+      entities,
+      translationGuidance
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  },
+
+  // 启用/禁用实体识别
+  enableEntityRecognition: async (materialId, enabled) => {
+    return await api.post(`/api/materials/${materialId}/enable-entity-recognition`, {
+      enabled
+    }, {
       headers: {
         'Content-Type': 'application/json',
       },
