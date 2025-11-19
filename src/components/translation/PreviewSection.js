@@ -8,6 +8,7 @@ import LLMTranslationPanel from './LLMTranslationPanel';
 import FabricImageEditor from './FabricImageEditor';
 import EntityRecognitionModal from './EntityRecognitionModal';
 import EntityNotificationBar from './EntityNotificationBar';
+import EntityResultModal from './EntityResultModal';
 import styles from './PreviewSection.module.css';
 
 // API URL配置
@@ -334,6 +335,8 @@ const ComparisonView = ({ material, onSelectResult }) => {
   // Entity Recognition states
   const [showEntityModal, setShowEntityModal] = React.useState(false);
   const [entityResults, setEntityResults] = React.useState([]);
+  const [entityResultModalMode, setEntityResultModalMode] = React.useState('fast_result'); // 'fast_result', 'edit', 'ai_result'
+  const [entityModalLoading, setEntityModalLoading] = React.useState(false);
 
   // 加载PDF会话的所有页面
   React.useEffect(() => {
@@ -735,6 +738,101 @@ const ComparisonView = ({ material, onSelectResult }) => {
     }
   }, [material, actions]);
 
+  // 处理手动编辑实体
+  const handleManualEdit = useCallback(async (entities) => {
+    // 判断是切换到编辑模式，还是确认编辑后的实体
+    const hasEnglishNames = entities && entities.length > 0 &&
+      entities.some(e => e.english_name && e.english_name.trim() !== '');
+
+    if (hasEnglishNames && entityResultModalMode !== 'fast_result') {
+      // 如果实体有英文名称且不是从 fast_result 切换过来的，说明是确认编辑
+      if (!material) return;
+
+      try {
+        const { materialAPI } = await import('../../services/api');
+
+        // 清空实体结果，隐藏Modal
+        setEntityResults([]);
+        setEntityResultModalMode('fast_result');
+
+        // 构建翻译指导格式
+        const translationGuidance = {};
+        entities.forEach(entity => {
+          const chineseName = entity.chinese_name || entity.entity;
+          const englishName = entity.english_name;
+          if (chineseName && englishName) {
+            translationGuidance[chineseName] = englishName;
+          }
+        });
+
+        // 确认实体
+        await materialAPI.confirmEntities(material.id, entities, translationGuidance);
+
+        actions.showNotification(
+          '实体确认成功',
+          '已确认实体翻译，LLM翻译将自动开始',
+          'success'
+        );
+      } catch (error) {
+        console.error('确认实体失败:', error);
+        actions.showNotification('确认失败', error.message || '无法确认实体', 'error');
+      }
+    } else {
+      // 否则，切换到编辑模式
+      setEntityResultModalMode('edit');
+      // 如果传入了新的实体列表，更新
+      if (entities && entities.length > 0) {
+        setEntityResults(entities);
+      }
+    }
+  }, [entityResultModalMode, material, actions]);
+
+  // 处理取消编辑（返回到快速识别结果）
+  const handleCancelEdit = useCallback(() => {
+    if (entityResultModalMode !== 'fast_result') {
+      setEntityResultModalMode('fast_result');
+    }
+  }, [entityResultModalMode]);
+
+  // 处理AI优化（深度查询）
+  const handleAIOptimize = useCallback(async () => {
+    if (!material || !entityResults || entityResults.length === 0) return;
+
+    try {
+      setEntityModalLoading(true);
+      const { materialAPI } = await import('../../services/api');
+
+      actions.showNotification(
+        'AI优化中',
+        '正在进行深度实体识别，这可能需要1-2分钟...',
+        'info'
+      );
+
+      // 提取实体中文名称列表
+      const entityNames = entityResults.map(e => e.chinese_name || e.entity);
+
+      // 调用深度识别API（传入实体列表）
+      const response = await materialAPI.entityRecognitionDeep(material.id, entityNames);
+
+      if (response.success && response.result && response.result.entities) {
+        // 更新实体结果为AI优化后的结果
+        setEntityResults(response.result.entities);
+        setEntityResultModalMode('ai_result');
+
+        actions.showNotification(
+          'AI优化完成',
+          `已为 ${response.result.entities.length} 个实体查找官方英文名称`,
+          'success'
+        );
+      }
+    } catch (error) {
+      console.error('AI优化失败:', error);
+      actions.showNotification('AI优化失败', error.message || '无法完成深度识别', 'error');
+    } finally {
+      setEntityModalLoading(false);
+    }
+  }, [material, entityResults, actions]);
+
   const handleRetryTranslation = useCallback(async (translationType) => {
     if (!material) return;
 
@@ -976,6 +1074,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
 
         if (result.entities && result.entities.length > 0) {
           setEntityResults(result.entities);
+          setEntityResultModalMode('fast_result'); // 重置为快速识别结果模式
         }
       } catch (e) {
         console.error('解析实体识别结果失败:', e);
@@ -1351,15 +1450,17 @@ const ComparisonView = ({ material, onSelectResult }) => {
             )}
           </div>
 
-          {/* 实体识别通知栏 - 嵌入式显示 */}
-          {material.processingStep === 'entity_pending_confirm' && entityResults.length > 0 && (
-            <EntityNotificationBar
-              entities={entityResults}
-              mode={material.entityRecognitionMode || 'standard'}
-              onConfirm={handleConfirmEntities}
-              onSkip={handleEntitySkip}
-            />
-          )}
+          {/* 实体识别结果 Modal - 强制步骤锁 */}
+          <EntityResultModal
+            isOpen={material.processingStep === 'entity_pending_confirm' && entityResults.length > 0}
+            entities={entityResults}
+            mode={entityResultModalMode}
+            onClose={entityResultModalMode === 'fast_result' ? () => {} : handleCancelEdit} // fast_result模式不允许关闭，edit/ai_result模式返回
+            onManualEdit={handleManualEdit}
+            onAIOptimize={handleAIOptimize}
+            onSkip={handleEntitySkip}
+            loading={entityModalLoading}
+          />
 
             <div className={styles.llmEditorContent}>
             {/* 显示翻译进行中状态 - 包括所有阶段：拆分、上传、百度翻译、AI优化 */}
