@@ -960,6 +960,94 @@ const ComparisonView = ({ material, onSelectResult }) => {
     }
   }, [material?.hasEditedVersion, material?.editedRegions, material?.id]);
 
+  // 监听material的processing_step变化，处理实体识别流程
+  React.useEffect(() => {
+    if (!material) return;
+
+    const step = material.processingStep;
+
+    // OCR翻译完成，检查是否需要进行实体识别
+    if (step === 'translated' && material.entityRecognitionEnabled) {
+      console.log('✓ OCR翻译完成，实体识别已启用，检查模式...');
+
+      // 检查是否已经触发过实体识别（避免重复）
+      if (material.entityRecognitionTriggered) {
+        console.log('⊘ 实体识别已触发过，跳过');
+        return;
+      }
+
+      // 标记为已触发（前端状态，防止重复）
+      const entityTriggeredKey = `entity_triggered_${material.id}`;
+      if (sessionStorage.getItem(entityTriggeredKey)) {
+        console.log('⊘ 会话中已触发过实体识别，跳过');
+        return;
+      }
+      sessionStorage.setItem(entityTriggeredKey, 'true');
+
+      // 根据模式触发不同的实体识别
+      if (material.entityRecognitionMode === 'deep') {
+        console.log('🔍 触发深度实体识别...');
+        triggerDeepEntityRecognition();
+      } else if (material.entityRecognitionMode === 'standard') {
+        console.log('⚡ 触发快速实体识别...');
+        triggerFastEntityRecognition();
+      }
+    }
+
+    // 快速实体识别完成，显示结果让用户选择
+    if (step === 'entity_pending_confirm' && material.entityRecognitionResult) {
+      console.log('✓ 快速实体识别完成，显示结果对话框');
+
+      try {
+        const result = typeof material.entityRecognitionResult === 'string'
+          ? JSON.parse(material.entityRecognitionResult)
+          : material.entityRecognitionResult;
+
+        if (result.entities && result.entities.length > 0) {
+          setEntityResults(result.entities);
+          setEntityResultMode('fast_result');
+          setShowEntityResultModal(true);
+        }
+      } catch (e) {
+        console.error('解析实体识别结果失败:', e);
+      }
+    }
+
+  }, [material?.id, material?.processingStep, material?.entityRecognitionEnabled, material?.entityRecognitionMode]);
+
+  // 触发深度实体识别
+  const triggerDeepEntityRecognition = React.useCallback(async () => {
+    if (!material) return;
+
+    try {
+      const { materialAPI } = await import('../../services/api');
+      await materialAPI.entityRecognitionDeep(material.id);
+      console.log('✓ 深度实体识别已启动');
+    } catch (error) {
+      console.error('深度实体识别启动失败:', error);
+      actions.showNotification('实体识别失败', error.message || '无法启动深度识别', 'error');
+    }
+  }, [material, actions]);
+
+  // 触发快速实体识别
+  const triggerFastEntityRecognition = React.useCallback(async () => {
+    if (!material) return;
+
+    try {
+      const { materialAPI } = await import('../../services/api');
+      const response = await materialAPI.entityRecognitionFast(material.id);
+
+      if (response.success && response.result.entities) {
+        console.log('✓ 快速实体识别完成，识别到', response.result.entities.length, '个实体');
+        // 结果会通过WebSocket更新到material.entityRecognitionResult
+        // 然后上面的useEffect会捕获并显示对话框
+      }
+    } catch (error) {
+      console.error('快速实体识别失败:', error);
+      actions.showNotification('实体识别失败', error.message || '无法启动快速识别', 'error');
+    }
+  }, [material, actions]);
+
   // 解析百度翻译结果
   // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => {
@@ -997,8 +1085,10 @@ const ComparisonView = ({ material, onSelectResult }) => {
       } else if (!llmTriggeredRef.current[materialId] &&
                  regions.length > 0 &&
                  (material.processingProgress >= 66 ||
-                  (pdfSessionProgress && pdfSessionProgress.progress >= 66))) {
-        // 只在百度翻译完成（进度>=66%）时触发LLM翻译
+                  (pdfSessionProgress && pdfSessionProgress.progress >= 66)) &&
+                 // 新增：如果启用了实体识别，只有在确认后才触发LLM
+                 (!material.entityRecognitionEnabled || material.entityRecognitionConfirmed)) {
+        // 只在百度翻译完成（进度>=66%）且实体识别已确认时触发LLM翻译
         console.log('⚡ 首次触发LLM翻译 - Material:', materialId, '进度:', material.processingProgress, 'PDF进度:', pdfSessionProgress?.progress);
         llmTriggeredRef.current[materialId] = true; // 立即设置flag，防止重复触发
         handleLLMTranslate(regions);
@@ -1008,12 +1098,14 @@ const ComparisonView = ({ material, onSelectResult }) => {
           console.log('🛡️ 防止重复LLM调用 - Material已处理:', materialId);
         } else if (regions.length === 0) {
           console.log('⊘ 跳过LLM调用 - regions为空');
+        } else if (material.entityRecognitionEnabled && !material.entityRecognitionConfirmed) {
+          console.log('⏸️ 等待实体识别确认后再进行LLM翻译');
         }
       }
     } catch (e) {
       console.error('解析翻译数据失败:', e);
     }
-  }, [material?.id, material?.translationTextInfo, material?.processingProgress, pdfSessionProgress?.progress]); // 添加进度依赖
+  }, [material?.id, material?.translationTextInfo, material?.processingProgress, material?.entityRecognitionEnabled, material?.entityRecognitionConfirmed, pdfSessionProgress?.progress]); // 添加进度和实体识别状态依赖
 
   // 当PDF所有页面翻译完成时，自动为所有页面触发LLM
   // eslint-disable-next-line react-hooks/exhaustive-deps
