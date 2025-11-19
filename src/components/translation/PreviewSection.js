@@ -288,7 +288,8 @@ const PreviewSection = () => {
     <div className={styles.previewSection}>
       <div className={styles.header}>
         <h3 className={styles.title}>{t('translationPreview')}</h3>
-        <div className={styles.actions}>
+        <div className={styles.actions} style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {/* 刷新按钮 */}
           <button
             className={`${styles.actionBtn} ${styles.btnRefresh}`}
             onClick={handleRefresh}
@@ -308,8 +309,139 @@ const PreviewSection = () => {
             </svg>
             {t('refresh')}
           </button>
-          {(currentMaterial.type === 'image' || currentMaterial.type === 'pdf') &&
-           currentMaterial.selectedResult === 'latex' && null}
+
+          {/* PDF页面导航 */}
+          {pdfPages.length > 0 && (
+            <div className={styles.pdfNavigation}>
+              <button
+                className={styles.pdfNavBtn}
+                onClick={() => comparisonViewRef.current?.handlePageChange(currentPageIndex - 1)}
+                disabled={currentPageIndex === 0}
+                title="上一页"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M15 18l-6-6 6-6"/>
+                </svg>
+                {t('previousPage')}
+              </button>
+              <span className={styles.pdfPageInfo}>
+                {t('currentPage', { current: currentPageIndex + 1, total: pdfPages.length })}
+              </span>
+              <button
+                className={styles.pdfNavBtn}
+                onClick={() => comparisonViewRef.current?.handlePageChange(currentPageIndex + 1)}
+                disabled={currentPageIndex === pdfPages.length - 1}
+                title={t('nextPage')}
+              >
+                {t('nextPage')}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9 18l6-6-6-6"/>
+                </svg>
+              </button>
+              {/* 页面选择下拉菜单 */}
+              <select
+                className={styles.pdfPageSelect}
+                value={currentPageIndex}
+                onChange={(e) => comparisonViewRef.current?.handlePageChange(parseInt(e.target.value))}
+                title={t('selectPage')}
+              >
+                {pdfPages.map((_, index) => (
+                  <option key={index} value={index}>
+                    {t('pageSelector', { page: index + 1 })}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* 旋转按钮 - 始终显示 */}
+          <button
+            className={styles.rotateButton}
+            onClick={() => comparisonViewRef.current?.handleRotateImage()}
+            title={t('rotate')}
+          >
+            {t('rotate')}
+          </button>
+
+          {/* 开始翻译按钮 - 只在status='已上传'时显示 */}
+          {currentMaterial.status === '已上传' && !currentMaterial.translationTextInfo && (
+            <button
+              className={styles.startTranslationBtn}
+              onClick={() => comparisonViewRef.current?.handleStartTranslation()}
+              title={t('startTranslation')}
+            >
+              {t('startTranslation')}{pdfPages.length > 0 ? `（${pdfPages.length}页）` : ''}
+            </button>
+          )}
+
+          {/* 重新翻译按钮 - 只在已有翻译结果时显示 */}
+          {currentMaterial.translationTextInfo && (
+            <button
+              className={styles.retranslateButton}
+              onClick={() => comparisonViewRef.current?.handleRetranslateCurrentImage()}
+              title={t('retranslateCurrentImage')}
+            >
+              {t('retranslate')}
+            </button>
+          )}
+
+          {/* 保存修改按钮 - 始终显示 */}
+          <button
+            className={styles.saveEditButton}
+            onClick={async () => {
+              // ✅ 重构：保存regions数据 + 生成最终图片
+              if (window.currentFabricEditor && window.currentFabricEditor.getCurrentRegions) {
+                try {
+                  actions.showNotification(t('saving'), t('savingEdits'), 'info');
+
+                  // 获取当前的regions数据
+                  const currentRegions = window.currentFabricEditor.getCurrentRegions();
+
+                  if (!currentRegions || currentRegions.length === 0) {
+                    throw new Error(t('noEditContent'));
+                  }
+
+                  const { materialAPI } = await import('../../services/api');
+
+                  // 1. 保存regions数据到后端
+                  const response = await materialAPI.saveRegions(currentMaterial.id, currentRegions);
+
+                  if (!response.success) {
+                    throw new Error(response.error || t('saveFailed'));
+                  }
+
+                  // 2. 生成并上传最终图片
+                  if (window.currentFabricEditor.generateFinalImage) {
+                    try {
+                      const finalImage = await window.currentFabricEditor.generateFinalImage();
+                      if (finalImage && finalImage.blob) {
+                        await materialAPI.saveFinalImage(currentMaterial.id, finalImage.blob);
+                        console.log('✓ 最终图片已生成并上传');
+                      }
+                    } catch (imageError) {
+                      console.warn('生成最终图片失败:', imageError);
+                      // 不阻止保存流程
+                    }
+                  }
+
+                  // 更新材料数据
+                  actions.updateMaterial(currentMaterial.id, {
+                    editedRegions: currentRegions,
+                    hasEditedVersion: true
+                  });
+
+                  actions.showNotification(t('saveSuccess'), t('savingEdits'), 'success');
+                } catch (error) {
+                  console.error('保存编辑失败:', error);
+                  actions.showNotification(t('saveFailed'), error.message || t('saveFailed'), 'error');
+                }
+              }
+            }}
+          >
+            {t('saveEdits')}
+          </button>
+
+          {/* 确认按钮 */}
           <button
             className={`${styles.actionBtn} ${currentMaterial.confirmed ? styles.btnUnconfirm : styles.btnConfirm}`}
             onClick={handleConfirm}
