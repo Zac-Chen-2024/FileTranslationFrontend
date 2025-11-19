@@ -720,6 +720,12 @@ const ComparisonView = ({ material, onSelectResult }) => {
     try {
       const { materialAPI } = await import('../../services/api');
 
+      // 立即更新本地状态，防止 Modal 重复弹出
+      actions.updateMaterial(material.id, {
+        entity_recognition_confirmed: true,
+        processing_step: 'entity_confirmed'
+      });
+
       // 清空实体结果，隐藏Modal
       setEntityResults([]);
 
@@ -1062,7 +1068,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
     }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [material?.id, material?.processingStep, material?.entityRecognitionEnabled, material?.entityRecognitionMode, material?.llmTranslationResult, baiduRegions]);
+  }, [material?.id, material?.processingStep, material?.entityRecognitionEnabled, material?.entityRecognitionMode, material?.llmTranslationResult, material?.entity_recognition_confirmed, material?.entityRecognitionResult, baiduRegions]);
 
   // 触发深度实体识别
   const triggerDeepEntityRecognition = React.useCallback(async () => {
