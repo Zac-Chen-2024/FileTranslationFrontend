@@ -1,6 +1,6 @@
-/* 实体结果模态框遮罩 */
+/* 实体结果模态框遮罩 - 局部定位，仅覆盖父容器 */
 .entity-result-overlay {
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
   right: 0;
@@ -9,7 +9,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
+  z-index: 100;
   animation: fadeIn 0.2s ease;
 }
 

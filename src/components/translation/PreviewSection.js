@@ -1450,19 +1450,18 @@ const ComparisonView = ({ material, onSelectResult }) => {
             )}
           </div>
 
-          {/* 实体识别结果 Modal - 强制步骤锁 */}
-          <EntityResultModal
-            isOpen={material.processingStep === 'entity_pending_confirm' && entityResults.length > 0}
-            entities={entityResults}
-            mode={entityResultModalMode}
-            onClose={entityResultModalMode === 'fast_result' ? () => {} : handleCancelEdit} // fast_result模式不允许关闭，edit/ai_result模式返回
-            onManualEdit={handleManualEdit}
-            onAIOptimize={handleAIOptimize}
-            onSkip={handleEntitySkip}
-            loading={entityModalLoading}
-          />
-
             <div className={styles.llmEditorContent}>
+            {/* 实体识别结果 Modal - 局部定位，仅覆盖预览区域 */}
+            <EntityResultModal
+              isOpen={material.processingStep === 'entity_pending_confirm' && entityResults.length > 0}
+              entities={entityResults}
+              mode={entityResultModalMode}
+              onClose={entityResultModalMode === 'fast_result' ? () => {} : handleCancelEdit} // fast_result模式不允许关闭，edit/ai_result模式返回
+              onManualEdit={handleManualEdit}
+              onAIOptimize={handleAIOptimize}
+              onSkip={handleEntitySkip}
+              loading={entityModalLoading}
+            />
             {/* 显示翻译进行中状态 - 包括所有阶段：拆分、上传、百度翻译、AI优化 */}
             {/* 只有在真正翻译进行中时才显示加载界面 */}
             {/* 排除实体识别相关状态：entity_recognizing, entity_pending_confirm, entity_confirmed */}

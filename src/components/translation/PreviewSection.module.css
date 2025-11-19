@@ -844,6 +844,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative; /* 让实体识别Modal相对于此容器定位 */
 }
 
 /* 翻译文本侧边栏 */
