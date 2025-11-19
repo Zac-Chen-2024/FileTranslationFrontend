@@ -471,25 +471,35 @@ export const AppProvider = ({ children }) => {
     if (data.progress !== undefined) console.log(`   进度: ${data.progress}%`);
     if (data.translated_path) console.log(`   翻译路径: ${data.translated_path}`);
     if (data.translation_info) console.log(`   翻译区域数: ${data.translation_info.regions?.length || 0}`);
-    
+
     // 更新材料状态
     if (data.material_id) {
-      const updates = {};
-      if (data.status) {
-        updates.status = data.status;
-        console.log(`✓ 材料状态更新为: ${data.status}`);
-      }
-      if (data.progress !== undefined) {
-        updates.processingProgress = data.progress;
-        console.log(`✓ 处理进度更新为: ${data.progress}%`);
-      }
-      if (data.translated_path) {
-        updates.translatedImagePath = data.translated_path;
-        console.log(`✓ 翻译图片已生成`);
-      }
-      if (data.translation_info) {
-        updates.translationTextInfo = data.translation_info;
-        console.log(`✓ 翻译文本信息已更新`);
+      let updates = {};
+
+      // ✅ 优先使用后端推送的完整material对象（包含所有字段）
+      if (data.material) {
+        updates = data.material;
+        console.log(`✓ 使用完整material对象更新`);
+        console.log(`   processingStep: ${data.material.processingStep}`);
+        console.log(`   entityRecognitionMode: ${data.material.entityRecognitionMode}`);
+      } else {
+        // 兼容旧格式：手动提取字段
+        if (data.status) {
+          updates.status = data.status;
+          console.log(`✓ 材料状态更新为: ${data.status}`);
+        }
+        if (data.progress !== undefined) {
+          updates.processingProgress = data.progress;
+          console.log(`✓ 处理进度更新为: ${data.progress}%`);
+        }
+        if (data.translated_path) {
+          updates.translatedImagePath = data.translated_path;
+          console.log(`✓ 翻译图片已生成`);
+        }
+        if (data.translation_info) {
+          updates.translationTextInfo = data.translation_info;
+          console.log(`✓ 翻译文本信息已更新`);
+        }
       }
 
       // ✅ 只需调用updateMaterial，Reducer会自动同步更新currentMaterial
