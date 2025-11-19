@@ -779,39 +779,46 @@ const PreviewSection = () => {
     console.log('🚀 PDF所有页面翻译完成，检查是否需要为其他页面触发LLM');
 
     // 遍历所有PDF页面，为未触发LLM的页面触发
-    pdfPages.forEach(async (page) => {
+    pdfPages.forEach(async (pageRef) => {
+      // 🔧 修复：从最新的materials state中获取页面的实时状态
+      const latestPage = state.materials.find(m => m.id === pageRef.id);
+      if (!latestPage) {
+        console.log(`⊘ 页面 ${pageRef.pdfPageNumber} 未找到最新状态，跳过`);
+        return;
+      }
+
       // 跳过已经触发过LLM的页面
-      if (llmTriggeredRef.current[page.id]) {
-        console.log(`⊘ 页面 ${page.pdfPageNumber} 已触发过LLM，跳过`);
+      if (llmTriggeredRef.current[latestPage.id]) {
+        console.log(`⊘ 页面 ${latestPage.pdfPageNumber} 已触发过LLM，跳过`);
         return;
       }
 
       // 跳过没有翻译结果的页面
-      if (!page.translationTextInfo) {
-        console.log(`⊘ 页面 ${page.pdfPageNumber} 没有翻译结果，跳过`);
+      if (!latestPage.translationTextInfo) {
+        console.log(`⊘ 页面 ${latestPage.pdfPageNumber} 没有翻译结果，跳过`);
         return;
       }
 
       // 如果已经有LLM结果，也跳过
-      if (page.llmTranslationResult) {
-        console.log(`⊘ 页面 ${page.pdfPageNumber} 已有LLM结果，跳过`);
-        llmTriggeredRef.current[page.id] = true;
+      if (latestPage.llmTranslationResult) {
+        console.log(`⊘ 页面 ${latestPage.pdfPageNumber} 已有LLM结果，跳过`);
+        llmTriggeredRef.current[latestPage.id] = true;
         return;
       }
 
       // 🔧 修复：如果页面正在进行实体识别流程，跳过自动触发LLM
-      if (page.processingStep === 'entity_recognizing' ||
-          page.processingStep === 'entity_pending_confirm') {
-        console.log(`⊘ 页面 ${page.pdfPageNumber} 正在进行实体识别流程（${page.processingStep}），跳过自动LLM触发`);
+      if (latestPage.processingStep === 'entity_recognizing' ||
+          latestPage.processingStep === 'entity_pending_confirm') {
+        console.log(`⊘ 页面 ${latestPage.pdfPageNumber} 正在进行实体识别流程（${latestPage.processingStep}），跳过自动LLM触发`);
         return;
       }
 
       // 为这个页面触发LLM
       try {
-        llmTriggeredRef.current[page.id] = true; // 立即标记，防止重复
+        llmTriggeredRef.current[latestPage.id] = true; // 立即标记，防止重复
 
         const token = localStorage.getItem('auth_token');
-        const response = await fetch(`${API_URL}/api/materials/${page.id}/llm-translate`, {
+        const response = await fetch(`${API_URL}/api/materials/${latestPage.id}/llm-translate`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -823,18 +830,18 @@ const PreviewSection = () => {
           const data = await response.json();
 
           // 更新materials列表中的这个页面
-          actions.updateMaterial(page.id, {
+          actions.updateMaterial(latestPage.id, {
             llmTranslationResult: data.llm_translations,
             processingProgress: 100 // LLM完成后设置为100%
           });
         } else {
-          console.error(`✗ 页面 ${page.pdfPageNumber} LLM翻译失败:`, await response.text());
+          console.error(`✗ 页面 ${latestPage.pdfPageNumber} LLM翻译失败:`, await response.text());
         }
       } catch (error) {
-        console.error(`✗ 页面 ${page.pdfPageNumber} LLM翻译出错:`, error);
+        console.error(`✗ 页面 ${latestPage.pdfPageNumber} LLM翻译出错:`, error);
       }
     });
-  }, [pdfSessionProgress?.allTranslated, pdfSessionProgress?.progress, pdfPages]);
+  }, [pdfSessionProgress?.allTranslated, pdfSessionProgress?.progress, pdfPages, state.materials]);
 
   // LLM翻译（完全按照Reference的方式）
   const handleLLMTranslate = async (regions) => {
