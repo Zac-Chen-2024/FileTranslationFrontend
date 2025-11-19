@@ -693,30 +693,6 @@ const ComparisonView = ({ material, onSelectResult }) => {
     }
   }, [material, pdfPages.length, actions]);
 
-  // 确认实体并继续LLM翻译
-  const handleConfirmEntities = useCallback(async (finalEntities, translationGuidance) => {
-    if (!material) return;
-
-    try {
-      const { materialAPI } = await import('../../services/api');
-
-      // 清空实体结果，隐藏通知栏
-      setEntityResults([]);
-
-      // 确认实体
-      await materialAPI.confirmEntities(material.id, finalEntities, translationGuidance);
-
-      actions.showNotification(
-        '实体确认成功',
-        '已确认实体翻译，LLM翻译将自动开始',
-        'success'
-      );
-    } catch (error) {
-      console.error('确认实体失败:', error);
-      actions.showNotification('确认失败', error.message || '无法确认实体', 'error');
-    }
-  }, [material, actions]);
-
   // 处理跳过实体识别
   const handleEntitySkip = useCallback(async () => {
     if (!material) return;
