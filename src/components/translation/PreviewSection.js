@@ -1133,8 +1133,8 @@ const PreviewSection = () => {
     <div className={styles.previewSection}>
       <div className={styles.header}>
         <h3 className={styles.title}>{t('translationPreview')}</h3>
-        <div className={styles.actions} style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {/* 刷新按钮 */}
+        <div className={styles.actions}>
+          {/* 组1: 视图控制 */}
           <button
             className={`${styles.actionBtn} ${styles.btnRefresh}`}
             onClick={handleRefresh}
@@ -1142,8 +1142,8 @@ const PreviewSection = () => {
             title={t('refreshTranslationResult')}
           >
             <svg
-              width="16"
-              height="16"
+              width="14"
+              height="14"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -1155,85 +1155,95 @@ const PreviewSection = () => {
             {t('refresh')}
           </button>
 
-          {/* PDF页面导航 */}
+          {/* 组2: PDF页面导航 (仅PDF时显示) */}
           {pdfPages.length > 0 && (
-            <div className={styles.pdfNavigation}>
-              <button
-                className={styles.pdfNavBtn}
-                onClick={() => handlePageChange(currentPageIndex - 1)}
-                disabled={currentPageIndex === 0}
-                title="上一页"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M15 18l-6-6 6-6"/>
-                </svg>
-                {t('previousPage')}
-              </button>
-              <span className={styles.pdfPageInfo}>
-                {t('currentPage', { current: currentPageIndex + 1, total: pdfPages.length })}
-              </span>
-              <button
-                className={styles.pdfNavBtn}
-                onClick={() => handlePageChange(currentPageIndex + 1)}
-                disabled={currentPageIndex === pdfPages.length - 1}
-                title={t('nextPage')}
-              >
-                {t('nextPage')}
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 18l6-6-6-6"/>
-                </svg>
-              </button>
-              {/* 页面选择下拉菜单 */}
-              <select
-                className={styles.pdfPageSelect}
-                value={currentPageIndex}
-                onChange={(e) => handlePageChange(parseInt(e.target.value))}
-                title={t('selectPage')}
-              >
-                {pdfPages.map((_, index) => (
-                  <option key={index} value={index}>
-                    {t('pageSelector', { page: index + 1 })}
-                  </option>
-                ))}
-              </select>
+            <div className={`${styles.buttonGroup} ${styles.pdfNavGroup}`}>
+              <div className={styles.pdfNavigation}>
+                <button
+                  className={styles.pdfNavBtn}
+                  onClick={() => handlePageChange(currentPageIndex - 1)}
+                  disabled={currentPageIndex === 0}
+                  title="上一页"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M15 18l-6-6 6-6"/>
+                  </svg>
+                </button>
+                <span className={styles.pdfPageInfo}>
+                  {t('currentPage', { current: currentPageIndex + 1, total: pdfPages.length })}
+                </span>
+                <button
+                  className={styles.pdfNavBtn}
+                  onClick={() => handlePageChange(currentPageIndex + 1)}
+                  disabled={currentPageIndex === pdfPages.length - 1}
+                  title={t('nextPage')}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M9 18l6-6-6-6"/>
+                  </svg>
+                </button>
+                <div className={styles.groupDivider}></div>
+                <select
+                  className={styles.pdfPageSelect}
+                  value={currentPageIndex}
+                  onChange={(e) => handlePageChange(parseInt(e.target.value))}
+                  title={t('selectPage')}
+                >
+                  {pdfPages.map((_, index) => (
+                    <option key={index} value={index}>
+                      {t('pageSelector', { page: index + 1 })}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           )}
 
-          {/* 旋转按钮 - 始终显示 */}
-          <button
-            className={styles.rotateButton}
-            onClick={handleRotateImage}
-            title={t('rotate')}
-          >
-            {t('rotate')}
-          </button>
-
-          {/* 开始翻译按钮 - 只在status='已上传'时显示 */}
-          {currentMaterial.status === '已上传' && !currentMaterial.translationTextInfo && (
+          {/* 组3: 编辑操作 */}
+          <div className={`${styles.buttonGroup} ${styles.editActionsGroup}`}>
+            {/* 旋转按钮 */}
             <button
-              className={styles.startTranslationBtn}
-              onClick={handleStartTranslation}
-              title={t('startTranslation')}
+              className={styles.rotateButton}
+              onClick={handleRotateImage}
+              title={t('rotate')}
             >
-              {t('startTranslation')}{pdfPages.length > 0 ? `（${pdfPages.length}页）` : ''}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 12c0-5.5 4.5-10 10-10s10 4.5 10 10-4.5 10-10 10"/>
+              </svg>
+              {t('rotate')}
             </button>
-          )}
 
-          {/* 重新翻译按钮 - 只在已有翻译结果时显示 */}
-          {currentMaterial.translationTextInfo && (
+            {/* 开始翻译/重新翻译按钮 */}
+            {currentMaterial.status === '已上传' && !currentMaterial.translationTextInfo ? (
+              <button
+                className={styles.startTranslationBtn}
+                onClick={handleStartTranslation}
+                title={t('startTranslation')}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+                {t('startTranslation')}{pdfPages.length > 0 ? ` (${pdfPages.length})` : ''}
+              </button>
+            ) : currentMaterial.translationTextInfo && (
+              <button
+                className={styles.retranslateButton}
+                onClick={handleRetranslateCurrentImage}
+                title={t('retranslateCurrentImage')}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21.5 2v6h-6M2.5 22v-6h6M2 12c0-4.75 3.25-9 9.25-9C17.5 3 22 7.5 22 12M12 22c4.75 0 9.25-4.5 9.25-9.25"/>
+                </svg>
+                {t('retranslate')}
+              </button>
+            )}
+
+            <div className={styles.groupDivider}></div>
+
+            {/* 保存修改按钮 */}
             <button
-              className={styles.retranslateButton}
-              onClick={handleRetranslateCurrentImage}
-              title={t('retranslateCurrentImage')}
-            >
-              {t('retranslate')}
-            </button>
-          )}
-
-          {/* 保存修改按钮 - 始终显示 */}
-          <button
-            className={styles.saveEditButton}
-            onClick={async () => {
+              className={styles.saveEditButton}
+              onClick={async () => {
               // ✅ 重构：保存regions数据 + 生成最终图片
               if (window.currentFabricEditor && window.currentFabricEditor.getCurrentRegions) {
                 try {
@@ -1283,14 +1293,27 @@ const PreviewSection = () => {
               }
             }}
           >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/>
+              <polyline points="7 3 7 8 15 8"/>
+            </svg>
             {t('saveEdits')}
           </button>
+          </div>
 
-          {/* 确认按钮 */}
+          {/* 组4: 状态控制 */}
           <button
             className={`${styles.actionBtn} ${currentMaterial.confirmed ? styles.btnUnconfirm : styles.btnConfirm}`}
             onClick={handleConfirm}
           >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              {currentMaterial.confirmed ? (
+                <path d="M18 6L6 18M6 6l12 12"/>
+              ) : (
+                <polyline points="20 6 9 17 4 12"/>
+              )}
+            </svg>
             {currentMaterial.confirmed ? t('unconfirm') : t('confirm')}
           </button>
         </div>

@@ -20,7 +20,8 @@
   align-items: center;
   margin-bottom: 1.5rem;
   border-bottom: 2px solid var(--primary-blue);
-  padding-bottom: 0.5rem;
+  padding-bottom: 0.75rem;
+  gap: 1rem;
 }
 
 .title {
@@ -28,21 +29,80 @@
   font-weight: 700;
   color: var(--neutral-800);
   margin: 0;
+  flex-shrink: 0;
 }
 
+/* 按钮工具栏 - 水平布局，自动换行 */
 .actions {
   display: flex;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+/* 按钮分组容器 */
+.buttonGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .buttonGroup {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* 分组：PDF导航 */
+.pdfNavGroup {
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.2);
+}
+
+[data-theme="dark"] .pdfNavGroup {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+/* 分组：编辑操作 */
+.editActionsGroup {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+[data-theme="dark"] .editActionsGroup {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+/* 分组分隔符 */
+.groupDivider {
+  width: 1px;
+  height: 24px;
+  background: rgba(0, 0, 0, 0.1);
+  margin: 0 0.25rem;
+}
+
+[data-theme="dark"] .groupDivider {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .actionBtn {
-  padding: 0.5rem 1rem;
+  padding: 0.45rem 0.9rem;
   border: none;
   border-radius: 6px;
-  font-size: 0.9rem;
-  font-weight: 600;
+  font-size: 0.875rem;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
 }
 
 .btnRefresh {
@@ -50,7 +110,7 @@
   color: white;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 .btnRefresh:hover:not(:disabled) {
@@ -1094,18 +1154,14 @@
 .pdfNavigation {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin-top: 0.5rem;
-  padding: 0.5rem;
-  background: rgba(59, 130, 246, 0.1);
-  border-radius: 8px;
+  gap: 0.5rem;
 }
 
 .pdfNavBtn {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.4rem 0.8rem;
+  gap: 0.3rem;
+  padding: 0.4rem 0.75rem;
   background: var(--primary-blue);
   color: white;
   border: none;
@@ -1136,31 +1192,32 @@
 }
 
 .pdfPageInfo {
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--primary-blue);
-  padding: 0 0.5rem;
+  padding: 0 0.3rem;
   white-space: nowrap;
+  user-select: none;
 }
 
 /* 页面选择下拉菜单 */
 .pdfPageSelect {
-  padding: 0.4rem 0.8rem;
-  padding-right: 2rem;
+  padding: 0.35rem 0.7rem;
+  padding-right: 1.8rem;
   background: white;
   color: var(--primary-blue);
-  border: 2px solid var(--primary-blue);
+  border: 1.5px solid var(--primary-blue);
   border-radius: 6px;
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
   appearance: none;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2'%3e%3cpath d='M6 9l6 6 6-6'/%3e%3c/svg%3e");
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2'%3e%3cpath d='M6 9l6 6 6-6'/%3e%3c/svg%3e");
   background-repeat: no-repeat;
-  background-position: right 0.5rem center;
-  background-size: 1.2rem;
-  min-width: 100px;
+  background-position: right 0.4rem center;
+  background-size: 1rem;
+  min-width: 90px;
 }
 
 .pdfPageSelect:hover {
