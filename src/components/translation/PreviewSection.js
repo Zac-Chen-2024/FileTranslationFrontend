@@ -50,6 +50,8 @@ const PreviewSection = () => {
   // Refs
   const llmTriggeredRef = React.useRef({});
   const previousMaterialId = React.useRef(null);
+  const pdfSessionEntityTriggeredRef = React.useRef({}); // 跟踪PDF Session实体识别是否已触发
+  const pdfSessionEntityModalShownRef = React.useRef({}); // 跟踪PDF Session实体Modal是否已显示
   // ========== 状态提升结束 ==========
 
   // 监听currentMaterial变化，强制刷新预览
@@ -431,12 +433,13 @@ const PreviewSection = () => {
         actions.showNotification(
           '标准模式启动',
           isPDF
-            ? `正在翻译PDF的${pageCount}页，翻译完成后将进行快速实体识别...`
+            ? `正在翻译PDF的${pageCount}页，翻译完成后将进行整体实体识别...`
             : '翻译完成后将进行快速实体识别，请稍候...',
           'info'
         );
 
-        // WebSocket会监听所有页面OCR完成状态，然后触发快速识别
+        // 对于PDF：WebSocket会监听所有页面OCR完成状态，然后触发整个PDF Session的实体识别
+        // 对于单页图片：WebSocket会监听OCR完成，然后触发该页的快速识别
         // 快速识别完成后会显示EntityResultModal让用户选择
       }
     } catch (error) {
@@ -449,34 +452,48 @@ const PreviewSection = () => {
   const handleEntitySkip = useCallback(async () => {
     if (!currentMaterial) return;
 
+    const isPDF = pdfPages.length > 0 && currentMaterial.pdfSessionId;
+
     try {
       const { materialAPI } = await import('../../services/api');
 
-      // 清空实体结果，隐藏通知栏
+      // 清空实体结果，隐藏Modal
       setEntityResults([]);
 
-      // 禁用实体识别，继续LLM翻译
-      await materialAPI.enableEntityRecognition(currentMaterial.id, false);
+      if (isPDF) {
+        // ===== PDF Session: 禁用所有页面的实体识别 =====
+        const sessionId = currentMaterial.pdfSessionId;
+        console.log(`⏭️ [PDF Session ${sessionId}] 跳过实体识别，禁用所有${pdfPages.length}个页面的实体识别`);
 
-      actions.showNotification('跳过实体识别', '将直接进行LLM翻译', 'info');
+        // 为所有页面禁用实体识别
+        await Promise.all(pdfPages.map(page =>
+          materialAPI.enableEntityRecognition(page.id, false)
+        ));
+
+        actions.showNotification(
+          '跳过实体识别',
+          `PDF的${pdfPages.length}页将直接进行LLM翻译`,
+          'info'
+        );
+      } else {
+        // ===== 单页图片: 禁用当前页面的实体识别 =====
+        await materialAPI.enableEntityRecognition(currentMaterial.id, false);
+        actions.showNotification('跳过实体识别', '将直接进行LLM翻译', 'info');
+      }
     } catch (error) {
       console.error('跳过实体识别失败:', error);
       actions.showNotification('操作失败', error.message || '无法跳过实体识别', 'error');
     }
-  }, [currentMaterial, actions]);
+  }, [currentMaterial, pdfPages, actions]);
 
   // 处理确认实体
   const handleConfirmEntities = useCallback(async (entities) => {
     if (!currentMaterial) return;
 
+    const isPDF = pdfPages.length > 0 && currentMaterial.pdfSessionId;
+
     try {
       const { materialAPI } = await import('../../services/api');
-
-      // 立即更新本地状态，防止 Modal 重复弹出
-      actions.updateMaterial(currentMaterial.id, {
-        entity_recognition_confirmed: true,
-        processing_step: 'entity_confirmed'
-      });
 
       // 清空实体结果，隐藏Modal
       setEntityResults([]);
@@ -512,49 +529,108 @@ const PreviewSection = () => {
         }
       });
 
-      // 确认实体
-      await materialAPI.confirmEntities(currentMaterial.id, entities, translationGuidance);
+      if (isPDF) {
+        // ===== PDF Session: 确认整个PDF的实体 =====
+        const sessionId = currentMaterial.pdfSessionId;
+        console.log(`✅ [PDF Session ${sessionId}] 确认实体，整个PDF的${pdfPages.length}页将使用统一的实体翻译指导`);
 
-      actions.showNotification(
-        '实体确认成功',
-        '已确认实体翻译，LLM翻译将自动开始',
-        'success'
-      );
+        // 立即更新所有页面的本地状态，防止 Modal 重复弹出
+        pdfPages.forEach(page => {
+          actions.updateMaterial(page.id, {
+            entity_recognition_confirmed: true,
+            processing_step: 'entity_confirmed'
+          });
+        });
+
+        // 确认整个PDF Session的实体
+        await materialAPI.pdfSessionConfirmEntities(sessionId, entities, translationGuidance);
+
+        actions.showNotification(
+          '实体确认成功',
+          `已确认PDF的${pdfPages.length}页实体翻译，LLM翻译将自动开始`,
+          'success'
+        );
+      } else {
+        // ===== 单页图片: 确认当前页面的实体 =====
+        // 立即更新本地状态，防止 Modal 重复弹出
+        actions.updateMaterial(currentMaterial.id, {
+          entity_recognition_confirmed: true,
+          processing_step: 'entity_confirmed'
+        });
+
+        // 确认实体
+        await materialAPI.confirmEntities(currentMaterial.id, entities, translationGuidance);
+
+        actions.showNotification(
+          '实体确认成功',
+          '已确认实体翻译，LLM翻译将自动开始',
+          'success'
+        );
+      }
     } catch (error) {
       console.error('确认实体失败:', error);
       actions.showNotification('确认失败', error.message || '无法确认实体', 'error');
     }
-  }, [currentMaterial, actions]);
+  }, [currentMaterial, pdfPages, actions]);
 
   // 处理AI优化（深度查询）- 接收实体列表参数
   const handleAIOptimize = useCallback(async (entities) => {
     if (!currentMaterial || !entities || entities.length === 0) return;
 
+    const isPDF = pdfPages.length > 0 && currentMaterial.pdfSessionId;
+
     try {
       setEntityModalLoading(true);
       const { materialAPI } = await import('../../services/api');
 
-      actions.showNotification(
-        'AI优化中',
-        '正在进行深度实体识别，这可能需要1-2分钟...',
-        'info'
-      );
-
-      // 提取实体中文名称列表
-      const entityNames = entities.map(e => e.chinese_name || e.entity);
-
-      // 调用深度识别API（传入实体列表）
-      const response = await materialAPI.entityRecognitionDeep(currentMaterial.id, entityNames);
-
-      if (response.success && response.result && response.result.entities) {
-        // 更新实体结果为AI优化后的结果
-        setEntityResults(response.result.entities);
+      if (isPDF) {
+        // ===== PDF Session: 整体深度识别 =====
+        const sessionId = currentMaterial.pdfSessionId;
+        console.log(`🤖 [PDF Session ${sessionId}] 开始AI优化，对整个PDF的实体进行深度识别`);
 
         actions.showNotification(
-          'AI优化完成',
-          `已为 ${response.result.entities.length} 个实体查找官方英文名称`,
-          'success'
+          'AI优化中',
+          `正在为PDF的${pdfPages.length}页进行深度实体识别，这可能需要1-2分钟...`,
+          'info'
         );
+
+        // 调用PDF Session深度识别API
+        const response = await materialAPI.pdfSessionEntityRecognitionDeep(sessionId, entities);
+
+        if (response.success && response.result && response.result.entities) {
+          // 更新实体结果为AI优化后的结果
+          setEntityResults(response.result.entities);
+
+          actions.showNotification(
+            'AI优化完成',
+            `已为 ${response.result.entities.length} 个实体查找官方英文名称`,
+            'success'
+          );
+        }
+      } else {
+        // ===== 单页图片: 深度识别当前页面 =====
+        actions.showNotification(
+          'AI优化中',
+          '正在进行深度实体识别，这可能需要1-2分钟...',
+          'info'
+        );
+
+        // 提取实体中文名称列表
+        const entityNames = entities.map(e => e.chinese_name || e.entity);
+
+        // 调用深度识别API（传入实体列表）
+        const response = await materialAPI.entityRecognitionDeep(currentMaterial.id, entityNames);
+
+        if (response.success && response.result && response.result.entities) {
+          // 更新实体结果为AI优化后的结果
+          setEntityResults(response.result.entities);
+
+          actions.showNotification(
+            'AI优化完成',
+            `已为 ${response.result.entities.length} 个实体查找官方英文名称`,
+            'success'
+          );
+        }
       }
     } catch (error) {
       console.error('AI优化失败:', error);
@@ -562,7 +638,7 @@ const PreviewSection = () => {
     } finally {
       setEntityModalLoading(false);
     }
-  }, [currentMaterial, actions]);
+  }, [currentMaterial, pdfPages, actions]);
 
   // 当material.id改变时，重置状态（切换材料时）
   React.useEffect(() => {
@@ -609,23 +685,59 @@ const PreviewSection = () => {
 
     // OCR翻译完成，检查是否需要进行实体识别
     if (step === 'translated' && currentMaterial.entityRecognitionEnabled) {
-      // 检查是否已经触发过实体识别（避免重复）
-      if (currentMaterial.entityRecognitionTriggered) {
-        return;
-      }
+      const isPDF = pdfPages.length > 0 && currentMaterial.pdfSessionId;
 
-      // 标记为已触发（前端状态，防止重复）
-      const entityTriggeredKey = `entity_triggered_${currentMaterial.id}`;
-      if (sessionStorage.getItem(entityTriggeredKey)) {
-        return;
-      }
-      sessionStorage.setItem(entityTriggeredKey, 'true');
+      if (isPDF) {
+        // ===== PDF Session 整体实体识别逻辑 =====
+        const sessionId = currentMaterial.pdfSessionId;
 
-      // 根据模式触发不同的实体识别
-      if (currentMaterial.entityRecognitionMode === 'deep') {
-        triggerDeepEntityRecognition();
-      } else if (currentMaterial.entityRecognitionMode === 'standard') {
-        triggerFastEntityRecognition();
+        // 检查该PDF Session是否已经触发过实体识别（避免重复）
+        if (pdfSessionEntityTriggeredRef.current[sessionId]) {
+          console.log(`⏭️ [PDF Session ${sessionId}] 已触发过实体识别，跳过`);
+          return;
+        }
+
+        // 检查所有页面是否都完成了OCR翻译
+        const allPagesTranslated = pdfPages.every(page => {
+          const latestPage = state.materials.find(m => m.id === page.id);
+          return latestPage && latestPage.processingStep === 'translated';
+        });
+
+        if (!allPagesTranslated) {
+          console.log(`⏳ [PDF Session ${sessionId}] 等待所有页面完成OCR翻译...`);
+          return;
+        }
+
+        // 所有页面都已翻译，触发整体实体识别
+        console.log(`✅ [PDF Session ${sessionId}] 所有${pdfPages.length}个页面已完成OCR，触发整体实体识别`);
+        pdfSessionEntityTriggeredRef.current[sessionId] = true;
+
+        // 根据模式触发不同的实体识别
+        if (currentMaterial.entityRecognitionMode === 'deep') {
+          triggerPdfSessionDeepEntityRecognition(sessionId);
+        } else if (currentMaterial.entityRecognitionMode === 'standard') {
+          triggerPdfSessionFastEntityRecognition(sessionId);
+        }
+      } else {
+        // ===== 单页图片实体识别逻辑 =====
+        // 检查是否已经触发过实体识别（避免重复）
+        if (currentMaterial.entityRecognitionTriggered) {
+          return;
+        }
+
+        // 标记为已触发（前端状态，防止重复）
+        const entityTriggeredKey = `entity_triggered_${currentMaterial.id}`;
+        if (sessionStorage.getItem(entityTriggeredKey)) {
+          return;
+        }
+        sessionStorage.setItem(entityTriggeredKey, 'true');
+
+        // 根据模式触发不同的实体识别
+        if (currentMaterial.entityRecognitionMode === 'deep') {
+          triggerDeepEntityRecognition();
+        } else if (currentMaterial.entityRecognitionMode === 'standard') {
+          triggerFastEntityRecognition();
+        }
       }
     }
     // 禁用实体识别时，OCR完成后自动触发LLM翻译
@@ -667,16 +779,46 @@ const PreviewSection = () => {
     // 快速实体识别完成，显示结果让用户选择
     // 只有在 entity_pending_confirm 状态且还没确认过时才显示
     if (step === 'entity_pending_confirm' && currentMaterial.entityRecognitionResult && !currentMaterial.entity_recognition_confirmed) {
-      try {
-        const result = typeof currentMaterial.entityRecognitionResult === 'string'
-          ? JSON.parse(currentMaterial.entityRecognitionResult)
-          : currentMaterial.entityRecognitionResult;
+      const isPDF = pdfPages.length > 0 && currentMaterial.pdfSessionId;
 
-        if (result.entities && result.entities.length > 0) {
-          setEntityResults(result.entities);
+      if (isPDF) {
+        // ===== PDF Session: 整个PDF只显示一次Modal =====
+        const sessionId = currentMaterial.pdfSessionId;
+
+        // 检查该PDF Session的Modal是否已经显示过
+        if (pdfSessionEntityModalShownRef.current[sessionId]) {
+          console.log(`⏭️ [PDF Session ${sessionId}] Modal已显示过，跳过`);
+          return;
         }
-      } catch (e) {
-        console.error('解析实体识别结果失败:', e);
+
+        // 标记为已显示
+        pdfSessionEntityModalShownRef.current[sessionId] = true;
+        console.log(`📋 [PDF Session ${sessionId}] 显示实体识别结果Modal（整个PDF统一编辑）`);
+
+        try {
+          const result = typeof currentMaterial.entityRecognitionResult === 'string'
+            ? JSON.parse(currentMaterial.entityRecognitionResult)
+            : currentMaterial.entityRecognitionResult;
+
+          if (result.entities && result.entities.length > 0) {
+            setEntityResults(result.entities);
+          }
+        } catch (e) {
+          console.error('解析实体识别结果失败:', e);
+        }
+      } else {
+        // ===== 单页图片: 正常显示Modal =====
+        try {
+          const result = typeof currentMaterial.entityRecognitionResult === 'string'
+            ? JSON.parse(currentMaterial.entityRecognitionResult)
+            : currentMaterial.entityRecognitionResult;
+
+          if (result.entities && result.entities.length > 0) {
+            setEntityResults(result.entities);
+          }
+        } catch (e) {
+          console.error('解析实体识别结果失败:', e);
+        }
       }
     }
 
@@ -722,6 +864,41 @@ const PreviewSection = () => {
       actions.showNotification('实体识别失败', error.message || '无法启动快速识别', 'error');
     }
   }, [currentMaterial, actions]);
+
+  // 触发PDF Session整体快速实体识别
+  const triggerPdfSessionFastEntityRecognition = React.useCallback(async (sessionId) => {
+    if (!sessionId) return;
+
+    try {
+      const { materialAPI } = await import('../../services/api');
+      console.log(`🔍 [PDF Session] 开始整体快速实体识别，Session ID: ${sessionId}`);
+      const response = await materialAPI.pdfSessionEntityRecognitionFast(sessionId);
+
+      if (response.success && response.result) {
+        console.log(`✓ [PDF Session] 整体快速实体识别完成，共${response.total_pages}页，识别到 ${response.result.total_entities} 个实体`);
+        // 结果会通过WebSocket更新到所有页面的material.entityRecognitionResult
+        // 然后上面的useEffect会捕获并显示对话框
+      }
+    } catch (error) {
+      console.error('[PDF Session] 整体快速实体识别失败:', error);
+      actions.showNotification('实体识别失败', error.message || '无法启动PDF整体识别', 'error');
+    }
+  }, [actions]);
+
+  // 触发PDF Session整体深度实体识别
+  const triggerPdfSessionDeepEntityRecognition = React.useCallback(async (sessionId) => {
+    if (!sessionId) return;
+
+    try {
+      const { materialAPI } = await import('../../services/api');
+      console.log(`🔍 [PDF Session] 开始整体深度实体识别，Session ID: ${sessionId}`);
+      await materialAPI.pdfSessionEntityRecognitionDeep(sessionId, []);
+      console.log('✓ [PDF Session] 整体深度实体识别已启动');
+    } catch (error) {
+      console.error('[PDF Session] 整体深度实体识别启动失败:', error);
+      actions.showNotification('实体识别失败', error.message || '无法启动PDF深度识别', 'error');
+    }
+  }, [actions]);
 
   // 解析百度翻译结果
   // eslint-disable-next-line react-hooks/exhaustive-deps

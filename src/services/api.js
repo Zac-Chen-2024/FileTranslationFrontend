@@ -294,6 +294,39 @@ export const materialAPI = {
     });
   },
 
+  // PDF Session 整体实体识别 - 快速模式
+  pdfSessionEntityRecognitionFast: async (sessionId) => {
+    return await api.post(`/api/pdf-sessions/${sessionId}/entity-recognition/fast`, {}, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  },
+
+  // PDF Session 整体实体识别 - 深度模式（AI优化）
+  pdfSessionEntityRecognitionDeep: async (sessionId, entities) => {
+    return await api.post(`/api/pdf-sessions/${sessionId}/entity-recognition/deep`, {
+      entities
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      timeout: 150000, // 150秒超时
+    });
+  },
+
+  // PDF Session 确认实体
+  pdfSessionConfirmEntities: async (sessionId, entities, translationGuidance) => {
+    return await api.post(`/api/pdf-sessions/${sessionId}/confirm-entities`, {
+      entities,
+      translationGuidance
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  },
+
   // 确认实体
   confirmEntities: async (materialId, entities, translationGuidance) => {
     return await api.post(`/api/materials/${materialId}/confirm-entities`, {
