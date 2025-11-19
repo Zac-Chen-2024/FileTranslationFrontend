@@ -24,6 +24,39 @@ const PreviewSection = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [latestRequestId, setLatestRequestId] = useState(null);
 
+  // ========== ComparisonView的状态提升到PreviewSection ==========
+  // PDF多页支持
+  const [pdfPages, setPdfPages] = React.useState([]);
+  const [currentPageIndex, setCurrentPageIndex] = React.useState(0);
+  const [isLoadingPages, setIsLoadingPages] = React.useState(false);
+  const [pdfSessionProgress, setPdfSessionProgress] = React.useState(null);
+  const isChangingPageRef = React.useRef(false);
+  const previousPdfSessionId = React.useRef(null);
+
+  // Entity Recognition states
+  const [showEntityModal, setShowEntityModal] = React.useState(false);
+  const [entityResults, setEntityResults] = React.useState([]);
+  const [entityModalLoading, setEntityModalLoading] = React.useState(false);
+
+  // LLM Translation states
+  const [llmRegions, setLlmRegions] = React.useState([]);
+  const [llmLoading, setLlmLoading] = React.useState(false);
+  const [baiduRegions, setBaiduRegions] = React.useState([]);
+
+  // Edited image states
+  const [editedImageData, setEditedImageData] = React.useState(null);
+  const [editedImageBlob, setEditedImageBlob] = React.useState(null);
+  const [savedEditedImage, setSavedEditedImage] = React.useState(null);
+  const [savedRegions, setSavedRegions] = React.useState([]);
+
+  // Refs
+  const llmTriggeredRef = React.useRef({});
+  const previousMaterialId = React.useRef(null);
+  // ========== 状态提升结束 ==========
+
+  // ComparisonView的ref，用于调用其方法
+  const comparisonViewRef = React.useRef(null);
+
   // 监听currentMaterial变化，强制刷新预览
   // 注意：只在材料 ID 变化时强制刷新，避免状态更新导致多次刷新
   useEffect(() => {
@@ -288,15 +321,49 @@ const PreviewSection = () => {
       
       <div className={styles.content}>
         {(currentMaterial.type === 'image' || currentMaterial.type === 'pdf') ? (
-          <ComparisonView 
+          <ComparisonView
+            ref={comparisonViewRef}
             key={`comparison-${currentMaterial.id}-${forceRefresh}`}
-            material={currentMaterial} 
+            material={currentMaterial}
             onSelectResult={handleSelectResult}
+            // 传递状态给ComparisonView
+            pdfPages={pdfPages}
+            setPdfPages={setPdfPages}
+            currentPageIndex={currentPageIndex}
+            setCurrentPageIndex={setCurrentPageIndex}
+            isLoadingPages={isLoadingPages}
+            setIsLoadingPages={setIsLoadingPages}
+            pdfSessionProgress={pdfSessionProgress}
+            setPdfSessionProgress={setPdfSessionProgress}
+            isChangingPageRef={isChangingPageRef}
+            previousPdfSessionId={previousPdfSessionId}
+            showEntityModal={showEntityModal}
+            setShowEntityModal={setShowEntityModal}
+            entityResults={entityResults}
+            setEntityResults={setEntityResults}
+            entityModalLoading={entityModalLoading}
+            setEntityModalLoading={setEntityModalLoading}
+            llmRegions={llmRegions}
+            setLlmRegions={setLlmRegions}
+            llmLoading={llmLoading}
+            setLlmLoading={setLlmLoading}
+            baiduRegions={baiduRegions}
+            setBaiduRegions={setBaiduRegions}
+            editedImageData={editedImageData}
+            setEditedImageData={setEditedImageData}
+            editedImageBlob={editedImageBlob}
+            setEditedImageBlob={setEditedImageBlob}
+            savedEditedImage={savedEditedImage}
+            setSavedEditedImage={setSavedEditedImage}
+            savedRegions={savedRegions}
+            setSavedRegions={setSavedRegions}
+            llmTriggeredRef={llmTriggeredRef}
+            previousMaterialId={previousMaterialId}
           />
         ) : (
-          <SinglePreview 
+          <SinglePreview
             key={`single-${currentMaterial.id}-${forceRefresh}`}
-            material={currentMaterial} 
+            material={currentMaterial}
           />
         )}
       </div>
@@ -318,24 +385,47 @@ const PreviewSection = () => {
   );
 };
 
-const ComparisonView = ({ material, onSelectResult }) => {
+const ComparisonView = React.forwardRef(({
+  material,
+  onSelectResult,
+  // 从PreviewSection传入的状态
+  pdfPages,
+  setPdfPages,
+  currentPageIndex,
+  setCurrentPageIndex,
+  isLoadingPages,
+  setIsLoadingPages,
+  pdfSessionProgress,
+  setPdfSessionProgress,
+  isChangingPageRef,
+  previousPdfSessionId,
+  showEntityModal,
+  setShowEntityModal,
+  entityResults,
+  setEntityResults,
+  entityModalLoading,
+  setEntityModalLoading,
+  llmRegions,
+  setLlmRegions,
+  llmLoading,
+  setLlmLoading,
+  baiduRegions,
+  setBaiduRegions,
+  editedImageData,
+  setEditedImageData,
+  editedImageBlob,
+  setEditedImageBlob,
+  savedEditedImage,
+  setSavedEditedImage,
+  savedRegions,
+  setSavedRegions,
+  llmTriggeredRef,
+  previousMaterialId
+}, ref) => {
   const { state, actions } = useApp();
   const { t } = useLanguage();
   const isLatexSelected = material.selectedResult === 'latex';
   const isApiSelected = material.selectedResult === 'api';
-
-  // PDF多页支持
-  const [pdfPages, setPdfPages] = React.useState([]);
-  const [currentPageIndex, setCurrentPageIndex] = React.useState(0);
-  const [isLoadingPages, setIsLoadingPages] = React.useState(false);
-  const [pdfSessionProgress, setPdfSessionProgress] = React.useState(null); // PDF整体进度
-  const isChangingPageRef = React.useRef(false); // 标记是否正在切换页面
-  const previousPdfSessionId = React.useRef(null); // 记录上一个PDF Session ID
-
-  // Entity Recognition states
-  const [showEntityModal, setShowEntityModal] = React.useState(false);
-  const [entityResults, setEntityResults] = React.useState([]);
-  const [entityModalLoading, setEntityModalLoading] = React.useState(false);
 
   // 加载PDF会话的所有页面
   React.useEffect(() => {
@@ -961,15 +1051,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
   }, [material, actions]);
 
   // ========== Reference项目的LLM编辑器集成方式 ==========
-  const [llmRegions, setLlmRegions] = React.useState([]);
-  const [llmLoading, setLlmLoading] = React.useState(false);
-  const [baiduRegions, setBaiduRegions] = React.useState([]);
-  const [editedImageData, setEditedImageData] = React.useState(null); // 保存编辑后的图片数据
-  const [editedImageBlob, setEditedImageBlob] = React.useState(null); // 保存编辑后的图片Blob
-  const [savedEditedImage, setSavedEditedImage] = React.useState(null); // 已保存到后端的编辑图片
-  const [savedRegions, setSavedRegions] = React.useState([]); // 已保存的regions状态
-  const llmTriggeredRef = React.useRef({}); // 记录每个material是否已触发LLM
-  const previousMaterialId = React.useRef(null); // 记录上一个material的id
+  // 状态已从props传入，不需要在此定义
 
   // 移除了确认时自动保存图片的逻辑，因为保存应该是独立的操作
 
@@ -1316,155 +1398,28 @@ const ComparisonView = ({ material, onSelectResult }) => {
     return null;
   };
 
+  // 暴露handlers给父组件
+  React.useImperativeHandle(ref, () => ({
+    handlePageChange,
+    handleRetranslateCurrentImage,
+    handleRotateImage,
+    handleStartTranslation,
+    handleEntityModeConfirm,
+    handleEntitySkip,
+    handleConfirmEntities,
+    handleAIOptimize,
+    pdfPages, // 暴露pdfPages供父组件判断
+    llmLoading // 暴露llmLoading供父组件判断
+  }));
+
   // ========== Reference项目完整复刻：一进来就显示编辑器 ==========
   return (
     <div className={styles.llmImageTranslationView}>
       {/* 只要有图片就显示编辑器 - Reference App.jsx 第355行完整复刻 */}
       {getImageUrl() && (
         <div className={styles.llmEditorSection}>
-          {/* 控制按钮栏 - 一行显示所有控制按钮 */}
-          <div className={styles.llmEditorHeader}>
-            {llmLoading ? (
-              <p className={styles.sectionDescription}>
-                <span style={{ color: '#007bff' }}>{t('loading')}</span>
-              </p>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                {/* PDF页面导航 */}
-                {pdfPages.length > 0 && (
-                  <div className={styles.pdfNavigation}>
-                    <button
-                      className={styles.pdfNavBtn}
-                      onClick={() => handlePageChange(currentPageIndex - 1)}
-                      disabled={currentPageIndex === 0}
-                      title="上一页"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M15 18l-6-6 6-6"/>
-                      </svg>
-                      {t('previousPage')}
-                    </button>
-                    <span className={styles.pdfPageInfo}>
-                      {t('currentPage', { current: currentPageIndex + 1, total: pdfPages.length })}
-                    </span>
-                    <button
-                      className={styles.pdfNavBtn}
-                      onClick={() => handlePageChange(currentPageIndex + 1)}
-                      disabled={currentPageIndex === pdfPages.length - 1}
-                      title={t('nextPage')}
-                    >
-                      {t('nextPage')}
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M9 18l6-6-6-6"/>
-                      </svg>
-                    </button>
-                    {/* 页面选择下拉菜单 */}
-                    <select
-                      className={styles.pdfPageSelect}
-                      value={currentPageIndex}
-                      onChange={(e) => handlePageChange(parseInt(e.target.value))}
-                      title={t('selectPage')}
-                    >
-                      {pdfPages.map((_, index) => (
-                        <option key={index} value={index}>
-                          {t('pageSelector', { page: index + 1 })}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {/* 旋转按钮 - 始终显示 */}
-                <button
-                  className={styles.rotateButton}
-                  onClick={handleRotateImage}
-                  title={t('rotate')}
-                >
-                  {t('rotate')}
-                </button>
-
-                {/* 开始翻译按钮 - 只在status='已上传'时显示 */}
-                {material.status === '已上传' && !material.translationTextInfo && (
-                  <button
-                    className={styles.startTranslationBtn}
-                    onClick={handleStartTranslation}
-                    title={t('startTranslation')}
-                  >
-                    {t('startTranslation')}{pdfPages.length > 0 ? `（${pdfPages.length}页）` : ''}
-                  </button>
-                )}
-
-                {/* 重新翻译按钮 - 只在已有翻译结果时显示 */}
-                {material.translationTextInfo && (
-                  <button
-                    className={styles.retranslateButton}
-                    onClick={handleRetranslateCurrentImage}
-                    title={t('retranslateCurrentImage')}
-                  >
-                    {t('retranslate')}
-                  </button>
-                )}
-
-                {/* 保存修改按钮 - 始终显示 */}
-                <button
-                  className={styles.saveEditButton}
-                  onClick={async () => {
-                    // ✅ 重构：保存regions数据 + 生成最终图片
-                    if (window.currentFabricEditor && window.currentFabricEditor.getCurrentRegions) {
-                      try {
-                        actions.showNotification(t('saving'), t('savingEdits'), 'info');
-
-                        // 获取当前的regions数据
-                        const currentRegions = window.currentFabricEditor.getCurrentRegions();
-
-                        if (!currentRegions || currentRegions.length === 0) {
-                          throw new Error(t('noEditContent'));
-                        }
-
-                        const { materialAPI } = await import('../../services/api');
-
-                        // 1. 保存regions数据到后端
-                        const response = await materialAPI.saveRegions(material.id, currentRegions);
-
-                        if (!response.success) {
-                          throw new Error(response.error || t('saveFailed'));
-                        }
-
-                        // 2. 生成并上传最终图片
-                        if (window.currentFabricEditor.generateFinalImage) {
-                          try {
-                            const finalImage = await window.currentFabricEditor.generateFinalImage();
-                            if (finalImage && finalImage.blob) {
-                              await materialAPI.saveFinalImage(material.id, finalImage.blob);
-                              console.log('✓ 最终图片已生成并上传');
-                            }
-                          } catch (imageError) {
-                            console.warn('生成最终图片失败:', imageError);
-                            // 不阻止保存流程
-                          }
-                        }
-
-                        // 更新材料数据
-                        actions.updateMaterial(material.id, {
-                          editedRegions: currentRegions,
-                          hasEditedVersion: true
-                        });
-
-                        actions.showNotification(t('saveSuccess'), t('savingEdits'), 'success');
-                      } catch (error) {
-                        console.error('保存编辑失败:', error);
-                        actions.showNotification(t('saveFailed'), error.message || t('saveFailed'), 'error');
-                      }
-                    }
-                  }}
-                >
-                  {t('saveEdits')}
-                </button>
-              </div>
-            )}
-          </div>
-
-            <div className={styles.llmEditorContent}>
+          {/* header已移到PreviewSection，直接渲染编辑器内容 */}
+          <div className={styles.llmEditorContent}>
             {/* 实体识别结果 Modal - 局部定位，仅覆盖预览区域 */}
             <EntityResultModal
               isOpen={material.processingStep === 'entity_pending_confirm' && entityResults.length > 0}
@@ -1667,7 +1622,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
 
     </div>
   );
-};
+});
 
 const SinglePreview = ({ material }) => {
   const { actions } = useApp();
