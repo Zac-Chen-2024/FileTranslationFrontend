@@ -118,7 +118,15 @@
 }
 
 .mode-icon {
-  font-size: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+  transition: color 0.2s;
+}
+
+.mode-option.active .mode-icon {
+  color: #1a73e8;
 }
 
 .mode-label {
