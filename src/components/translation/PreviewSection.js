@@ -1365,7 +1365,9 @@ const ComparisonView = ({ material, onSelectResult }) => {
             <div className={styles.llmEditorContent}>
             {/* 显示翻译进行中状态 - 包括所有阶段：拆分、上传、百度翻译、AI优化 */}
             {/* 只有在真正翻译进行中时才显示加载界面 */}
-            {(llmLoading || material.status === '处理中' || material.status === '拆分中' || material.processingStep === 'splitting' || (material.processingStep === 'uploaded' && material.status !== '已上传') || material.processingStep === 'translating' || (material.processingStep === 'translated' && !material.translationTextInfo)) ? (
+            {/* 排除实体识别相关状态：entity_recognizing, entity_pending_confirm, entity_confirmed */}
+            {(llmLoading || material.status === '处理中' || material.status === '拆分中' || material.processingStep === 'splitting' || (material.processingStep === 'uploaded' && material.status !== '已上传') || material.processingStep === 'translating' || (material.processingStep === 'translated' && !material.translationTextInfo)) &&
+             !['entity_recognizing', 'entity_pending_confirm', 'entity_confirmed'].includes(material.processingStep) ? (
               <div className={styles.processingContainer}>
                 <div className={styles.processingContent}>
                   <div className={styles.processingIconWrapper}>
