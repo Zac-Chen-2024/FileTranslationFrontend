@@ -24,6 +24,55 @@
   flex-direction: column;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   animation: slideUp 0.3s ease;
+  position: relative; /* 为loading overlay提供定位上下文 */
+}
+
+/* AI优化加载中覆盖层 */
+.entity-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  gap: 16px;
+}
+
+.entity-loading-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.entity-loading-spinner svg {
+  animation: spin 1s linear infinite;
+  color: #667eea;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.entity-loading-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.entity-loading-hint {
+  font-size: 14px;
+  color: #666;
 }
 
 /* 头部 */

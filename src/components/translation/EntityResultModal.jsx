@@ -60,6 +60,19 @@ const EntityResultModal = ({
   return (
     <div className="entity-result-overlay" onClick={onClose}>
       <div className="entity-result-content" onClick={(e) => e.stopPropagation()}>
+        {/* AI优化加载中覆盖层 */}
+        {loading && (
+          <div className="entity-loading-overlay">
+            <div className="entity-loading-spinner">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+              </svg>
+            </div>
+            <div className="entity-loading-text">AI优化中，正在查询官方英文名称...</div>
+            <div className="entity-loading-hint">这可能需要1-2分钟，请稍候</div>
+          </div>
+        )}
+
         <div className="entity-result-header">
           <h3>实体识别结果</h3>
           <button className="entity-result-close" onClick={onClose}>×</button>

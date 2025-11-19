@@ -799,6 +799,13 @@ const PreviewSection = () => {
         return;
       }
 
+      // 🔧 修复：如果页面正在进行实体识别流程，跳过自动触发LLM
+      if (page.processingStep === 'entity_recognizing' ||
+          page.processingStep === 'entity_pending_confirm') {
+        console.log(`⊘ 页面 ${page.pdfPageNumber} 正在进行实体识别流程（${page.processingStep}），跳过自动LLM触发`);
+        return;
+      }
+
       // 为这个页面触发LLM
       try {
         llmTriggeredRef.current[page.id] = true; // 立即标记，防止重复
