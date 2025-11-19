@@ -642,7 +642,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
         await materialAPI.enableEntityRecognition(material.id, false);
 
         actions.showNotification('开始翻译', '正在启动翻译任务...', 'info');
-        await materialAPI.startTranslation(material.clientId);
+        await materialAPI.startTranslation(material.clientId, material.id);
 
         const pageCount = pdfPages.length > 0 ? pdfPages.length : 0;
         actions.showNotification(
@@ -658,7 +658,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
 
         // 先启动OCR翻译
         actions.showNotification('开始翻译', '正在启动翻译任务...', 'info');
-        await materialAPI.startTranslation(material.clientId);
+        await materialAPI.startTranslation(material.clientId, material.id);
 
         // 显示等待提示
         actions.showNotification(
@@ -675,7 +675,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
 
         // 先启动OCR翻译
         actions.showNotification('开始翻译', '正在启动翻译任务...', 'info');
-        await materialAPI.startTranslation(material.clientId);
+        await materialAPI.startTranslation(material.clientId, material.id);
 
         actions.showNotification(
           '标准模式启动',

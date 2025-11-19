@@ -221,7 +221,24 @@ export const materialAPI = {
   },
   
   // 开始翻译
-  startTranslation: async (clientId) => {
+  startTranslation: async (clientId, materialIds = null) => {
+    const config = {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    };
+
+    // 如果指定了materialIds，只翻译这些材料
+    if (materialIds) {
+      const ids = Array.isArray(materialIds) ? materialIds : [materialIds];
+      return await api.post(
+        `/api/clients/${clientId}/materials/translate`,
+        { material_ids: ids },
+        config
+      );
+    }
+
+    // 否则翻译所有材料
     return await api.post(`/api/clients/${clientId}/materials/translate`);
   },
   
