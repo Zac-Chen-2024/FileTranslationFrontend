@@ -290,10 +290,12 @@ export const materialAPI = {
   },
 
   // 启用/禁用实体识别
-  enableEntityRecognition: async (materialId, enabled) => {
-    return await api.post(`/api/materials/${materialId}/enable-entity-recognition`, {
-      enabled
-    }, {
+  enableEntityRecognition: async (materialId, enabled, mode = null) => {
+    const body = { enabled };
+    if (mode) {
+      body.mode = mode;
+    }
+    return await api.post(`/api/materials/${materialId}/enable-entity-recognition`, body, {
       headers: {
         'Content-Type': 'application/json',
       },

@@ -654,7 +654,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
         );
       } else if (mode === 'deep') {
         // 路径B: 深度模式 - 全自动流程
-        await materialAPI.enableEntityRecognition(material.id, true);
+        await materialAPI.enableEntityRecognition(material.id, true, 'deep');
 
         // 先启动OCR翻译
         actions.showNotification('开始翻译', '正在启动翻译任务...', 'info');
@@ -671,7 +671,7 @@ const ComparisonView = ({ material, onSelectResult }) => {
         // 深度识别将在后端自动完成并确认
       } else if (mode === 'standard') {
         // 路径C: 标准模式 - 快速识别 + 用户选择
-        await materialAPI.enableEntityRecognition(material.id, true);
+        await materialAPI.enableEntityRecognition(material.id, true, 'standard');
 
         // 先启动OCR翻译
         actions.showNotification('开始翻译', '正在启动翻译任务...', 'info');
@@ -915,6 +915,20 @@ const ComparisonView = ({ material, onSelectResult }) => {
   // 监听material的processing_step变化，处理实体识别流程
   React.useEffect(() => {
     if (!material) return;
+
+    // 🔍 完整的material对象诊断
+    console.log('📋 完整Material对象诊断:', {
+      id: material.id,
+      status: material.status,
+      processingStep: material.processingStep,
+      entityRecognitionEnabled: material.entityRecognitionEnabled,
+      entityRecognitionMode: material.entityRecognitionMode,
+      entityRecognitionTriggered: material.entityRecognitionTriggered,
+      entityRecognitionConfirmed: material.entityRecognitionConfirmed,
+      entityRecognitionResult: material.entityRecognitionResult,
+      translationTextInfo: material.translationTextInfo ? '存在' : '不存在',
+      processingProgress: material.processingProgress
+    });
 
     const step = material.processingStep;
 
@@ -1353,21 +1367,44 @@ const ComparisonView = ({ material, onSelectResult }) => {
           </div>
 
           {/* 实体识别通知栏 - 嵌入式显示 */}
-          {material.processingStep === 'entity_pending_confirm' && entityResults.length > 0 && (
-            <EntityNotificationBar
-              entities={entityResults}
-              mode={material.entityRecognitionMode || 'standard'}
-              onConfirm={handleConfirmEntities}
-              onSkip={handleEntitySkip}
-            />
-          )}
+          {(() => {
+            console.log('🔍 实体识别通知栏渲染检查:', {
+              processingStep: material.processingStep,
+              entityResultsLength: entityResults.length,
+              entityRecognitionMode: material.entityRecognitionMode,
+              shouldShow: material.processingStep === 'entity_pending_confirm' && entityResults.length > 0
+            });
+            return material.processingStep === 'entity_pending_confirm' && entityResults.length > 0 && (
+              <EntityNotificationBar
+                entities={entityResults}
+                mode={material.entityRecognitionMode || 'standard'}
+                onConfirm={handleConfirmEntities}
+                onSkip={handleEntitySkip}
+              />
+            );
+          })()}
 
             <div className={styles.llmEditorContent}>
             {/* 显示翻译进行中状态 - 包括所有阶段：拆分、上传、百度翻译、AI优化 */}
             {/* 只有在真正翻译进行中时才显示加载界面 */}
             {/* 排除实体识别相关状态：entity_recognizing, entity_pending_confirm, entity_confirmed */}
-            {(llmLoading || material.status === '处理中' || material.status === '拆分中' || material.processingStep === 'splitting' || (material.processingStep === 'uploaded' && material.status !== '已上传') || material.processingStep === 'translating' || (material.processingStep === 'translated' && !material.translationTextInfo)) &&
-             !['entity_recognizing', 'entity_pending_confirm', 'entity_confirmed'].includes(material.processingStep) ? (
+            {(() => {
+              const baseCondition = llmLoading || material.status === '处理中' || material.status === '拆分中' || material.processingStep === 'splitting' || (material.processingStep === 'uploaded' && material.status !== '已上传') || material.processingStep === 'translating' || (material.processingStep === 'translated' && !material.translationTextInfo);
+              const excludeEntitySteps = !['entity_recognizing', 'entity_pending_confirm', 'entity_confirmed'].includes(material.processingStep);
+              const shouldShowLoading = baseCondition && excludeEntitySteps;
+
+              console.log('🔍 加载界面显示检查:', {
+                status: material.status,
+                processingStep: material.processingStep,
+                hasTranslationTextInfo: !!material.translationTextInfo,
+                llmLoading,
+                baseCondition,
+                excludeEntitySteps,
+                shouldShowLoading
+              });
+
+              return shouldShowLoading;
+            })() ? (
               <div className={styles.processingContainer}>
                 <div className={styles.processingContent}>
                   <div className={styles.processingIconWrapper}>
