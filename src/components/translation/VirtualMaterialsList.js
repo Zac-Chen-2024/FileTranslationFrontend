@@ -257,13 +257,6 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
 
     const availableHeight = scrollContainer.clientHeight;
 
-    console.log('[VirtualList] 容器高度更新:', {
-      outerHeight: outerContainer.clientHeight,
-      scrollHeight: availableHeight,
-      材料数量: clientMaterials.length,
-      虚拟内容总高度: totalHeight
-    });
-
     setContainerHeight(availableHeight);
   }, [clientMaterials.length, totalHeight]);
 

@@ -454,24 +454,15 @@ export const AppProvider = ({ children }) => {
 
   // ✅ WebSocket 初始化
   useEffect(() => {
-    console.log('[WebSocket] 初始化连接');
     wsService.connect();
-    
+
     return () => {
-      console.log('[WebSocket] 断开连接');
       wsService.disconnect();
     };
   }, []);
 
   // ✅ WebSocket 事件处理函数
   const handleMaterialUpdated = useCallback((data) => {
-    console.log('📡 [WebSocket] 收到材料更新事件');
-    console.log(`   材料ID: ${data.material_id}`);
-    if (data.status) console.log(`   状态: ${data.status}`);
-    if (data.progress !== undefined) console.log(`   进度: ${data.progress}%`);
-    if (data.translated_path) console.log(`   翻译路径: ${data.translated_path}`);
-    if (data.translation_info) console.log(`   翻译区域数: ${data.translation_info.regions?.length || 0}`);
-
     // 更新材料状态
     if (data.material_id) {
       let updates = {};
@@ -479,45 +470,20 @@ export const AppProvider = ({ children }) => {
       // ✅ 优先使用后端推送的完整material对象（包含所有字段）
       if (data.material) {
         updates = data.material;
-        console.log(`✓ 使用完整material对象更新`);
-        console.log(`   processingStep: ${data.material.processingStep}`);
-        console.log(`   entityRecognitionMode: ${data.material.entityRecognitionMode}`);
       } else {
         // 兼容旧格式：手动提取字段
-        if (data.status) {
-          updates.status = data.status;
-          console.log(`✓ 材料状态更新为: ${data.status}`);
-        }
-        if (data.progress !== undefined) {
-          updates.processingProgress = data.progress;
-          console.log(`✓ 处理进度更新为: ${data.progress}%`);
-        }
-        if (data.translated_path) {
-          updates.translatedImagePath = data.translated_path;
-          console.log(`✓ 翻译图片已生成`);
-        }
-        if (data.translation_info) {
-          updates.translationTextInfo = data.translation_info;
-          console.log(`✓ 翻译文本信息已更新`);
-        }
+        if (data.status) updates.status = data.status;
+        if (data.progress !== undefined) updates.processingProgress = data.progress;
+        if (data.translated_path) updates.translatedImagePath = data.translated_path;
+        if (data.translation_info) updates.translationTextInfo = data.translation_info;
       }
 
       // ✅ 只需调用updateMaterial，Reducer会自动同步更新currentMaterial
       actions.updateMaterial(data.material_id, updates);
-
-      // ✅ Reducer已处理currentMaterial同步（Line 158-160），无需手动再次更新
-      if (state.currentMaterial?.id === data.material_id) {
-        console.log(`✓ 当前材料已自动同步更新（通过Reducer）`);
-      }
     }
   }, [state.currentMaterial, actions]);
 
   const handleLLMCompleted = useCallback((data) => {
-    console.log('📡 [WebSocket] 收到LLM优化完成事件');
-    console.log(`   材料ID: ${data.material_id}`);
-    console.log(`   优化进度: ${data.progress || 100}%`);
-    console.log(`   优化区域数: ${data.translations?.length || 0}`);
-
     if (data.material_id) {
       // ✅ 只需调用updateMaterial，Reducer会自动同步更新currentMaterial
       actions.updateMaterial(data.material_id, {
@@ -525,40 +491,20 @@ export const AppProvider = ({ children }) => {
         llmTranslationResult: data.translations
       });
 
-      // ✅ Reducer已处理currentMaterial同步（Line 158-160），无需手动再次更新
-      if (state.currentMaterial?.id === data.material_id) {
-        console.log(`✓ LLM优化结果已自动同步更新（通过Reducer）`);
-      }
-
       actions.showNotification('LLM优化完成', `成功优化 ${data.translations?.length || 0} 个翻译区域`, 'success');
     }
   }, [state.currentMaterial, actions]);
 
   const handleTranslationStarted = useCallback((data) => {
-    console.log('🚀 [WebSocket] 收到翻译开始事件');
-    console.log(`   客户端ID: ${data.client_id}`);
-    console.log(`   材料ID: ${data.material_id}`);
-    console.log(`   消息: ${data.message}`);
     actions.showNotification('翻译开始', data.message || '正在翻译...', 'info');
   }, [actions]);
 
   const handleTranslationCompleted = useCallback((data) => {
-    console.log('✅ [WebSocket] 收到翻译完成事件');
-    console.log(`   客户端ID: ${data.client_id}`);
-    console.log(`   消息: ${data.message}`);
-    if (data.success_count !== undefined) console.log(`   成功: ${data.success_count} 个`);
-    if (data.failed_count !== undefined) console.log(`   失败: ${data.failed_count} 个`);
     actions.showNotification('翻译完成', data.message || '翻译已完成', 'success');
   }, [actions]);
 
   const handleMaterialError = useCallback((data) => {
-    console.log('❌ [WebSocket] 收到材料错误事件');
-    console.log(`   客户端ID: ${data.client_id}`);
-    console.log(`   材料ID: ${data.material_id}`);
-    console.log(`   错误信息: ${data.error}`);
-    
     if (data.material_id) {
-      console.log(`✗ 材料 ${data.material_id} 翻译失败: ${data.error}`);
       actions.updateMaterial(data.material_id, {
         status: '翻译失败',
         translationError: data.error
@@ -571,10 +517,9 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     if (state.currentClient?.cid && wsService.isConnected()) {
       const clientId = state.currentClient.cid;
-      console.log(`[WebSocket] 加入客户端房间: ${clientId}`);
-      
+
       wsService.joinClient(clientId);
-      
+
       // 监听事件
       wsService.on('translation_started', handleTranslationStarted);
       wsService.on('material_updated', handleMaterialUpdated);
@@ -583,9 +528,8 @@ export const AppProvider = ({ children }) => {
       wsService.on('llm_started', handleMaterialUpdated); // LLM 开始也是材料更新
       wsService.on('llm_completed', handleLLMCompleted);
       wsService.on('llm_error', handleMaterialError);
-      
+
       return () => {
-        console.log(`[WebSocket] 离开客户端房间: ${clientId}`);
         wsService.leaveClient(clientId);
         wsService.off('translation_started', handleTranslationStarted);
         wsService.off('material_updated', handleMaterialUpdated);
@@ -596,7 +540,7 @@ export const AppProvider = ({ children }) => {
         wsService.off('llm_error', handleMaterialError);
       };
     }
-  }, [state.currentClient?.cid, handleTranslationStarted, handleMaterialUpdated, 
+  }, [state.currentClient?.cid, handleTranslationStarted, handleMaterialUpdated,
       handleTranslationCompleted, handleMaterialError, handleLLMCompleted]);
 
   const value = {

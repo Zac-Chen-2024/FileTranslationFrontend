@@ -50,6 +50,7 @@ const TranslationPage = () => {
       setLoading(true);
       // 直接从API加载材料列表
       const materialsData = await materialAPI.getMaterials(clientId);
+
       actions.setMaterials(materialsData.materials || []);
     } catch (error) {
       actions.showNotification(t('loadFailed'), t('cannotLoadMaterialList'), 'error');

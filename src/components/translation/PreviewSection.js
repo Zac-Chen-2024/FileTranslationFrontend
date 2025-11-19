@@ -26,7 +26,6 @@ const PreviewSection = () => {
   // 监听currentMaterial变化，强制刷新预览
   // 注意：只在材料 ID 变化时强制刷新，避免状态更新导致多次刷新
   useEffect(() => {
-    console.log('PreviewSection: currentMaterial ID 变化:', currentMaterial?.id);
     setForceRefresh(prev => prev + 1);
   }, [currentMaterial?.id]); // 只监听 ID，移除 status 和 translatedImagePath
 
@@ -855,24 +854,6 @@ const ComparisonView = ({ material, onSelectResult }) => {
     }
   }, [material, actions]);
 
-  // 调试日志 - 实际项目中可以移除
-  console.log('ComparisonView render:', {
-    materialId: material.id,
-    selectedResult: material.selectedResult,
-    isLatexSelected,
-    isApiSelected,
-    status: material.status,
-    translatedImagePath: material.translatedImagePath,
-    translationError: material.translationError,
-    translationTextInfo: material.translationTextInfo,
-    updatedAt: material.updatedAt,
-    // 判断条件
-    hasTranslatedImage: !!material.translatedImagePath,
-    isTranslationComplete: material.status === '翻译完成',
-    isTranslationFailed: material.status === '翻译失败',
-    isUploaded: material.status === '已上传'
-  });
-
   // ========== Reference项目的LLM编辑器集成方式 ==========
   const [llmRegions, setLlmRegions] = React.useState([]);
   const [llmLoading, setLlmLoading] = React.useState(false);
@@ -905,7 +886,6 @@ const ComparisonView = ({ material, onSelectResult }) => {
     if (material?.hasEditedVersion && material?.editedRegions) {
       // 恢复已保存的regions
       setSavedRegions(material.editedRegions);
-      console.log('✅ 重构：恢复已保存的regions，编辑器将从原图+regions重建:', material.editedRegions.length, '个区域');
     } else {
       // 清空saved regions
       setSavedRegions([]);
@@ -916,16 +896,14 @@ const ComparisonView = ({ material, onSelectResult }) => {
   React.useEffect(() => {
     if (!material) return;
 
-    // 🔍 完整的material对象诊断
-    console.log('📋 完整Material对象诊断:', {
+    // 🔍 调试：打印材料的完整状态
+    console.log('🔍 材料状态诊断:', {
       id: material.id,
       status: material.status,
       processingStep: material.processingStep,
       entityRecognitionEnabled: material.entityRecognitionEnabled,
       entityRecognitionMode: material.entityRecognitionMode,
       entityRecognitionTriggered: material.entityRecognitionTriggered,
-      entityRecognitionConfirmed: material.entityRecognitionConfirmed,
-      entityRecognitionResult: material.entityRecognitionResult,
       translationTextInfo: material.translationTextInfo ? '存在' : '不存在',
       processingProgress: material.processingProgress
     });
@@ -934,36 +912,50 @@ const ComparisonView = ({ material, onSelectResult }) => {
 
     // OCR翻译完成，检查是否需要进行实体识别
     if (step === 'translated' && material.entityRecognitionEnabled) {
-      console.log('✓ OCR翻译完成，实体识别已启用，检查模式...');
-
       // 检查是否已经触发过实体识别（避免重复）
       if (material.entityRecognitionTriggered) {
-        console.log('⊘ 实体识别已触发过，跳过');
         return;
       }
 
       // 标记为已触发（前端状态，防止重复）
       const entityTriggeredKey = `entity_triggered_${material.id}`;
       if (sessionStorage.getItem(entityTriggeredKey)) {
-        console.log('⊘ 会话中已触发过实体识别，跳过');
         return;
       }
       sessionStorage.setItem(entityTriggeredKey, 'true');
 
       // 根据模式触发不同的实体识别
       if (material.entityRecognitionMode === 'deep') {
-        console.log('🔍 触发深度实体识别...');
         triggerDeepEntityRecognition();
       } else if (material.entityRecognitionMode === 'standard') {
-        console.log('⚡ 触发快速实体识别...');
         triggerFastEntityRecognition();
+      }
+    }
+    // 禁用实体识别时，OCR完成后自动触发LLM翻译
+    else if (step === 'translated' && !material.entityRecognitionEnabled) {
+      // 检查是否已触发过LLM翻译（避免重复）
+      if (llmTriggeredRef.current[material.id]) {
+        return;
+      }
+
+      // 检查是否已有LLM翻译结果
+      if (material.llmTranslationResult) {
+        return;
+      }
+
+      // 标记为已触发
+      llmTriggeredRef.current[material.id] = true;
+
+      console.log('🚀 实体识别已禁用，自动触发LLM翻译');
+
+      // 触发LLM翻译
+      if (baiduRegions && baiduRegions.length > 0) {
+        handleLLMTranslate(baiduRegions);
       }
     }
 
     // 快速实体识别完成，显示结果让用户选择
     if (step === 'entity_pending_confirm' && material.entityRecognitionResult) {
-      console.log('✓ 快速实体识别完成，显示结果对话框');
-
       try {
         const result = typeof material.entityRecognitionResult === 'string'
           ? JSON.parse(material.entityRecognitionResult)
@@ -977,7 +969,8 @@ const ComparisonView = ({ material, onSelectResult }) => {
       }
     }
 
-  }, [material?.id, material?.processingStep, material?.entityRecognitionEnabled, material?.entityRecognitionMode]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [material?.id, material?.processingStep, material?.entityRecognitionEnabled, material?.entityRecognitionMode, material?.llmTranslationResult, baiduRegions]);
 
   // 触发深度实体识别
   const triggerDeepEntityRecognition = React.useCallback(async () => {
@@ -1090,7 +1083,6 @@ const ComparisonView = ({ material, onSelectResult }) => {
 
       // 为这个页面触发LLM
       try {
-        console.log(`⚡ 为页面 ${page.pdfPageNumber} (ID: ${page.id}) 触发LLM翻译`);
         llmTriggeredRef.current[page.id] = true; // 立即标记，防止重复
 
         const token = localStorage.getItem('auth_token');
@@ -1104,7 +1096,6 @@ const ComparisonView = ({ material, onSelectResult }) => {
 
         if (response.ok) {
           const data = await response.json();
-          console.log(`✓ 页面 ${page.pdfPageNumber} LLM翻译完成`);
 
           // 更新materials列表中的这个页面
           actions.updateMaterial(page.id, {
@@ -1122,9 +1113,6 @@ const ComparisonView = ({ material, onSelectResult }) => {
 
   // LLM翻译（完全按照Reference的方式）
   const handleLLMTranslate = async (regions) => {
-    console.log('开始LLM翻译，regions参数:', regions);
-    console.log('开始LLM翻译，regions数量:', regions.length);
-    console.log('regions前3个:', regions.slice(0, 3));
     setLlmLoading(true);
 
     try {
@@ -1195,27 +1183,11 @@ const ComparisonView = ({ material, onSelectResult }) => {
       // 使用 rotationCount 作为缓存键，只在旋转时刷新
       const cacheKey = material.rotationCount || 0;
       const url = `${API_URL}/download/image/${material.filePath}?v=${cacheKey}`;
-      console.log('✅ 重构：编辑器始终从原图加载:', url, 'filePath:', material.filePath, 'rotation:', cacheKey);
       return url;
     }
 
-    console.log('❌ 没有文件路径，无法显示');
     return null;
   };
-
-  // 调试日志
-  console.log('PreviewSection渲染状态:', {
-    llmRegions: llmRegions.length,
-    imageUrl: getImageUrl(),
-    llmLoading,
-    material: material?.id,
-    materialType: material?.type,
-    hasTranslationInfo: !!material.translationTextInfo,
-    // 🔍 加载界面条件检查
-    status: material?.status,
-    processingStep: material?.processingStep,
-    shouldShowLoading: llmLoading || material?.status === '处理中' || material?.processingStep === 'uploaded' || material?.processingStep === 'translating' || (material?.processingStep === 'translated' && !material?.translationTextInfo)
-  });
 
   // ========== Reference项目完整复刻：一进来就显示编辑器 ==========
   return (
@@ -1367,22 +1339,14 @@ const ComparisonView = ({ material, onSelectResult }) => {
           </div>
 
           {/* 实体识别通知栏 - 嵌入式显示 */}
-          {(() => {
-            console.log('🔍 实体识别通知栏渲染检查:', {
-              processingStep: material.processingStep,
-              entityResultsLength: entityResults.length,
-              entityRecognitionMode: material.entityRecognitionMode,
-              shouldShow: material.processingStep === 'entity_pending_confirm' && entityResults.length > 0
-            });
-            return material.processingStep === 'entity_pending_confirm' && entityResults.length > 0 && (
-              <EntityNotificationBar
-                entities={entityResults}
-                mode={material.entityRecognitionMode || 'standard'}
-                onConfirm={handleConfirmEntities}
-                onSkip={handleEntitySkip}
-              />
-            );
-          })()}
+          {material.processingStep === 'entity_pending_confirm' && entityResults.length > 0 && (
+            <EntityNotificationBar
+              entities={entityResults}
+              mode={material.entityRecognitionMode || 'standard'}
+              onConfirm={handleConfirmEntities}
+              onSkip={handleEntitySkip}
+            />
+          )}
 
             <div className={styles.llmEditorContent}>
             {/* 显示翻译进行中状态 - 包括所有阶段：拆分、上传、百度翻译、AI优化 */}
@@ -1399,16 +1363,6 @@ const ComparisonView = ({ material, onSelectResult }) => {
                 (material.processingStep === 'uploaded' && material.status === '处理中');  // ← 修复：只在处理中才显示
               const excludeEntitySteps = !['entity_recognizing', 'entity_pending_confirm', 'entity_confirmed'].includes(material.processingStep);
               const shouldShowLoading = baseCondition && excludeEntitySteps;
-
-              console.log('🔍 加载界面显示检查:', {
-                status: material.status,
-                processingStep: material.processingStep,
-                hasTranslationTextInfo: !!material.translationTextInfo,
-                llmLoading,
-                baseCondition,
-                excludeEntitySteps,
-                shouldShowLoading
-              });
 
               return shouldShowLoading;
             })() ? (
@@ -1672,7 +1626,6 @@ const SinglePreview = ({ material }) => {
             src={previewUrl}
             className={styles.pdfIframe}
             title="网页翻译预览"
-            onLoad={() => console.log('✅ PDF iframe加载完成')}
             onError={(e) => console.error('❌ PDF iframe加载失败:', e)}
           />
         </div>

@@ -88,7 +88,6 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
   // 🔍 监控 maskEditMode 变化，并同步到 ref
   useEffect(() => {
-    console.log('🎭 maskEditMode 状态变化:', maskEditMode);
     maskEditModeRef.current = maskEditMode; // 同步到 ref
   }, [maskEditMode]);
 
@@ -98,14 +97,12 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     
     const checkFabric = () => {
       if (!isMounted) return; // ✅ 如果组件已卸载，停止递归
-      
+
       if (window.fabric) {
-        console.log('Fabric.js loaded from CDN');
         if (isMounted) { // ✅ 卸载后不更新 state
           setFabricLoaded(true);
         }
       } else {
-        console.log('Waiting for Fabric.js...');
         setTimeout(checkFabric, 100);
       }
     };
@@ -121,8 +118,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
   useEffect(() => {
     if (!fabricLoaded) return;
     if (!canvasRef.current) return;
-    
-    console.log('Initializing Fabric.js v5 canvas...');
+
     const canvas = new fabric.Canvas(canvasRef.current, {
       selection: true,
       preserveObjectStacking: true
@@ -763,14 +759,6 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
   // 加载图片
   useEffect(() => {
-    console.log('🖼️ Image loading effect:', {
-      fabricLoaded,
-      imageSrc: !!imageSrc,
-      canvas: !!fabricCanvasRef.current,
-      initialized: initializedRef.current,
-      regionsLength: regions?.length,
-      maskEditMode
-    });
     if (!fabricLoaded || !imageSrc || !fabricCanvasRef.current) return;
 
     // 检查图片URL是否改变（用于旋转等场景）
@@ -778,17 +766,11 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
     // 如果已经初始化过，且图片URL没有改变，则跳过
     if (initializedRef.current && !imageChanged) {
-      console.log('⏭️ Already initialized and same image, skipping...');
       return;
     }
 
     // 如果图片改变了，需要清除画布并重新加载
     if (imageChanged) {
-      console.log('Image URL changed, clearing canvas and reloading...', {
-        previous: previousImageSrcRef.current,
-        current: imageSrc
-      });
-
       // 清除画布上的所有对象
       const canvas = fabricCanvasRef.current;
       canvas.clear();
@@ -798,7 +780,6 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       previousImageSrcRef.current = imageSrc;
     }
 
-    console.log('Loading image...');
     const canvas = fabricCanvasRef.current;
 
     // 确保 canvas 存在
@@ -831,13 +812,8 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           const containerWidth = canvasWrapperRef.current.clientWidth - 32; // padding 左右各 1rem
           const containerHeight = canvasWrapperRef.current.clientHeight - 32;
 
-          console.log('📐 Container size:', { containerWidth, containerHeight });
-          console.log('📐 Image size:', { width: img.width, height: img.height });
-
           // 🔧 检查容器尺寸是否有效（至少要有 200px 才合理）
           if (containerWidth < 200 || containerHeight < 200) {
-            console.warn('⚠️ Container size too small or not ready, using default zoom 100%');
-            console.warn('   Container:', { containerWidth, containerHeight });
             return 100;
           }
 
@@ -852,13 +828,6 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
           // 🔧 确保缩放比例不会太小（至少 25%）
           const finalZoom = Math.max(optimalZoom, 25);
-
-          console.log('🔍 Calculated optimal zoom:', {
-            scaleX: (scaleX * 100).toFixed(1) + '%',
-            scaleY: (scaleY * 100).toFixed(1) + '%',
-            optimalZoom: optimalZoom + '%',
-            finalZoom: finalZoom + '%'
-          });
 
           return finalZoom;
         };
@@ -875,8 +844,6 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
         // 设置图片为背景
         canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
-
-        console.log('✅ Image loaded successfully with zoom:', initialZoom + '%');
 
         // 初始化文本区域
         initializeTextRegions(regions);
@@ -901,13 +868,6 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
               if (totalHeight > wrapper.clientHeight) {
                 wrapper.scrollTop = (wrapper.scrollHeight - wrapper.clientHeight) / 2;
               }
-
-              console.log('✅ 滚动位置已初始化', {
-                scrollLeft: wrapper.scrollLeft,
-                scrollTop: wrapper.scrollTop,
-                scrollWidth: wrapper.scrollWidth,
-                scrollHeight: wrapper.scrollHeight
-              });
             }
           }
         });
@@ -1028,7 +988,6 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
   const initializeTextRegions = async (regionsData) => {
     if (!fabricCanvasRef.current || !regionsData || !window.fabric) return;
 
-    console.log('Initializing text regions...', regionsData);
     const canvas = fabricCanvasRef.current;
 
     // 清除所有对象
@@ -1279,10 +1238,9 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         }
       });
     });
-    
+
     canvas.renderAll();
-    console.log('Text regions initialized');
-    
+
     // 保存初始状态到历史记录
     setTimeout(() => {
       saveHistory();
@@ -1880,9 +1838,6 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
   // 切换遮罩层编辑模式
   const toggleMaskEditMode = () => {
-    console.log('🎭 toggleMaskEditMode 被调用，当前模式:', maskEditMode, '即将切换为:', !maskEditMode);
-    console.trace('🎭 调用堆栈:'); // 打印调用堆栈，看是哪里调用的
-
     const canvas = fabricCanvasRef.current;
     if (!canvas) return;
 
