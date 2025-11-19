@@ -723,13 +723,34 @@ const ComparisonView = ({ material, onSelectResult }) => {
       // 清空实体结果，隐藏Modal
       setEntityResults([]);
 
-      // 构建翻译指导格式
-      const translationGuidance = {};
+      // 构建翻译指导格式（按LLM服务期待的格式）
+      const translationGuidance = {
+        organizations: [],
+        persons: [],
+        locations: [],
+        terms: []
+      };
+
       entities.forEach(entity => {
         const chineseName = entity.chinese_name || entity.entity;
         const englishName = entity.english_name;
         if (chineseName && englishName) {
-          translationGuidance[chineseName] = englishName;
+          // 格式：中文名 -> 英文名
+          const guidanceItem = `${chineseName} -> ${englishName}`;
+
+          // 根据实体类型分类（如果有的话），否则默认归类为 organizations
+          const entityType = entity.type || 'ORGANIZATION';
+
+          if (entityType === 'PERSON' || entityType === 'PER') {
+            translationGuidance.persons.push(guidanceItem);
+          } else if (entityType === 'LOCATION' || entityType === 'LOC' || entityType === 'GPE') {
+            translationGuidance.locations.push(guidanceItem);
+          } else if (entityType === 'ORGANIZATION' || entityType === 'ORG') {
+            translationGuidance.organizations.push(guidanceItem);
+          } else {
+            // 其他类型归类为术语
+            translationGuidance.terms.push(guidanceItem);
+          }
         }
       });
 
