@@ -91,8 +91,8 @@
   font-size: 14px;
 }
 
-/* 实体表格（编辑/AI结果） */
-.entity-table {
+/* 实体可编辑表格 */
+.entity-editable-table {
   border: 1px solid #e0e0e0;
   border-radius: 8px;
   overflow: hidden;
@@ -100,15 +100,16 @@
 
 .entity-table-header {
   display: grid;
-  grid-template-columns: 1fr 2fr;
+  grid-template-columns: 1.5fr 1.5fr 2fr 80px;
   background: #f8f9fa;
   border-bottom: 1px solid #e0e0e0;
 }
 
 .entity-table-row {
   display: grid;
-  grid-template-columns: 1fr 2fr;
+  grid-template-columns: 1.5fr 1.5fr 2fr 80px;
   border-bottom: 1px solid #e0e0e0;
+  align-items: center;
 }
 
 .entity-table-row:last-child {
@@ -116,19 +117,26 @@
 }
 
 .entity-col-chinese,
-.entity-col-english {
+.entity-col-english,
+.entity-col-evidence,
+.entity-col-actions {
   padding: 12px 16px;
   font-size: 14px;
 }
 
-.entity-col-chinese {
+.entity-col-chinese,
+.entity-col-english,
+.entity-col-evidence {
   font-weight: 500;
   color: #333;
   border-right: 1px solid #e0e0e0;
 }
 
-.entity-col-english {
-  color: #666;
+.entity-col-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
 }
 
 .entity-input {
@@ -143,6 +151,52 @@
 .entity-input:focus {
   outline: none;
   border-color: #1a73e8;
+}
+
+/* 删除按钮 */
+.entity-delete-btn {
+  background: none;
+  border: none;
+  color: #dc2626;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.entity-delete-btn:hover {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* 添加行按钮 */
+.entity-add-row-btn {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  background: #f8f9fa;
+  color: #1a73e8;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s;
+  border-top: 1px solid #e0e0e0;
+}
+
+.entity-add-row-btn:hover {
+  background: #e8f0fe;
+  color: #1557b0;
+}
+
+.entity-add-row-btn svg {
+  flex-shrink: 0;
 }
 
 /* 底部 */
@@ -223,7 +277,7 @@
 }
 
 /* 响应式 */
-@media (max-width: 600px) {
+@media (max-width: 900px) {
   .entity-result-content {
     width: 95%;
     max-width: none;
@@ -231,7 +285,15 @@
 
   .entity-table-header,
   .entity-table-row {
-    grid-template-columns: 1fr 1.5fr;
+    grid-template-columns: 1fr 1fr 1.5fr 60px;
+    font-size: 12px;
+  }
+
+  .entity-col-chinese,
+  .entity-col-english,
+  .entity-col-evidence,
+  .entity-col-actions {
+    padding: 8px 12px;
   }
 
   .entity-result-footer {
