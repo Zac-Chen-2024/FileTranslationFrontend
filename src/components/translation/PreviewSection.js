@@ -1018,7 +1018,8 @@ const ComparisonView = ({ material, onSelectResult }) => {
     }
 
     // 快速实体识别完成，显示结果让用户选择
-    if (step === 'entity_pending_confirm' && material.entityRecognitionResult) {
+    // 只有在 entity_pending_confirm 状态且还没确认过时才显示
+    if (step === 'entity_pending_confirm' && material.entityRecognitionResult && !material.entity_recognition_confirmed) {
       try {
         const result = typeof material.entityRecognitionResult === 'string'
           ? JSON.parse(material.entityRecognitionResult)
@@ -1029,6 +1030,13 @@ const ComparisonView = ({ material, onSelectResult }) => {
         }
       } catch (e) {
         console.error('解析实体识别结果失败:', e);
+      }
+    }
+
+    // 如果已经确认或状态已经变化，清空实体结果
+    if (step !== 'entity_pending_confirm' || material.entity_recognition_confirmed) {
+      if (entityResults.length > 0) {
+        setEntityResults([]);
       }
     }
 
