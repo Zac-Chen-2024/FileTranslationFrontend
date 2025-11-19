@@ -638,60 +638,89 @@ const ComparisonView = ({ material, onSelectResult }) => {
     try {
       const { materialAPI } = await import('../../services/api');
 
+      // 检查是否是PDF - 如果是，获取所有页面的IDs
+      const isPDF = pdfPages.length > 0;
+      const materialIds = isPDF ? pdfPages.map(p => p.id) : [material.id];
+      const pageCount = materialIds.length;
+
       if (mode === 'disabled') {
         // 路径A: 不启用实体识别，直接进行OCR翻译
-        await materialAPI.enableEntityRecognition(material.id, false);
+        // 为所有页面禁用实体识别
+        if (isPDF) {
+          await Promise.all(materialIds.map(id =>
+            materialAPI.enableEntityRecognition(id, false)
+          ));
+        } else {
+          await materialAPI.enableEntityRecognition(material.id, false);
+        }
 
         actions.showNotification('开始翻译', '正在启动翻译任务...', 'info');
-        await materialAPI.startTranslation(material.clientId, material.id);
+        // 翻译所有页面
+        await materialAPI.startTranslation(material.clientId, materialIds);
 
-        const pageCount = pdfPages.length > 0 ? pdfPages.length : 0;
         actions.showNotification(
           '翻译已启动',
-          pageCount > 0
+          isPDF
             ? `正在翻译PDF的${pageCount}页，请稍候...`
             : '正在翻译图片，请稍候...',
           'success'
         );
       } else if (mode === 'deep') {
         // 路径B: 深度模式 - 全自动流程
-        await materialAPI.enableEntityRecognition(material.id, true, 'deep');
+        // 为所有页面启用实体识别（深度模式）
+        if (isPDF) {
+          await Promise.all(materialIds.map(id =>
+            materialAPI.enableEntityRecognition(id, true, 'deep')
+          ));
+        } else {
+          await materialAPI.enableEntityRecognition(material.id, true, 'deep');
+        }
 
-        // 先启动OCR翻译
+        // 启动OCR翻译（所有页面）
         actions.showNotification('开始翻译', '正在启动翻译任务...', 'info');
-        await materialAPI.startTranslation(material.clientId, material.id);
+        await materialAPI.startTranslation(material.clientId, materialIds);
 
         // 显示等待提示
         actions.showNotification(
           '深度识别启动',
-          '翻译完成后将自动进行深度实体识别（预计30-120秒），请稍候...',
+          isPDF
+            ? `正在翻译PDF的${pageCount}页，翻译完成后将自动进行深度实体识别...`
+            : '翻译完成后将自动进行深度实体识别（预计30-120秒），请稍候...',
           'info'
         );
 
-        // WebSocket会监听OCR完成状态，然后自动触发深度识别
-        // 深度识别将在后端自动完成并确认
+        // WebSocket会监听所有页面OCR完成状态，然后自动触发深度识别
       } else if (mode === 'standard') {
         // 路径C: 标准模式 - 快速识别 + 用户选择
-        await materialAPI.enableEntityRecognition(material.id, true, 'standard');
+        // 为所有页面启用实体识别（标准模式）
+        if (isPDF) {
+          await Promise.all(materialIds.map(id =>
+            materialAPI.enableEntityRecognition(id, true, 'standard')
+          ));
+        } else {
+          await materialAPI.enableEntityRecognition(material.id, true, 'standard');
+        }
 
-        // 先启动OCR翻译
+        // 启动OCR翻译（所有页面）
         actions.showNotification('开始翻译', '正在启动翻译任务...', 'info');
-        await materialAPI.startTranslation(material.clientId, material.id);
+        await materialAPI.startTranslation(material.clientId, materialIds);
 
         actions.showNotification(
           '标准模式启动',
-          '翻译完成后将进行快速实体识别，请稍候...',
+          isPDF
+            ? `正在翻译PDF的${pageCount}页，翻译完成后将进行快速实体识别...`
+            : '翻译完成后将进行快速实体识别，请稍候...',
           'info'
         );
 
-        // WebSocket会监听OCR完成状态，然后触发快速识别
+        // WebSocket会监听所有页面OCR完成状态，然后触发快速识别
         // 快速识别完成后会显示EntityResultModal让用户选择
       }
     } catch (error) {
       console.error('启动翻译失败:', error);
       actions.showNotification('启动失败', error.message || '无法启动翻译', 'error');
     }
-  }, [material, pdfPages.length, actions]);
+  }, [material, pdfPages, actions]);
 
   // 处理跳过实体识别
   const handleEntitySkip = useCallback(async () => {
