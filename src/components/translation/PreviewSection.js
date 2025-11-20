@@ -368,6 +368,14 @@ const PreviewSection = () => {
       const materialIds = isPDF ? pdfPages.map(p => p.id) : [currentMaterial.id];
       const pageCount = materialIds.length;
 
+      // 重置PDF Session实体识别相关的ref（如果是重新翻译）
+      if (isPDF && currentMaterial.pdfSessionId) {
+        const sessionId = currentMaterial.pdfSessionId;
+        pdfSessionEntityTriggeredRef.current[sessionId] = false;
+        pdfSessionEntityModalShownRef.current[sessionId] = false;
+        console.log(`🔄 [PDF Session ${sessionId}] 重置实体识别ref，准备新的翻译流程`);
+      }
+
       if (mode === 'disabled') {
         // 路径A: 不启用实体识别，直接进行OCR翻译
         // 为所有页面禁用实体识别
@@ -704,7 +712,11 @@ const PreviewSection = () => {
         });
 
         if (!allPagesTranslated) {
-          console.log(`⏳ [PDF Session ${sessionId}] 等待所有页面完成OCR翻译...`);
+          const translatedCount = pdfPages.filter(page => {
+            const latestPage = state.materials.find(m => m.id === page.id);
+            return latestPage && latestPage.processingStep === 'translated';
+          }).length;
+          console.log(`⏳ [PDF Session ${sessionId}] 等待所有页面完成OCR翻译... (${translatedCount}/${pdfPages.length})`);
           return;
         }
 
@@ -830,7 +842,7 @@ const PreviewSection = () => {
     }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentMaterial?.id, currentMaterial?.processingStep, currentMaterial?.entityRecognitionEnabled, currentMaterial?.entityRecognitionMode, currentMaterial?.llmTranslationResult, currentMaterial?.entity_recognition_confirmed, currentMaterial?.entityRecognitionResult, baiduRegions]);
+  }, [currentMaterial?.id, currentMaterial?.processingStep, currentMaterial?.entityRecognitionEnabled, currentMaterial?.entityRecognitionMode, currentMaterial?.llmTranslationResult, currentMaterial?.entity_recognition_confirmed, currentMaterial?.entityRecognitionResult, baiduRegions, pdfPages, state.materials]);
 
   // 触发深度实体识别
   const triggerDeepEntityRecognition = React.useCallback(async () => {
@@ -941,7 +953,7 @@ const PreviewSection = () => {
     }
   }, [currentMaterial?.id, currentMaterial?.translationTextInfo, currentMaterial?.processingProgress, currentMaterial?.entityRecognitionEnabled, currentMaterial?.entityRecognitionConfirmed, pdfSessionProgress?.progress]);
 
-  // 当PDF所有页面翻译完成时，自动为所有页面触发LLM
+  // 当PDF所有页面翻译完成时，自动为所有页面触发LLM（仅限禁用实体识别时）
   // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     // 只有当是PDF多页 && 整体进度达到66% && 所有页面翻译完成时才执行
@@ -953,7 +965,13 @@ const PreviewSection = () => {
       return; // 还有页面未翻译完成
     }
 
-    console.log('🚀 PDF所有页面翻译完成，检查是否需要为其他页面触发LLM');
+    // ⭐ 如果启用了实体识别，不要自动触发LLM（应该等待用户确认实体后，由后端自动触发）
+    if (currentMaterial.entityRecognitionEnabled) {
+      console.log('⏭️ PDF实体识别已启用，跳过自动LLM触发（等待用户确认实体）');
+      return;
+    }
+
+    console.log('🚀 PDF所有页面翻译完成，检查是否需要为其他页面触发LLM（实体识别已禁用）');
 
     // 遍历所有PDF页面，为未触发LLM的页面触发
     pdfPages.forEach(async (pageRef) => {
