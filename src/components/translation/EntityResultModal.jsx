@@ -91,48 +91,50 @@ const EntityResultModal = ({
               <div className="entity-col-actions">操作</div>
             </div>
 
-            {editedEntities.map((entity, index) => (
-              <div key={index} className="entity-table-row">
-                <div className="entity-col-chinese">
-                  <input
-                    type="text"
-                    value={entity.chinese_name}
-                    onChange={(e) => handleFieldChange(index, 'chinese_name', e.target.value)}
-                    placeholder="输入中文名"
-                    className="entity-input"
-                  />
+            <div className="entity-table-body">
+              {editedEntities.map((entity, index) => (
+                <div key={index} className="entity-table-row">
+                  <div className="entity-col-chinese">
+                    <input
+                      type="text"
+                      value={entity.chinese_name}
+                      onChange={(e) => handleFieldChange(index, 'chinese_name', e.target.value)}
+                      placeholder="输入中文名"
+                      className="entity-input"
+                    />
+                  </div>
+                  <div className="entity-col-english">
+                    <input
+                      type="text"
+                      value={entity.english_name}
+                      onChange={(e) => handleFieldChange(index, 'english_name', e.target.value)}
+                      placeholder="输入英文名"
+                      className="entity-input"
+                    />
+                  </div>
+                  <div className="entity-col-evidence">
+                    <input
+                      type="text"
+                      value={entity.evidence}
+                      onChange={(e) => handleFieldChange(index, 'evidence', e.target.value)}
+                      placeholder="证据或来源"
+                      className="entity-input"
+                    />
+                  </div>
+                  <div className="entity-col-actions">
+                    <button
+                      className="entity-delete-btn"
+                      onClick={() => handleDeleteRow(index)}
+                      title="删除此行"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                      </svg>
+                    </button>
+                  </div>
                 </div>
-                <div className="entity-col-english">
-                  <input
-                    type="text"
-                    value={entity.english_name}
-                    onChange={(e) => handleFieldChange(index, 'english_name', e.target.value)}
-                    placeholder="输入英文名"
-                    className="entity-input"
-                  />
-                </div>
-                <div className="entity-col-evidence">
-                  <input
-                    type="text"
-                    value={entity.evidence}
-                    onChange={(e) => handleFieldChange(index, 'evidence', e.target.value)}
-                    placeholder="证据或来源"
-                    className="entity-input"
-                  />
-                </div>
-                <div className="entity-col-actions">
-                  <button
-                    className="entity-delete-btn"
-                    onClick={() => handleDeleteRow(index)}
-                    title="删除此行"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
 
             <button className="entity-add-row-btn" onClick={handleAddRow}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
