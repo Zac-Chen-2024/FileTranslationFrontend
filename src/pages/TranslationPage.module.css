@@ -10,16 +10,14 @@
 
 
 .content {
-  display: grid;
-  grid-template-columns: 20% 70%;
-  grid-template-rows: 1fr; /* 🔧 让行占满整个容器高度 */
-  gap: 2rem;
-  padding: 2rem 5%; /* 左右各5%的空白，总共10% */
-  margin: 0; /* 移除auto居中，直接占满容器 */
+  display: flex;
+  flex-direction: row; /* 水平排列 */
+  gap: 0; /* 移除gap，使用border分隔 */
+  padding: 0; /* 移除padding，让侧边栏贴边 */
+  margin: 0;
   flex: 1; /* 占满剩余空间 */
   width: 100%;
-  max-width: none; /* 移除最大宽度限制 */
-  /* 占满视窗高度 */
+  max-width: none;
   min-height: 0; /* 允许收缩 */
   overflow: hidden; /* 防止内容溢出 */
   align-items: stretch; /* 让两侧保持同高 */
@@ -53,16 +51,13 @@
 /* 响应式设计 */
 @media (max-width: 1024px) {
   .content {
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
-    padding: 1.5rem 3%; /* 小屏幕减少左右空白 */
+    flex-direction: column; /* 小屏幕垂直排列 */
   }
 }
 
 @media (max-width: 768px) {
   .content {
-    padding: 1rem 2%; /* 手机端更少的左右空白 */
-    gap: 1rem;
+    flex-direction: column; /* 手机端垂直排列 */
   }
 }
 

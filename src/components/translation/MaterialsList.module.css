@@ -1,10 +1,12 @@
 .materialsSection {
+  width: 280px; /* 固定宽度侧边栏 */
+  flex-shrink: 0; /* 防止收缩 */
   background: var(--color-bg-primary, white);
-  border-radius: var(--radius-lg, 12px);
+  border-radius: 0; /* 侧边栏贴边，移除圆角 */
   padding: var(--spacing-lg, 1.5rem);
-  box-shadow: var(--shadow-md);
+  box-shadow: none; /* 移除阴影 */
+  border-right: 1px solid var(--neutral-200); /* 右侧边框分隔 */
   overflow: hidden;
-  /* 占满Grid分配的高度（与右侧等高） */
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -13,11 +15,15 @@
 
 [data-theme="dark"] .materialsSection {
   background: var(--neutral-100);
+  border-right-color: var(--neutral-700);
 }
 
-/* 可折叠状态 */
+/* 可折叠状态 - 侧边栏折叠到0宽度 */
 .materialsSection.collapsed {
-  max-height: auto;
+  width: 0;
+  padding: 0;
+  border-right: none;
+  overflow: hidden;
 }
 
 .materialsSection.collapsed .materialsList {
@@ -29,6 +35,14 @@
 }
 
 .materialsSection.collapsed .dropZone {
+  display: none;
+}
+
+.materialsSection.collapsed .topHeader {
+  display: none;
+}
+
+.materialsSection.collapsed .actions {
   display: none;
 }
 
@@ -678,12 +692,17 @@
 
 /* 大屏幕优化 (>1024px) */
 @media (min-width: 1025px) {
-  /* max-height removed - virtual scrolling handles this automatically */
+  /* 侧边栏固定280px */
 }
 
 /* 中等屏幕 (768px - 1024px) */
 @media (max-width: 1024px) {
-  /* materialsSection height is now controlled by grid layout */
+  .materialsSection {
+    width: 100%; /* 垂直布局时占满宽度 */
+    height: 300px; /* 限制高度 */
+    border-right: none;
+    border-bottom: 1px solid var(--neutral-200);
+  }
 
   .title {
     font-size: var(--font-size-lg, 1.125rem);
@@ -697,8 +716,11 @@
 /* 小屏幕 (< 768px) */
 @media (max-width: 768px) {
   .materialsSection {
+    width: 100%;
     padding: var(--spacing-md, 1rem);
-    max-height: 400px;
+    height: 250px;
+    border-right: none;
+    border-bottom: 1px solid var(--neutral-200);
   }
 
   .header {

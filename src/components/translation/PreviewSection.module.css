@@ -1,11 +1,11 @@
 .previewSection {
+  flex: 1; /* 占据剩余空间 */
   background: var(--neutral-50);
-  border-radius: 12px;
+  border-radius: 0; /* 移除圆角，保持方正 */
   padding: 1.5rem;
-  box-shadow: var(--shadow-md);
+  box-shadow: none; /* 移除阴影 */
   display: flex;
   flex-direction: column;
-  /* 占满Grid分配的高度 */
   height: 100%;
   overflow: hidden;
 }
@@ -796,35 +796,41 @@
     grid-template-columns: 1fr;
     gap: 0.75rem;
   }
-  
+
   .previewSection {
     min-height: 400px;
+    flex: 1; /* 确保占据剩余空间 */
   }
-  
+
   .content {
     min-height: 300px;
   }
-  
+
   .pdfContainer {
     min-height: 250px;
   }
 }
 
 @media (max-width: 768px) {
+  .previewSection {
+    flex: 1;
+    height: auto; /* 小屏幕时自动高度 */
+  }
+
   .header {
     flex-direction: column;
     gap: 1rem;
     align-items: stretch;
   }
-  
+
   .actions {
     justify-content: center;
   }
-  
+
   .actionBtn {
     flex: 1;
   }
-  
+
   .startTranslateBtn {
     font-size: 0.9rem;
     padding: 0.6rem 1.2rem;
