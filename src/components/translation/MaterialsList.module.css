@@ -1,5 +1,7 @@
 .materialsSection {
-  width: 280px; /* 固定宽度侧边栏 */
+  width: 20%; /* 页面宽度的五分之一 */
+  min-width: 250px; /* 最小宽度，防止太窄 */
+  max-width: 400px; /* 最大宽度，防止太宽 */
   flex-shrink: 0; /* 防止收缩 */
   background: var(--color-bg-primary, white);
   border-radius: 0; /* 侧边栏贴边，移除圆角 */
