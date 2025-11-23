@@ -160,6 +160,7 @@
   flex: 1;
   overflow-y: auto;
   min-height: 200px; /* 最小高度，确保至少能看到几行 */
+  max-height: 400px; /* 最大高度：约6-8行实体，超过则滚动 */
 }
 
 /* 美化滚动条 */
