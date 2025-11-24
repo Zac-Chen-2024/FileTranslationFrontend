@@ -1,0 +1,634 @@
+/* Adobe Style Professional Interface */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #323232;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  color: #e8e8e8;
+  overflow: hidden;
+}
+
+/* 顶部工具栏 */
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 48px;
+  background: #2a2a2a;
+  border-bottom: 1px solid #1a1a1a;
+  padding: 0 16px;
+  flex-shrink: 0;
+}
+
+.toolbarLeft {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.toolbarRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Logo区域 */
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #e8e8e8;
+}
+
+.logo svg {
+  fill: #0084ff;
+}
+
+/* 分隔线 */
+.divider {
+  width: 1px;
+  height: 24px;
+  background: #3a3a3a;
+}
+
+/* 视图模式按钮 */
+.viewModes {
+  display: flex;
+  gap: 4px;
+  background: #1e1e1e;
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.viewBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #999;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.viewBtn svg {
+  stroke-width: 1.5;
+}
+
+.viewBtn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ccc;
+}
+
+.viewBtn.active {
+  background: #0084ff;
+  color: white;
+}
+
+.viewBtn.active svg {
+  stroke: white;
+}
+
+/* 工具按钮 */
+.toolBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #999;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.toolBtn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #e8e8e8;
+}
+
+.toolBtn.active {
+  background: rgba(0, 132, 255, 0.2);
+  border-color: #0084ff;
+  color: #0084ff;
+}
+
+/* 缩放控制 */
+.zoomControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #1e1e1e;
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+.zoomControls button {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: #999;
+  font-size: 16px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.zoomControls button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e8e8e8;
+}
+
+.zoomValue {
+  font-size: 12px;
+  color: #e8e8e8;
+  min-width: 40px;
+  text-align: center;
+}
+
+/* 导出和重置按钮 */
+.exportBtn, .resetBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.exportBtn {
+  background: #0084ff;
+  color: white;
+}
+
+.exportBtn:hover {
+  background: #0066cc;
+}
+
+.resetBtn {
+  background: transparent;
+  border: 1px solid #444;
+  color: #999;
+}
+
+.resetBtn:hover {
+  border-color: #666;
+  color: #e8e8e8;
+}
+
+/* 主内容区 */
+.mainContent {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* 侧边面板 */
+.sidePanel {
+  width: 320px;
+  background: #262626;
+  border-right: 1px solid #1a1a1a;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+/* 上传区域 */
+.uploadSection {
+  padding: 24px;
+}
+
+.uploadBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  border: 2px dashed #444;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
+  background: rgba(0, 132, 255, 0.02);
+}
+
+.uploadBox:hover {
+  border-color: #0084ff;
+  background: rgba(0, 132, 255, 0.05);
+}
+
+.uploadBox.dragOver {
+  border-color: #0084ff;
+  background: rgba(0, 132, 255, 0.1);
+  transform: scale(1.02);
+}
+
+.uploadBox svg {
+  stroke: #666;
+  margin-bottom: 16px;
+}
+
+.uploadBox h3 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: #e8e8e8;
+}
+
+.uploadBox p {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  color: #999;
+}
+
+.formats {
+  font-size: 11px;
+  color: #666;
+}
+
+/* 模式选择 */
+.modeSection {
+  margin-top: 24px;
+  padding: 20px;
+  background: #1e1e1e;
+  border-radius: 8px;
+}
+
+.modeSection h4 {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.modeSwitch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.modeSwitch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switchSlider {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  background: #444;
+  border-radius: 12px;
+  transition: background 0.3s;
+  margin-right: 12px;
+}
+
+.switchSlider::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.3s;
+}
+
+.modeSwitch input:checked + .switchSlider {
+  background: #0084ff;
+}
+
+.modeSwitch input:checked + .switchSlider::after {
+  transform: translateX(20px);
+}
+
+.modeLabel {
+  font-size: 14px;
+  font-weight: 500;
+  color: #e8e8e8;
+}
+
+.modeDesc {
+  margin: 0;
+  font-size: 12px;
+  color: #666;
+  line-height: 1.5;
+}
+
+/* 控制面板 */
+.controls {
+  padding: 20px;
+}
+
+/* 统计信息 */
+.stats {
+  margin-bottom: 24px;
+}
+
+.stats h4 {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.statItem {
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  background: #1e1e1e;
+  border-radius: 6px;
+}
+
+.statItem span {
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.statItem strong {
+  font-size: 16px;
+  color: #e8e8e8;
+  font-weight: 600;
+}
+
+/* 置信度阈值 */
+.threshold {
+  margin-bottom: 24px;
+}
+
+.threshold h4 {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sliderContainer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.slider {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #444;
+  border-radius: 2px;
+  outline: none;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #0084ff;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: #0084ff;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
+
+.sliderValue {
+  font-size: 14px;
+  font-weight: 500;
+  color: #e8e8e8;
+  min-width: 40px;
+}
+
+.sliderDesc {
+  margin: 0;
+  font-size: 11px;
+  color: #666;
+}
+
+/* 区域列表 */
+.regions {
+  margin-bottom: 24px;
+}
+
+.regions h4 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.regionCount {
+  font-size: 11px;
+  color: #666;
+}
+
+.regionList {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.regionList::-webkit-scrollbar {
+  width: 6px;
+}
+
+.regionList::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+.regionList::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 3px;
+}
+
+.regionList::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+.regionItem {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: #1e1e1e;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+}
+
+.regionItem:hover {
+  background: #2a2a2a;
+}
+
+.regionItem.selected {
+  background: rgba(0, 132, 255, 0.1);
+  border-color: #0084ff;
+}
+
+.regionIndex {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: #262626;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+}
+
+.regionItem.selected .regionIndex {
+  background: #0084ff;
+  color: white;
+}
+
+.regionInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.regionPos, .regionSize, .regionConf {
+  font-size: 11px;
+  color: #999;
+}
+
+.regionItem.selected .regionPos,
+.regionItem.selected .regionSize,
+.regionItem.selected .regionConf {
+  color: #ccc;
+}
+
+/* Canvas容器 */
+.canvasContainer {
+  flex: 1;
+  position: relative;
+  background: #1e1e1e;
+  background-image:
+    linear-gradient(45deg, #222 25%, transparent 25%),
+    linear-gradient(-45deg, #222 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #222 75%),
+    linear-gradient(-45deg, transparent 75%, #222 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+  overflow: hidden;
+}
+
+.canvas {
+  position: absolute;
+  cursor: grab;
+}
+
+.canvas:active {
+  cursor: grabbing;
+}
+
+/* 错误提示 */
+.error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 20px 20px;
+  padding: 12px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  color: #ef4444;
+  font-size: 13px;
+}
+
+.error svg {
+  stroke: #ef4444;
+  flex-shrink: 0;
+}
+
+/* 加载状态 */
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(0, 132, 255, 0.2);
+  border-top-color: #0084ff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading p {
+  margin-top: 16px;
+  font-size: 13px;
+  color: #999;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .sidePanel {
+    width: 280px;
+  }
+
+  .viewModes {
+    display: none;
+  }
+
+  .toolbar {
+    padding: 0 12px;
+  }
+}

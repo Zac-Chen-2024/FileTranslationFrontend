@@ -14,7 +14,7 @@ import TranslationPage from './pages/TranslationPage';
 import ProfilePage from './pages/ProfilePage';
 import ArchivedClientsPage from './pages/ArchivedClientsPage';
 import PDFTestPage from './pages/PDFTestPage';
-import ImageSeparationPage from './pages/ImageSeparationPage';
+import AdobeStyleImageSeparation from './pages/AdobeStyleImageSeparation';
 
 // 通用组件
 import Notification from './components/common/Notification';
@@ -59,7 +59,7 @@ function App() {
             <Route path="/pdf-test" element={<PDFTestPage />} />
 
             {/* 隐藏工具路由 - 无导航入口，仅通过URL访问 */}
-            <Route path="/image-separation" element={<ImageSeparationPage />} />
+            <Route path="/image-separation" element={<AdobeStyleImageSeparation />} />
 
             {/* 受保护的路由 */}
             <Route 
