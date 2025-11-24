@@ -261,9 +261,16 @@ const ImageSeparationPage = () => {
         {separationResult && !loading && (
           <FabricImageEditor
             ref={editorRef}
-            imageUrl={showBackground ? separationResult.background_image : null}
-            textRegions={textRegions.filter(r => r.visible)}
-            editable={true}
+            imageSrc={showBackground ? separationResult.background_image : null}
+            regions={textRegions.filter(r => r.visible).map(region => ({
+              x: region.bbox.x,
+              y: region.bbox.y,
+              width: region.bbox.width,
+              height: region.bbox.height,
+              dst: `文字区域 ${region.id}`,  // 默认文本
+              src: ''
+            }))}
+            editorKey="image-separation"
           />
         )}
       </div>
