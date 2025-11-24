@@ -533,11 +533,15 @@ export const utilsAPI = {
 // ========== 图片背景文字分离 API ==========
 export const imageSeparationAPI = {
   // 上传图片并分离背景和文字
-  separateImage: async (file) => {
+  separateImage: async (file, useAdvanced = false) => {
     const formData = new FormData();
     formData.append('image', file);
 
-    return await api.post('/api/image-separation/upload', formData, {
+    const url = useAdvanced
+      ? '/api/image-separation/upload?advanced=true'
+      : '/api/image-separation/upload';
+
+    return await api.post(url, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
