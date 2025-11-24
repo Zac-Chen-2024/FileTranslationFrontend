@@ -530,6 +530,27 @@ export const utilsAPI = {
   },
 };
 
+// ========== 图片背景文字分离 API ==========
+export const imageSeparationAPI = {
+  // 上传图片并分离背景和文字
+  separateImage: async (file) => {
+    const formData = new FormData();
+    formData.append('image', file);
+
+    return await api.post('/api/image-separation/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      timeout: 60000, // 60秒超时
+    });
+  },
+
+  // 健康检查
+  healthCheck: async () => {
+    return await api.get('/api/image-separation/health');
+  },
+};
+
 export default api;
 
 
