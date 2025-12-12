@@ -13,7 +13,6 @@ import DashboardPage from './pages/DashboardPage';
 import TranslationPage from './pages/TranslationPage';
 import ProfilePage from './pages/ProfilePage';
 import ArchivedClientsPage from './pages/ArchivedClientsPage';
-import PDFTestPage from './pages/PDFTestPage';
 import AdobeStyleImageSeparation from './pages/AdobeStyleImageSeparation';
 
 // 通用组件
@@ -54,9 +53,6 @@ function App() {
             <Route path="/" element={<WelcomePage />} />
             <Route path="/signin" element={<SignInPage />} />
             <Route path="/signup" element={<SignUpPage />} />
-
-            {/* 测试路由 */}
-            <Route path="/pdf-test" element={<PDFTestPage />} />
 
             {/* 隐藏工具路由 - 无导航入口，仅通过URL访问 */}
             <Route path="/image-separation" element={<AdobeStyleImageSeparation />} />

@@ -42,6 +42,9 @@
 }
 
 .addClientBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   background: var(--primary-blue);
   color: white;
   border: none;
@@ -51,12 +54,18 @@
   cursor: pointer;
   transition: all 0.3s ease;
   font-size: 0.9rem;
+  box-shadow: 0 2px 8px rgba(30, 64, 175, 0.2);
+}
+
+.addClientBtn svg {
+  width: 18px;
+  height: 18px;
 }
 
 .addClientBtn:hover {
-  background: var(--primary-blue-light);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
+  background: var(--primary-blue-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(30, 64, 175, 0.3);
 }
 
 .clientsList {
@@ -218,9 +227,20 @@
 }
 
 .emptyIcon {
-  font-size: 4rem;
-  margin-bottom: 1rem;
-  opacity: 0.5;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.5rem auto;
+  background: var(--neutral-100);
+  border-radius: 20px;
+  color: var(--primary-blue);
+}
+
+.emptyIcon svg {
+  width: 40px;
+  height: 40px;
 }
 
 .emptyTitle {

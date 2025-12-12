@@ -9,6 +9,28 @@ import EditClientModal from '../components/modals/EditClientModal';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import styles from './DashboardPage.module.css';
 
+// SVG图标组件
+const Icons = {
+  // 用户组
+  Users: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+      <circle cx="9" cy="7" r="4"/>
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+      <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </svg>
+  ),
+  // 添加用户
+  UserPlus: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+      <circle cx="8.5" cy="7" r="4"/>
+      <line x1="20" y1="8" x2="20" y2="14"/>
+      <line x1="23" y1="11" x2="17" y2="11"/>
+    </svg>
+  )
+};
+
 const DashboardPage = () => {
   const navigate = useNavigate();
   const { state, actions } = useApp();
@@ -158,21 +180,18 @@ const DashboardPage = () => {
               className={styles.addClientBtn}
               onClick={handleAddClient}
             >
-              {t('addClient')}
+              <Icons.UserPlus />
+              <span>{t('addClient')}</span>
             </button>
           </div>
 
           {clients.length === 0 ? (
             <div className={styles.emptyState}>
-              <div className={styles.emptyIcon}>👥</div>
+              <div className={styles.emptyIcon}>
+                <Icons.Users />
+              </div>
               <h3 className={styles.emptyTitle}>{t('noClientsYet')}</h3>
               <p className={styles.emptyDescription}>{t('addFirstClient')}</p>
-              <button
-                className={styles.addClientBtn}
-                onClick={handleAddClient}
-              >
-                {t('addClient')}
-              </button>
             </div>
           ) : (
             <div className={styles.clientsList}>

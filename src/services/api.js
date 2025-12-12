@@ -533,13 +533,11 @@ export const utilsAPI = {
 // ========== 图片背景文字分离 API ==========
 export const imageSeparationAPI = {
   // 上传图片并分离背景和文字
-  separateImage: async (file, useAdvanced = false) => {
+  separateImage: async (file, mode = 'basic') => {
     const formData = new FormData();
     formData.append('image', file);
 
-    const url = useAdvanced
-      ? '/api/image-separation/upload?advanced=true'
-      : '/api/image-separation/upload';
+    const url = `/api/image-separation/upload?mode=${mode}`;
 
     return await api.post(url, formData, {
       headers: {
@@ -552,6 +550,33 @@ export const imageSeparationAPI = {
   // 健康检查
   healthCheck: async () => {
     return await api.get('/api/image-separation/health');
+  },
+
+  // 删除文字区域（使用inpainting修复）
+  deleteTextFromImage: async (originalImage, region) => {
+    return await api.post('/api/image-separation/delete-text', {
+      original_image: originalImage,
+      region: region
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      timeout: 60000,
+    });
+  },
+
+  // 编辑文字（使用已分离的背景+渲染英文）
+  editTextInImage: async (backgroundImage, region, newText) => {
+    return await api.post('/api/image-separation/edit-text', {
+      background_image: backgroundImage,
+      region: region,
+      new_text: newText
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      timeout: 60000,
+    });
   },
 };
 

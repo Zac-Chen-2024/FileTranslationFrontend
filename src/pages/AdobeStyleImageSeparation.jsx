@@ -12,10 +12,12 @@ const AdobeStyleImageSeparation = () => {
 
   // 视图控制状态
   const [viewMode, setViewMode] = useState('original'); // original, background, detection
-  const [useAdvancedMode, setUseAdvancedMode] = useState(true);
+  const [detectionMode, setDetectionMode] = useState('document'); // basic, advanced, document
   const [showRegions, setShowRegions] = useState(true);
   const [confidenceThreshold, setConfidenceThreshold] = useState(0.5);
   const [selectedRegionId, setSelectedRegionId] = useState(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingRegionId, setEditingRegionId] = useState(null);
 
   // Canvas相关
   const fileInputRef = useRef(null);
@@ -82,10 +84,41 @@ const AdobeStyleImageSeparation = () => {
     setError(null);
 
     try {
-      const response = await imageSeparationAPI.separateImage(fileToUpload, useAdvancedMode);
+      const response = await imageSeparationAPI.separateImage(fileToUpload, detectionMode);
+      console.log('🔍 完整API响应:', response);
+      console.log('🔍 响应类型:', typeof response);
+      console.log('🔍 响应的所有键:', Object.keys(response));
 
-      if (response.data?.success || response.success) {
-        const data = response.data?.data || response.data || response;
+      // API返回格式: { success: true, data: { original_image, background_image, ... } }
+      // 响应拦截器返回 response.data，所以这里response = { success: true, data: {...} }
+      // 实际图片数据在 response.data 里
+      let data = null;
+      if (response.success && response.data) {
+        console.log('✅ 使用 response.data (正确路径)');
+        data = response.data;
+      } else if (response.data?.data) {
+        console.log('✅ 使用 response.data.data');
+        data = response.data.data;
+      } else if (response.data) {
+        console.log('✅ 使用 response.data');
+        data = response.data;
+      } else {
+        console.log('✅ 直接使用 response');
+        data = response;
+      }
+
+      console.log('📦 提取后的data对象:', data);
+      console.log('📦 data的所有键:', data ? Object.keys(data) : 'null');
+      console.log('📦 提取的数据字段检查:', {
+        hasSuccess: !!data.success,
+        hasOriginal: !!data.original_image,
+        hasBackground: !!data.background_image,
+        hasDetection: !!data.detection_visualization,
+        regionsCount: data.text_regions?.length || 0
+      });
+
+      if (data?.success || data) {
+
         setSeparationResult(data);
         setTextRegions(data.text_regions || []);
         await preloadImages(data);
@@ -104,25 +137,54 @@ const AdobeStyleImageSeparation = () => {
 
   // 预加载图片
   const preloadImages = async (data) => {
-    const loadImage = (src) => {
+    const loadImage = (src, name) => {
       return new Promise((resolve) => {
         const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => resolve(null);
+        img.onload = () => {
+          console.log(`✅ ${name} 图片加载成功:`, img.width, 'x', img.height);
+          resolve(img);
+        };
+        img.onerror = (e) => {
+          console.error(`❌ ${name} 图片加载失败:`, e);
+          console.error(`图片源前100字符:`, src ? src.substring(0, 100) : 'null');
+          resolve(null);
+        };
         img.src = src;
       });
     };
 
+    console.log('🖼️ 开始预加载图片，检查数据字段:');
+    console.log('  data.original_image:', data.original_image ? `存在 (${data.original_image.substring(0, 50)}...)` : '❌ 不存在');
+    console.log('  data.background_image:', data.background_image ? `存在 (${data.background_image.substring(0, 50)}...)` : '❌ 不存在');
+    console.log('  data.detection_visualization:', data.detection_visualization ? `存在 (${data.detection_visualization.substring(0, 50)}...)` : '❌ 不存在');
+
     const loadedImages = {};
     if (data.original_image) {
-      loadedImages.original = await loadImage(data.original_image);
+      console.log('正在加载原图...');
+      loadedImages.original = await loadImage(data.original_image, '原图');
+    } else {
+      console.warn('⚠️ data.original_image 字段不存在或为空');
     }
+
     if (data.background_image) {
-      loadedImages.background = await loadImage(data.background_image);
+      console.log('正在加载背景...');
+      loadedImages.background = await loadImage(data.background_image, '背景');
+    } else {
+      console.warn('⚠️ data.background_image 字段不存在或为空');
     }
+
     if (data.detection_visualization) {
-      loadedImages.detection = await loadImage(data.detection_visualization);
+      console.log('正在加载检测可视化...');
+      loadedImages.detection = await loadImage(data.detection_visualization, '检测');
+    } else {
+      console.warn('⚠️ data.detection_visualization 字段不存在或为空');
     }
+
+    console.log('📊 图片加载完成汇总:', {
+      original: !!loadedImages.original,
+      background: !!loadedImages.background,
+      detection: !!loadedImages.detection
+    });
 
     setImages(loadedImages);
   };
@@ -142,6 +204,7 @@ const AdobeStyleImageSeparation = () => {
 
     // 获取当前图片
     const currentImage = images[viewMode] || images.original;
+    console.log('渲染Canvas - viewMode:', viewMode, 'currentImage:', !!currentImage, 'images:', Object.keys(images));
     if (!currentImage) return;
 
     // 保存状态
@@ -190,15 +253,46 @@ const AdobeStyleImageSeparation = () => {
           );
         }
 
+        // 如果区域被编辑过，显示编辑后的文字
+        if (region.edited && region.editedText) {
+          // 填充背景色
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+          ctx.fillRect(
+            region.bbox.x,
+            region.bbox.y,
+            region.bbox.width,
+            region.bbox.height
+          );
+
+          // 绘制编辑后的英文文字
+          ctx.fillStyle = '#000000';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+
+          // 根据区域大小调整字体
+          const fontSize = Math.min(region.bbox.height * 0.6, region.bbox.width / region.editedText.length * 1.5);
+          ctx.font = `${fontSize / scale}px Arial, sans-serif`;
+
+          ctx.fillText(
+            region.editedText,
+            region.bbox.x + region.bbox.width / 2,
+            region.bbox.y + region.bbox.height / 2
+          );
+
+          // 重置对齐方式
+          ctx.textAlign = 'start';
+          ctx.textBaseline = 'alphabetic';
+        }
+
         // 绘制置信度标签
         if (region.confidence !== undefined) {
           // 标签背景
-          const label = `${(confidence * 100).toFixed(0)}%`;
+          const label = region.edited ? '已编辑' : `${(confidence * 100).toFixed(0)}%`;
           ctx.font = `${11 / scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial`;
           const metrics = ctx.measureText(label);
           const labelHeight = 14 / scale;
 
-          ctx.fillStyle = isSelected ? '#0084ff' : 'rgba(0, 0, 0, 0.7)';
+          ctx.fillStyle = region.edited ? '#10b981' : (isSelected ? '#0084ff' : 'rgba(0, 0, 0, 0.7)');
           ctx.fillRect(
             region.bbox.x,
             region.bbox.y - labelHeight - 2 / scale,
@@ -262,20 +356,15 @@ const AdobeStyleImageSeparation = () => {
     return () => window.removeEventListener('resize', updateCanvasSize);
   }, [renderCanvas]);
 
-  // 监听状态变化并重新渲染
-  useEffect(() => {
-    renderCanvas();
-  }, [renderCanvas]);
-
   // Canvas交互 - 鼠标滚轮缩放
-  const handleWheel = (e) => {
+  const handleWheel = useCallback((e) => {
     e.preventDefault();
 
     const delta = e.deltaY > 0 ? 0.9 : 1.1;
     const newScale = Math.min(Math.max(scale * delta, 0.1), 10);
 
     // 以鼠标位置为中心缩放
-    const rect = canvasRef.current.getBoundingClientRect();
+    const rect = containerRef.current.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
@@ -284,7 +373,25 @@ const AdobeStyleImageSeparation = () => {
 
     setScale(newScale);
     setOffset({ x: newOffsetX, y: newOffsetY });
-  };
+  }, [scale, offset]);
+
+  // 监听状态变化并重新渲染
+  useEffect(() => {
+    renderCanvas();
+  }, [renderCanvas]);
+
+  // 添加wheel事件监听器（非被动）
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    // 添加非被动的wheel事件监听器
+    container.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+    };
+  }, [handleWheel]);
 
   // 鼠标拖动
   const handleMouseDown = (e) => {
@@ -370,6 +477,117 @@ const AdobeStyleImageSeparation = () => {
     });
   };
 
+  // 移除选区（只隐藏框，不修改图片）
+  const handleRemoveSelection = () => {
+    if (!selectedRegionId) return;
+
+    const confirmed = window.confirm('只移除选区框，不修改图片背景？');
+    if (!confirmed) return;
+
+    const newRegions = textRegions.filter(r => r.id !== selectedRegionId);
+    setTextRegions(newRegions);
+    setSelectedRegionId(null);
+  };
+
+  // 删除文字（从实际图片上擦除文字，用inpainting修复背景）
+  const handleDeleteText = async () => {
+    if (!selectedRegionId || !separationResult) return;
+
+    const selectedRegion = textRegions.find(r => r.id === selectedRegionId);
+    if (!selectedRegion) return;
+
+    const confirmed = window.confirm('确定要从图片上删除此区域的文字吗？\n将使用智能修复填充背景。');
+    if (!confirmed) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      // 调用后端API删除文字
+      const response = await imageSeparationAPI.deleteTextFromImage(
+        separationResult.original_image,
+        selectedRegion
+      );
+
+      if (response.success && response.data) {
+        // 更新原图
+        const updatedResult = {
+          ...separationResult,
+          original_image: response.data.processed_image
+        };
+        setSeparationResult(updatedResult);
+
+        // 移除选区
+        const newRegions = textRegions.filter(r => r.id !== selectedRegionId);
+        setTextRegions(newRegions);
+        setSelectedRegionId(null);
+
+        // 重新加载图片
+        await preloadImages(updatedResult);
+      } else {
+        setError(response.error || '删除失败');
+      }
+
+    } catch (err) {
+      console.error('删除文字失败:', err);
+      setError('删除文字失败: ' + (err.message || '未知错误'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 编辑选中的区域（替换为英文文字）
+  const handleEditRegion = async () => {
+    if (!selectedRegionId || !separationResult) return;
+
+    const selectedRegion = textRegions.find(r => r.id === selectedRegionId);
+    if (!selectedRegion) return;
+
+    const newText = prompt('请输入要替换的英文文字:', 'Sample Text');
+    if (!newText) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      // 调用后端API编辑文字（使用已分离的背景+渲染英文）
+      const response = await imageSeparationAPI.editTextInImage(
+        separationResult.background_image,
+        selectedRegion,
+        newText
+      );
+
+      if (response.success && response.data) {
+        // 更新背景图
+        const updatedResult = {
+          ...separationResult,
+          background_image: response.data.processed_image
+        };
+        setSeparationResult(updatedResult);
+
+        // 保留选区，不移除
+        // 重新加载图片
+        await preloadImages(updatedResult);
+      } else {
+        setError(response.error || '编辑失败');
+      }
+
+    } catch (err) {
+      console.error('编辑文字失败:', err);
+      setError('编辑文字失败: ' + (err.message || '未知错误'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 切换编辑模式
+  const handleToggleEditMode = () => {
+    setIsEditMode(!isEditMode);
+    if (isEditMode) {
+      setEditingRegionId(null);
+    }
+  };
+
   // 重置
   const handleReset = () => {
     setFile(null);
@@ -381,6 +599,8 @@ const AdobeStyleImageSeparation = () => {
     setImages({});
     setScale(1);
     setOffset({ x: 0, y: 0 });
+    setIsEditMode(false);
+    setEditingRegionId(null);
   };
 
   return (
@@ -456,6 +676,50 @@ const AdobeStyleImageSeparation = () => {
                 </svg>
               </button>
 
+              {/* 移除选区按钮 */}
+              {selectedRegionId && (
+                <button
+                  className={styles.toolBtn}
+                  onClick={handleRemoveSelection}
+                  title="移除选区框（不修改图片）"
+                  style={{ color: '#6b7280' }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                  </svg>
+                </button>
+              )}
+
+              {/* 编辑按钮 */}
+              {selectedRegionId && (
+                <button
+                  className={styles.toolBtn}
+                  onClick={handleEditRegion}
+                  title="编辑文字（擦除中文+渲染英文）"
+                  style={{ color: '#10b981' }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                </button>
+              )}
+
+              {/* 删除文字按钮 */}
+              {selectedRegionId && (
+                <button
+                  className={styles.toolBtn}
+                  onClick={handleDeleteText}
+                  title="删除文字（用背景修复）"
+                  style={{ color: '#ef4444' }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                  </svg>
+                </button>
+              )}
+
               <div className={styles.divider} />
 
               {/* 缩放控制 */}
@@ -526,22 +790,47 @@ const AdobeStyleImageSeparation = () => {
               {/* 模式选择 */}
               <div className={styles.modeSection}>
                 <h4>检测模式</h4>
-                <label className={styles.modeSwitch}>
-                  <input
-                    type="checkbox"
-                    checked={useAdvancedMode}
-                    onChange={(e) => setUseAdvancedMode(e.target.checked)}
-                  />
-                  <span className={styles.switchSlider}></span>
-                  <span className={styles.modeLabel}>
-                    {useAdvancedMode ? '高级模式' : '快速模式'}
-                  </span>
-                </label>
-                <p className={styles.modeDesc}>
-                  {useAdvancedMode
-                    ? '使用多种算法组合，提供更精确的检测结果'
-                    : '快速处理，适合简单文档'}
-                </p>
+                <div className={styles.modeOptions}>
+                  <label className={styles.radioOption}>
+                    <input
+                      type="radio"
+                      name="detectionMode"
+                      value="basic"
+                      checked={detectionMode === 'basic'}
+                      onChange={(e) => setDetectionMode(e.target.value)}
+                    />
+                    <span className={styles.radioLabel}>
+                      <strong>快速模式</strong>
+                      <small>基础检测，速度最快</small>
+                    </span>
+                  </label>
+                  <label className={styles.radioOption}>
+                    <input
+                      type="radio"
+                      name="detectionMode"
+                      value="advanced"
+                      checked={detectionMode === 'advanced'}
+                      onChange={(e) => setDetectionMode(e.target.value)}
+                    />
+                    <span className={styles.radioLabel}>
+                      <strong>高级模式</strong>
+                      <small>多算法组合，适合复杂图片</small>
+                    </span>
+                  </label>
+                  <label className={styles.radioOption}>
+                    <input
+                      type="radio"
+                      name="detectionMode"
+                      value="document"
+                      checked={detectionMode === 'document'}
+                      onChange={(e) => setDetectionMode(e.target.value)}
+                    />
+                    <span className={styles.radioLabel}>
+                      <strong>文档模式</strong>
+                      <small>专为合同/证书优化，识别表格和印章</small>
+                    </span>
+                  </label>
+                </div>
               </div>
             </div>
           ) : (
@@ -611,22 +900,47 @@ const AdobeStyleImageSeparation = () => {
                         className={`${styles.regionItem} ${
                           region.id === selectedRegionId ? styles.selected : ''
                         }`}
-                        onClick={() => setSelectedRegionId(region.id)}
                       >
-                        <div className={styles.regionIndex}>#{idx + 1}</div>
-                        <div className={styles.regionInfo}>
+                        <div
+                          className={styles.regionIndex}
+                          onClick={() => setSelectedRegionId(region.id)}
+                        >#{idx + 1}</div>
+                        <div
+                          className={styles.regionInfo}
+                          onClick={() => setSelectedRegionId(region.id)}
+                        >
                           <div className={styles.regionPos}>
-                            坐标: ({region.bbox.x}, {region.bbox.y})
+                            坐标: ({Math.round(region.bbox.x)}, {Math.round(region.bbox.y)})
                           </div>
                           <div className={styles.regionSize}>
-                            尺寸: {region.bbox.width} × {region.bbox.height}
+                            尺寸: {Math.round(region.bbox.width)} × {Math.round(region.bbox.height)}
                           </div>
                           {region.confidence && (
                             <div className={styles.regionConf}>
                               置信度: {(region.confidence * 100).toFixed(0)}%
                             </div>
                           )}
+                          {region.lang === 'zh' && (
+                            <div className={styles.regionLang}>
+                              语言: 中文
+                            </div>
+                          )}
                         </div>
+                        {region.id === selectedRegionId && (
+                          <button
+                            className={styles.deleteBtn}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveSelection();
+                            }}
+                            title="删除此区域"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                              <line x1="18" y1="6" x2="6" y2="18"/>
+                              <line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                          </button>
+                        )}
                       </div>
                     ))}
                 </div>
@@ -650,17 +964,22 @@ const AdobeStyleImageSeparation = () => {
           {loading && (
             <div className={styles.loading}>
               <div className={styles.spinner}></div>
-              <p>正在使用{useAdvancedMode ? '高级' : '快速'}算法检测...</p>
+              <p>正在使用{
+                detectionMode === 'document' ? '文档专用' :
+                detectionMode === 'advanced' ? '高级' : '快速'
+              }算法检测...</p>
             </div>
           )}
         </div>
 
         {/* Canvas区域 */}
-        <div ref={containerRef} className={styles.canvasContainer}>
+        <div
+          ref={containerRef}
+          className={styles.canvasContainer}
+        >
           <canvas
             ref={canvasRef}
             className={styles.canvas}
-            onWheel={handleWheel}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}

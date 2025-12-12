@@ -269,7 +269,7 @@
 }
 
 .modeSection h4 {
-  margin: 0 0 12px 0;
+  margin: 0 0 16px 0;
   font-size: 13px;
   font-weight: 500;
   color: #999;
@@ -277,62 +277,64 @@
   letter-spacing: 0.5px;
 }
 
-.modeSwitch {
-  position: relative;
+.modeOptions {
   display: flex;
-  align-items: center;
-  margin-bottom: 12px;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.modeSwitch input {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
+.radioOption {
+  display: flex;
+  align-items: flex-start;
+  padding: 12px;
+  background: #262626;
+  border: 1px solid #333;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.switchSlider {
-  position: relative;
-  display: inline-block;
-  width: 44px;
-  height: 24px;
-  background: #444;
-  border-radius: 12px;
-  transition: background 0.3s;
+.radioOption:hover {
+  background: #2a2a2a;
+  border-color: #444;
+}
+
+.radioOption input[type="radio"] {
   margin-right: 12px;
+  margin-top: 2px;
+  width: 16px;
+  height: 16px;
+  accent-color: #0084ff;
+  cursor: pointer;
 }
 
-.switchSlider::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 20px;
-  height: 20px;
-  background: white;
-  border-radius: 50%;
-  transition: transform 0.3s;
+.radioOption input[type="radio"]:checked + .radioLabel {
+  color: #0084ff;
 }
 
-.modeSwitch input:checked + .switchSlider {
-  background: #0084ff;
-}
-
-.modeSwitch input:checked + .switchSlider::after {
-  transform: translateX(20px);
-}
-
-.modeLabel {
-  font-size: 14px;
-  font-weight: 500;
+.radioOption input[type="radio"]:checked ~ .radioLabel strong {
   color: #e8e8e8;
 }
 
-.modeDesc {
-  margin: 0;
+.radioLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.radioLabel strong {
+  font-size: 14px;
+  font-weight: 500;
+  color: #ccc;
+  display: block;
+}
+
+.radioLabel small {
   font-size: 12px;
   color: #666;
-  line-height: 1.5;
+  line-height: 1.4;
+  display: block;
 }
 
 /* 控制面板 */
@@ -541,8 +543,34 @@
 
 .regionItem.selected .regionPos,
 .regionItem.selected .regionSize,
-.regionItem.selected .regionConf {
+.regionItem.selected .regionConf,
+.regionItem.selected .regionLang {
   color: #ccc;
+}
+
+.regionLang {
+  font-size: 11px;
+  color: #999;
+}
+
+.deleteBtn {
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #ef4444;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.deleteBtn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: #ef4444;
 }
 
 /* Canvas容器 */

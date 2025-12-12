@@ -1,163 +1,310 @@
+/* 认证页面 - 统一设计系统 */
+
 .authPage {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--neutral-900) 0%, var(--primary-blue-dark) 100%);
+  background: linear-gradient(135deg, var(--primary-blue-dark) 0%, var(--primary-blue) 50%, var(--primary-blue-light) 100%);
   position: relative;
+  overflow: hidden;
 }
 
+/* 背景装饰 */
+.authPage::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 50%);
+  animation: rotate 40s linear infinite;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* 返回按钮 */
 .backBtn {
   position: absolute;
   top: 2rem;
   left: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  color: var(--neutral-200);
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
+  color: white;
+  padding: 10px 16px;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.3s ease;
-  font-size: 0.9rem;
+  font-size: 14px;
+  font-weight: 500;
   backdrop-filter: blur(10px);
+  z-index: 10;
+}
+
+.backBtn svg {
+  width: 18px;
+  height: 18px;
 }
 
 .backBtn:hover {
   background: rgba(255, 255, 255, 0.2);
-  transform: translateX(-2px);
+  transform: translateX(-4px);
 }
 
+/* 认证容器 */
 .authContainer {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  padding: 3rem;
-  max-width: 400px;
+  background: var(--white);
+  border-radius: 20px;
+  padding: 40px;
+  max-width: 420px;
   width: 100%;
   margin: 2rem;
-  backdrop-filter: blur(20px);
   box-shadow: var(--shadow-xl);
+  position: relative;
+  z-index: 1;
 }
 
+/* Logo区域 */
+.logoSection {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.logo {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--primary-blue) 0%, var(--primary-blue-dark) 100%);
+  color: white;
+  margin: 0 auto 12px auto;
+  box-shadow: 0 8px 20px rgba(30, 64, 175, 0.25);
+}
+
+.logo svg {
+  width: 36px;
+  height: 36px;
+}
+
+.brandName {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--neutral-700);
+  margin: 0;
+}
+
+/* 标题区域 */
 .authHeader {
   text-align: center;
-  margin-bottom: 2rem;
+  margin-bottom: 28px;
 }
 
 .authTitle {
-  font-size: 2rem;
+  font-size: 26px;
   font-weight: 700;
-  color: var(--neutral-100);
-  margin-bottom: 0.5rem;
+  color: var(--neutral-900);
+  margin: 0 0 8px 0;
 }
 
 .authSubtitle {
-  color: var(--neutral-400);
-  font-size: 0.9rem;
-  line-height: 1.4;
+  color: var(--neutral-500);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
 }
 
+/* 表单组 */
 .formGroup {
-  margin-bottom: 1.5rem;
+  margin-bottom: 20px;
 }
 
 .formLabel {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-weight: 600;
-  color: var(--neutral-200);
-  margin-bottom: 0.5rem;
-  font-size: 0.9rem;
+  color: var(--neutral-700);
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.formLabel svg {
+  width: 16px;
+  height: 16px;
+  color: var(--primary-blue);
 }
 
 .formInput {
   width: 100%;
-  padding: 0.75rem 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--neutral-100);
-  font-size: 1rem;
+  padding: 12px 16px;
+  border: 1px solid var(--neutral-200);
+  border-radius: 10px;
+  background: var(--neutral-50);
+  color: var(--neutral-900);
+  font-size: 15px;
   transition: all 0.3s ease;
-  backdrop-filter: blur(10px);
 }
 
 .formInput:focus {
   outline: none;
-  border-color: var(--primary-blue-light);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-  background: rgba(255, 255, 255, 0.15);
+  border-color: var(--primary-blue);
+  box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1);
+  background: white;
 }
 
 .formInput::placeholder {
   color: var(--neutral-400);
 }
 
+/* 提交按钮 */
 .submitBtn {
   width: 100%;
-  padding: 0.875rem;
+  padding: 14px;
   background: var(--primary-blue);
   color: white;
   border: none;
-  border-radius: 8px;
-  font-size: 1rem;
+  border-radius: 10px;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  margin-bottom: 1rem;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(30, 64, 175, 0.25);
+}
+
+.submitBtn svg {
+  width: 20px;
+  height: 20px;
 }
 
 .submitBtn:hover:not(:disabled) {
-  background: var(--primary-blue-light);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-lg);
+  background: var(--primary-blue-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(30, 64, 175, 0.35);
 }
 
 .submitBtn:disabled {
-  background: var(--neutral-600);
+  background: var(--neutral-400);
   cursor: not-allowed;
   transform: none;
-  opacity: 0.7;
+  box-shadow: none;
 }
 
+/* 切换链接 */
 .authSwitch {
   text-align: center;
-  color: var(--neutral-400);
-  font-size: 0.9rem;
+  color: var(--neutral-500);
+  font-size: 14px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--neutral-200);
 }
 
 .authSwitch a {
-  color: var(--primary-blue-light);
+  color: var(--primary-blue);
   text-decoration: none;
   font-weight: 600;
+  margin-left: 4px;
   transition: color 0.3s ease;
 }
 
 .authSwitch a:hover {
-  color: var(--primary-blue);
+  color: var(--primary-blue-dark);
   text-decoration: underline;
+}
+
+/* 暗色模式支持 */
+[data-theme="dark"] .authContainer {
+  background: var(--neutral-100);
+}
+
+[data-theme="dark"] .brandName {
+  color: var(--neutral-300);
+}
+
+[data-theme="dark"] .formInput {
+  background: var(--neutral-50);
+  border-color: var(--neutral-200);
+  color: var(--neutral-900);
+}
+
+[data-theme="dark"] .formInput:focus {
+  background: var(--white);
+  border-color: var(--primary-blue-light);
+}
+
+[data-theme="dark"] .formInput::placeholder {
+  color: var(--neutral-500);
+}
+
+[data-theme="dark"] .authSwitch {
+  border-top-color: var(--neutral-200);
 }
 
 /* 响应式设计 */
 @media (max-width: 768px) {
   .authContainer {
-    padding: 2rem;
+    padding: 32px 24px;
     margin: 1rem;
+    border-radius: 16px;
   }
-  
+
   .authTitle {
-    font-size: 1.75rem;
+    font-size: 22px;
   }
-  
+
   .backBtn {
     top: 1rem;
     left: 1rem;
-    padding: 0.4rem 0.8rem;
-    font-size: 0.8rem;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  .backBtn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .logo {
+    width: 56px;
+    height: 56px;
+  }
+
+  .logo svg {
+    width: 32px;
+    height: 32px;
   }
 }
 
+@media (max-width: 480px) {
+  .authPage {
+    padding: 0;
+  }
 
+  .authContainer {
+    margin: 0;
+    border-radius: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
 
-
-
-
+  .backBtn {
+    top: 0.75rem;
+    left: 0.75rem;
+  }
+}
