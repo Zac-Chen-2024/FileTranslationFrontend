@@ -1,0 +1,92 @@
+/* StatusProgressBar - 统一进度显示组件样式 */
+
+.statusBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  min-width: 200px;
+  flex-shrink: 1;
+  gap: 0.75rem;
+  transition: background-color 0.3s ease;
+}
+
+.statusInfo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.statusBadge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.spinnerIcon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.statusDescription {
+  color: var(--neutral-600);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.progressWrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.progressBar {
+  width: 80px;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.progressText {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--neutral-600);
+  min-width: 32px;
+  text-align: right;
+}
+
+/* 暗色主题支持 */
+[data-theme="dark"] .statusDescription {
+  color: var(--neutral-400);
+}
+
+[data-theme="dark"] .progressText {
+  color: var(--neutral-400);
+}
+
+[data-theme="dark"] .progressBar {
+  background: rgba(255, 255, 255, 0.1);
+}

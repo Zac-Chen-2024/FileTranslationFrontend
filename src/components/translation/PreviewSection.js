@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useApp } from '../../contexts/AppContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { materialAPI } from '../../services/api';
+import { materialAPI, atomicAPI } from '../../services/api';
 import LaTeXEditModal from '../modals/LaTeXEditModal';
 import LaTeXEditModalV2 from '../modals/LaTeXEditModalV2';
 import FabricImageEditor from './FabricImageEditor';
@@ -35,6 +35,7 @@ const PreviewSection = () => {
   const [showEntityModal, setShowEntityModal] = React.useState(false);
   const [entityResults, setEntityResults] = React.useState([]);
   const [entityModalLoading, setEntityModalLoading] = React.useState(false);
+  const [isRetranslateFlow, setIsRetranslateFlow] = React.useState(false);  // 标记是否为重新翻译流程
 
   // LLM Translation states
   const [llmRegions, setLlmRegions] = React.useState([]);
@@ -202,76 +203,14 @@ const PreviewSection = () => {
     actions.setCurrentMaterial(newPage);
   };
 
-  // 重新翻译当前图片 - 只翻译这一张
+  // 重新翻译当前图片 - 显示模式选择对话框
   const handleRetranslateCurrentImage = useCallback(async () => {
     if (!currentMaterial) return;
 
-    try {
-      actions.showNotification(t('retranslating'), t('retranslatingCurrentImage'), 'info');
-
-      // 调用单个材料的重新翻译API
-      const { materialAPI } = await import('../../services/api');
-      const response = await materialAPI.retranslateMaterial(currentMaterial.id);
-
-      if (response.success) {
-        // 首先清除当前material，让编辑器卸载
-        actions.setCurrentMaterial(null);
-
-        // 等待一帧，让React完成卸载
-        await new Promise(resolve => requestAnimationFrame(resolve));
-
-        // 清除所有旧状态
-        setLlmRegions([]);
-        setBaiduRegions([]);
-        setSavedEditedImage(null);
-        setSavedRegions([]);
-        setEditedImageData(null);
-        setEditedImageBlob(null);
-
-        // 重置LLM触发标志
-        llmTriggeredRef.current[currentMaterial.id] = false;
-
-        // 更新当前材料，使用新的翻译结果
-        const updatedMaterial = {
-          ...currentMaterial,
-          id: currentMaterial.id,
-          name: currentMaterial.name,
-          filePath: currentMaterial.filePath,
-          translationTextInfo: response.material.translationTextInfo,
-          llmTranslationResult: response.material.llmTranslationResult,
-          status: response.material.status,
-          processingProgress: response.material.processingProgress,
-          processingStep: response.material.processingStep,
-          translationError: null,
-          // 清除编辑相关字段
-          editedImagePath: null,
-          finalImagePath: null,
-          hasEditedVersion: false,
-          editedRegions: null,
-          // 保留PDF相关字段
-          pdfSessionId: response.material.pdfSessionId || currentMaterial.pdfSessionId,
-          pdfPageNumber: response.material.pdfPageNumber || currentMaterial.pdfPageNumber,
-          pdfTotalPages: response.material.pdfTotalPages || currentMaterial.pdfTotalPages
-        };
-
-        // 先更新material列表
-        actions.updateMaterial(currentMaterial.id, updatedMaterial);
-
-        // 等待一小会儿
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        // 然后设置为当前material，触发重新渲染
-        actions.setCurrentMaterial(updatedMaterial);
-
-        actions.showNotification(t('retranslateComplete'), t('clearedEditContent'), 'success');
-      } else {
-        throw new Error(response.error || t('retranslateFailed'));
-      }
-    } catch (error) {
-      console.error('重新翻译失败:', error);
-      actions.showNotification(t('error'), error.message || t('operationError'), 'error');
-    }
-  }, [currentMaterial, actions, t]);
+    // 设置为重新翻译流程，然后显示模式选择对话框
+    setIsRetranslateFlow(true);
+    setShowEntityModal(true);
+  }, [currentMaterial]);
 
   // 旋转图片（只旋转，不重新翻译）
   const handleRotateImage = useCallback(async () => {
@@ -350,7 +289,8 @@ const PreviewSection = () => {
   const handleStartTranslation = useCallback(async () => {
     if (!currentMaterial || !currentMaterial.clientId) return;
 
-    // 显示实体识别模式选择对话框
+    // 设置为首次翻译流程，显示模式选择对话框
+    setIsRetranslateFlow(false);
     setShowEntityModal(true);
   }, [currentMaterial]);
 
@@ -358,7 +298,9 @@ const PreviewSection = () => {
   const handleEntityModeConfirm = useCallback(async (mode) => {
     if (!currentMaterial) return;
 
+    const wasRetranslateFlow = isRetranslateFlow;
     setShowEntityModal(false);
+    setIsRetranslateFlow(false);  // 重置标志
 
     try {
       const { materialAPI } = await import('../../services/api');
@@ -376,85 +318,149 @@ const PreviewSection = () => {
         console.log(`🔄 [PDF Session ${sessionId}] 重置实体识别ref，准备新的翻译流程`);
       }
 
-      if (mode === 'disabled') {
-        // 路径A: 不启用实体识别，直接进行OCR翻译
-        // 为所有页面禁用实体识别
-        if (isPDF) {
-          await Promise.all(materialIds.map(id =>
-            materialAPI.enableEntityRecognition(id, false)
-          ));
-        } else {
-          await materialAPI.enableEntityRecognition(currentMaterial.id, false);
+      // ======= 单页图片：使用原子化API =======
+      if (!isPDF) {
+        // 清除旧状态（如果是重新翻译）
+        if (wasRetranslateFlow) {
+          actions.setCurrentMaterial(null);
+          await new Promise(resolve => requestAnimationFrame(resolve));
+          setLlmRegions([]);
+          setBaiduRegions([]);
+          setSavedEditedImage(null);
+          setSavedRegions([]);
+          setEditedImageData(null);
+          setEditedImageBlob(null);
+          llmTriggeredRef.current[currentMaterial.id] = false;
         }
 
+        // 步骤1: 使用原子API执行百度OCR
+        actions.showNotification('开始翻译', '正在执行OCR翻译...', 'info');
+        const baiduResult = await atomicAPI.translateBaidu(currentMaterial.id, {
+          clearPreviousData: wasRetranslateFlow
+        });
+
+        if (!baiduResult.success) {
+          throw new Error(baiduResult.error || 'OCR翻译失败');
+        }
+
+        // 更新材料状态
+        const updatedMaterial = {
+          ...currentMaterial,
+          translationTextInfo: baiduResult.translationTextInfo,
+          processingStep: baiduResult.processingStep,
+          status: '翻译完成'
+        };
+        actions.updateMaterial(currentMaterial.id, updatedMaterial);
+        actions.setCurrentMaterial(updatedMaterial);
+
+        if (mode === 'disabled') {
+          // 快速模式：直接执行LLM优化
+          actions.showNotification('OCR完成', '正在进行LLM优化翻译...', 'info');
+
+          try {
+            const llmResult = await atomicAPI.llmOptimize(currentMaterial.id, {
+              useEntityGuidance: false
+            });
+
+            if (llmResult.success) {
+              actions.showNotification('翻译完成', llmResult.message || '翻译优化已完成', 'success');
+              actions.updateMaterial(currentMaterial.id, {
+                processingStep: llmResult.processingStep,
+                llmTranslationResult: llmResult.llmTranslationResult
+              });
+            } else {
+              throw new Error(llmResult.error || 'LLM翻译失败');
+            }
+          } catch (llmError) {
+            console.error('LLM翻译失败:', llmError);
+            actions.showNotification('LLM翻译失败', `${llmError.message}（可点击重试）`, 'error');
+          }
+        } else if (mode === 'standard' || mode === 'deep') {
+          // 标准/深度模式：执行实体识别
+          actions.showNotification('OCR完成', `正在进行${mode === 'deep' ? '深度' : '快速'}实体识别...`, 'info');
+
+          try {
+            const entityResult = await atomicAPI.entityRecognize(currentMaterial.id, mode === 'deep' ? 'deep' : 'fast');
+
+            if (entityResult.success) {
+              // 更新材料状态
+              actions.updateMaterial(currentMaterial.id, {
+                processingStep: entityResult.processingStep,
+                entityRecognitionResult: JSON.stringify(entityResult.entityResult),
+                entityRecognitionEnabled: true,
+                entityRecognitionMode: mode
+              });
+
+              // 显示实体结果Modal让用户确认
+              setEntityResults(entityResult.entities || []);
+
+              actions.showNotification(
+                '实体识别完成',
+                `识别到 ${entityResult.entities?.length || 0} 个实体，请确认翻译`,
+                'success'
+              );
+            } else {
+              throw new Error(entityResult.error || '实体识别失败');
+            }
+          } catch (entityError) {
+            console.error('实体识别失败:', entityError);
+            actions.showNotification('实体识别失败', entityError.message, 'error');
+            // 即使实体识别失败，也可以继续LLM翻译
+          }
+        }
+
+        return;  // 单页图片处理完成，直接返回
+      }
+
+      // ======= PDF模式：保留原有逻辑（使用旧API）=======
+      if (mode === 'disabled') {
+        // 路径A: 不启用实体识别，直接进行OCR翻译
+        await Promise.all(materialIds.map(id =>
+          materialAPI.enableEntityRecognition(id, false)
+        ));
+
         actions.showNotification('开始翻译', '正在启动翻译任务...', 'info');
-        // 翻译所有页面
         await materialAPI.startTranslation(currentMaterial.clientId, materialIds);
 
         actions.showNotification(
           '翻译已启动',
-          isPDF
-            ? `正在翻译PDF的${pageCount}页，请稍候...`
-            : '正在翻译图片，请稍候...',
+          `正在翻译PDF的${pageCount}页，请稍候...`,
           'success'
         );
       } else if (mode === 'deep') {
         // 路径B: 深度模式 - 全自动流程
-        // 为所有页面启用实体识别（深度模式）
-        if (isPDF) {
-          await Promise.all(materialIds.map(id =>
-            materialAPI.enableEntityRecognition(id, true, 'deep')
-          ));
-        } else {
-          await materialAPI.enableEntityRecognition(currentMaterial.id, true, 'deep');
-        }
+        await Promise.all(materialIds.map(id =>
+          materialAPI.enableEntityRecognition(id, true, 'deep')
+        ));
 
-        // 启动OCR翻译（所有页面）
         actions.showNotification('开始翻译', '正在启动翻译任务...', 'info');
         await materialAPI.startTranslation(currentMaterial.clientId, materialIds);
 
-        // 显示等待提示
         actions.showNotification(
           '深度识别启动',
-          isPDF
-            ? `正在翻译PDF的${pageCount}页，翻译完成后将自动进行深度实体识别...`
-            : '翻译完成后将自动进行深度实体识别（预计30-120秒），请稍候...',
+          `正在翻译PDF的${pageCount}页，翻译完成后将自动进行深度实体识别...`,
           'info'
         );
-
-        // WebSocket会监听所有页面OCR完成状态，然后自动触发深度识别
       } else if (mode === 'standard') {
         // 路径C: 标准模式 - 快速识别 + 用户选择
-        // 为所有页面启用实体识别（标准模式）
-        if (isPDF) {
-          await Promise.all(materialIds.map(id =>
-            materialAPI.enableEntityRecognition(id, true, 'standard')
-          ));
-        } else {
-          await materialAPI.enableEntityRecognition(currentMaterial.id, true, 'standard');
-        }
+        await Promise.all(materialIds.map(id =>
+          materialAPI.enableEntityRecognition(id, true, 'standard')
+        ));
 
-        // 启动OCR翻译（所有页面）
         actions.showNotification('开始翻译', '正在启动翻译任务...', 'info');
         await materialAPI.startTranslation(currentMaterial.clientId, materialIds);
 
         actions.showNotification(
           '标准模式启动',
-          isPDF
-            ? `正在翻译PDF的${pageCount}页，翻译完成后将进行整体实体识别...`
-            : '翻译完成后将进行快速实体识别，请稍候...',
+          `正在翻译PDF的${pageCount}页，翻译完成后将进行整体实体识别...`,
           'info'
         );
-
-        // 对于PDF：WebSocket会监听所有页面OCR完成状态，然后触发整个PDF Session的实体识别
-        // 对于单页图片：WebSocket会监听OCR完成，然后触发该页的快速识别
-        // 快速识别完成后会显示EntityResultModal让用户选择
       }
     } catch (error) {
       console.error('启动翻译失败:', error);
       actions.showNotification('启动失败', error.message || '无法启动翻译', 'error');
     }
-  }, [currentMaterial, pdfPages, actions]);
+  }, [currentMaterial, pdfPages, actions, isRetranslateFlow]);
 
   // 处理跳过实体识别
   const handleEntitySkip = useCallback(async () => {
@@ -559,21 +565,60 @@ const PreviewSection = () => {
           'success'
         );
       } else {
-        // ===== 单页图片: 确认当前页面的实体 =====
+        // ===== 单页图片: 使用原子化API确认实体 =====
         // 立即更新本地状态，防止 Modal 重复弹出
         actions.updateMaterial(currentMaterial.id, {
           entity_recognition_confirmed: true,
           processing_step: 'entity_confirmed'
         });
 
-        // 确认实体
-        await materialAPI.confirmEntities(currentMaterial.id, entities, translationGuidance);
+        // 步骤1: 原子API确认实体（不自动触发LLM）
+        const confirmResult = await atomicAPI.entityConfirm(
+          currentMaterial.id,
+          entities,
+          translationGuidance
+        );
+
+        if (!confirmResult.success) {
+          throw new Error(confirmResult.error || '确认实体失败');
+        }
 
         actions.showNotification(
           '实体确认成功',
-          '已确认实体翻译，LLM翻译将自动开始',
-          'success'
+          '正在启动LLM翻译优化...',
+          'info'
         );
+
+        // 步骤2: 原子API执行LLM优化（前端主动控制）
+        try {
+          const llmResult = await atomicAPI.llmOptimize(currentMaterial.id, {
+            useEntityGuidance: true
+          });
+
+          if (llmResult.success) {
+            actions.showNotification(
+              'LLM翻译完成',
+              llmResult.message || '翻译优化已完成',
+              'success'
+            );
+
+            // 更新材料状态
+            actions.updateMaterial(currentMaterial.id, {
+              processingStep: llmResult.processingStep,
+              llmTranslationResult: llmResult.llmTranslationResult
+            });
+          } else {
+            throw new Error(llmResult.error || 'LLM翻译失败');
+          }
+        } catch (llmError) {
+          console.error('LLM翻译失败:', llmError);
+          actions.showNotification(
+            'LLM翻译失败',
+            `${llmError.message}（可点击重试按钮重新翻译）`,
+            'error'
+          );
+          // 注意：实体已确认，只是LLM失败，用户可以手动重试
+        }
       }
     } catch (error) {
       console.error('确认实体失败:', error);
@@ -1563,55 +1608,19 @@ const PreviewSection = () => {
 
                     return shouldShowLoading;
                   })() ? (
-                    <div className={styles.processingContainer}>
-                      <div className={styles.processingContent}>
-                        <div className={styles.processingIconWrapper}>
-                          <div className={styles.processingIcon}>
-                            <svg className={styles.spinning} width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-                            </svg>
-                          </div>
-                        </div>
-                        <h3 className={styles.processingTitle}>
-                          {(currentMaterial.status === '拆分中' || currentMaterial.processingStep === 'splitting') && t('splittingPdfPages')}
-                          {currentMaterial.processingStep === 'uploaded' && t('preparingTranslation')}
-                          {(currentMaterial.processingStep === 'translating' || (pdfSessionProgress && pdfSessionProgress.someTranslating)) && t('statusTranslatingProgress')}
-                          {llmLoading && t('aiOptimizing')}
-                          {!currentMaterial.processingStep && !llmLoading && !currentMaterial.status === '拆分中' && t('statusProcessing')}
-                        </h3>
-                        <div className={styles.processingSteps}>
-                          <div className={`${styles.processingStep} ${(pdfSessionProgress ? pdfSessionProgress.progress >= 33 : currentMaterial.processingProgress >= 33) ? styles.active : ''}`}>
-                            <div className={styles.stepIcon}>
-                              {(pdfSessionProgress ? pdfSessionProgress.progress >= 33 : currentMaterial.processingProgress >= 33) ? '✓' : '1'}
-                            </div>
-                            <span>{t('uploadComplete')}</span>
-                          </div>
-                          <div className={styles.stepLine}></div>
-                          <div className={`${styles.processingStep} ${(pdfSessionProgress ? pdfSessionProgress.progress >= 66 : currentMaterial.processingProgress >= 66) ? styles.active : (currentMaterial.processingStep === 'translating' || (pdfSessionProgress && pdfSessionProgress.someTranslating)) ? styles.current : ''}`}>
-                            <div className={styles.stepIcon}>
-                              {(pdfSessionProgress ? pdfSessionProgress.progress >= 66 : currentMaterial.processingProgress >= 66) ? '✓' : '2'}
-                            </div>
-                            <span>{t('machineTranslation')}</span>
-                          </div>
-                          <div className={styles.stepLine}></div>
-                          <div className={`${styles.processingStep} ${(pdfSessionProgress ? pdfSessionProgress.progress === 100 : currentMaterial.processingProgress === 100) ? styles.active : llmLoading ? styles.current : ''}`}>
-                            <div className={styles.stepIcon}>
-                              {(pdfSessionProgress ? pdfSessionProgress.progress === 100 : currentMaterial.processingProgress === 100) ? '✓' : '3'}
-                            </div>
-                            <span>{t('aiOptimization')}</span>
-                          </div>
-                        </div>
-                        <div className={styles.progressBarWrapper}>
-                          <div className={styles.progressBar}>
-                            <div
-                              className={styles.progressFill}
-                              style={{ width: `${pdfSessionProgress ? pdfSessionProgress.progress : (llmLoading && currentMaterial.processingProgress < 66 ? 66 : (currentMaterial.processingProgress || 0))}%` }}
-                            ></div>
-                          </div>
-                          <span className={styles.progressText}>{pdfSessionProgress ? pdfSessionProgress.progress : (llmLoading && currentMaterial.processingProgress < 66 ? 66 : (currentMaterial.processingProgress || 0))}%</span>
-                        </div>
-                        <p className={styles.processingTip}>{t('pleaseWait')}</p>
+                    <div className={styles.processingOverlay}>
+                      <div className={styles.processingSpinner}>
+                        <svg className={styles.spinning} width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                        </svg>
                       </div>
+                      <p className={styles.processingText}>
+                        {(currentMaterial.status === '拆分中' || currentMaterial.processingStep === 'splitting') && 'PDF拆分中...'}
+                        {currentMaterial.processingStep === 'uploaded' && '准备翻译...'}
+                        {(currentMaterial.processingStep === 'translating' || (pdfSessionProgress && pdfSessionProgress.someTranslating)) && '翻译中...'}
+                        {llmLoading && '优化中...'}
+                        {!currentMaterial.processingStep && !llmLoading && currentMaterial.status !== '拆分中' && '处理中...'}
+                      </p>
                     </div>
                   ) : !currentMaterial.translationTextInfo ? (
                     /* ✅ 没有翻译结果时（包括status='已上传'），显示原图编辑器供用户预览和旋转 */

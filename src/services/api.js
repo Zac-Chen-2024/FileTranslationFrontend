@@ -353,8 +353,12 @@ export const materialAPI = {
   },
 
   // 重新翻译单个材料
-  retranslateMaterial: async (materialId) => {
-    return await api.post(`/api/materials/${materialId}/retranslate`, {}, {
+  // options: { preserveEntityData: bool, skipLLM: bool }
+  retranslateMaterial: async (materialId, options = {}) => {
+    return await api.post(`/api/materials/${materialId}/retranslate`, {
+      preserveEntityData: options.preserveEntityData || false,
+      skipLLM: options.skipLLM || false
+    }, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -453,6 +457,80 @@ export const translationAPI = {
   // 网页翻译（GPT）
   translateWebpageGPT: async (url) => {
     return await api.post('/api/webpage-gpt-translate', { url });
+  },
+};
+
+/**
+ * 原子化翻译API - 解耦重构
+ *
+ * 设计原则：
+ * 1. 每个API只做一件事
+ * 2. 返回 availableActions 让前端决定下一步
+ * 3. 不自动触发后续流程
+ */
+export const atomicAPI = {
+  /**
+   * 原子操作：只执行百度OCR翻译
+   * 不触发实体识别，不触发LLM优化
+   */
+  translateBaidu: async (materialId, options = {}) => {
+    return await api.post(`/api/materials/${materialId}/translate-baidu`, {
+      clearPreviousData: options.clearPreviousData ?? true
+    }, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  },
+
+  /**
+   * 原子操作：只执行实体识别
+   * 不自动确认，不触发LLM
+   * @param {string} materialId
+   * @param {string} mode - 'fast' | 'deep'
+   */
+  entityRecognize: async (materialId, mode = 'fast') => {
+    return await api.post(`/api/materials/${materialId}/entity/recognize`, {
+      mode
+    }, {
+      headers: { 'Content-Type': 'application/json' },
+      timeout: mode === 'deep' ? 180000 : 60000, // 深度模式3分钟，快速模式1分钟
+    });
+  },
+
+  /**
+   * 原子操作：只确认实体编辑
+   * 不自动触发LLM！前端决定是否调用 llmOptimize
+   */
+  entityConfirm: async (materialId, entities, translationGuidance = null) => {
+    return await api.post(`/api/materials/${materialId}/entity/confirm`, {
+      entities,
+      translationGuidance
+    }, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  },
+
+  /**
+   * 原子操作：跳过实体识别/确认
+   * 将状态恢复到 translated
+   */
+  entitySkip: async (materialId) => {
+    return await api.post(`/api/materials/${materialId}/entity/skip`, {}, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  },
+
+  /**
+   * 原子操作：只执行LLM优化翻译
+   * 可以从 translated 或 entity_confirmed 状态调用
+   * 支持独立调用和重试
+   */
+  llmOptimize: async (materialId, options = {}) => {
+    return await api.post(`/api/materials/${materialId}/llm/optimize`, {
+      useEntityGuidance: options.useEntityGuidance ?? true
+    }, {
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 300000, // 5分钟超时
+    });
   },
 };
 

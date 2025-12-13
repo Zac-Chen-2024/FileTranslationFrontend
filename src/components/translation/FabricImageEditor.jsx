@@ -757,6 +757,8 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
   
   // 记录上一次的图片URL
   const previousImageSrcRef = useRef(null);
+  // 记录上一次的regions（用于检测翻译结果更新）
+  const previousRegionsRef = useRef(null);
 
   // 加载图片
   useEffect(() => {
@@ -765,8 +767,19 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     // 检查图片URL是否改变（用于旋转等场景）
     const imageChanged = previousImageSrcRef.current !== imageSrc;
 
-    // 如果已经初始化过，且图片URL没有改变，则跳过
-    if (initializedRef.current && !imageChanged) {
+    // 检查regions是否改变（用于翻译结果更新）
+    const regionsChanged = JSON.stringify(previousRegionsRef.current) !== JSON.stringify(regions);
+
+    // 如果已经初始化过，且图片URL和regions都没有改变，则跳过
+    if (initializedRef.current && !imageChanged && !regionsChanged) {
+      return;
+    }
+
+    // 仅regions变化时（如LLM翻译完成），只更新文本区域，不重新加载图片
+    if (initializedRef.current && !imageChanged && regionsChanged) {
+      console.log('🔄 Regions changed, updating text regions without reloading image');
+      previousRegionsRef.current = regions;
+      initializeTextRegions(regions);
       return;
     }
 
@@ -779,6 +792,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       // 重置初始化标记，允许重新加载
       initializedRef.current = false;
       previousImageSrcRef.current = imageSrc;
+      previousRegionsRef.current = regions;
     }
 
     const canvas = fabricCanvasRef.current;
@@ -875,6 +889,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
         // 标记为已初始化
         initializedRef.current = true;
+        previousRegionsRef.current = regions;
         });
       }, 100); // 延迟 100ms 确保容器布局完成
     }, {

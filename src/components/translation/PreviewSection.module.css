@@ -32,6 +32,93 @@
   flex-shrink: 0;
 }
 
+/* ========== 状态进度条 ========== */
+.statusBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  min-width: 200px;
+  flex-shrink: 1;
+  gap: 0.75rem;
+}
+
+.statusInfo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.statusBadge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.spinnerIcon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.statusDescription {
+  color: var(--neutral-600);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+.progressWrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.progressBar {
+  width: 60px;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.progressText {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--neutral-600);
+  min-width: 32px;
+  text-align: right;
+}
+
+[data-theme="dark"] .statusDescription {
+  color: var(--neutral-400);
+}
+
+[data-theme="dark"] .progressText {
+  color: var(--neutral-400);
+}
+
+[data-theme="dark"] .progressBar {
+  background: rgba(255, 255, 255, 0.1);
+}
+/* ========== 状态进度条结束 ========== */
+
 /* 按钮工具栏 - 水平布局，自动换行 */
 .actions {
   display: flex;
@@ -1258,212 +1345,43 @@
   background-color: rgba(74, 158, 255, 0.1);
 }
 
-/* 翻译处理中显示样式 */
-.processingContainer {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
-  border-radius: 12px;
-  padding: 3rem;
-}
-
-.processingContent {
-  text-align: center;
-  max-width: 500px;
-}
-
-.processingIconWrapper {
-  margin-bottom: 2rem;
-}
-
-.processingIcon {
-  display: inline-block;
-}
-
-.processingIcon .spinning {
-  color: var(--primary-blue);
-  animation: spin 1.5s linear infinite;
-}
-
-.processingTitle {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--primary-blue);
-  margin: 0 0 2rem 0;
-}
-
-.processingSteps {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 2rem 0;
-  gap: 1rem;
-}
-
-.processingStep {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  opacity: 0.4;
-  transition: all 0.3s ease;
-}
-
-.processingStep.active {
-  opacity: 1;
-}
-
-.processingStep.current {
-  opacity: 1;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.1);
-  }
-}
-
-.stepIcon {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: var(--neutral-300);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 1.1rem;
-  color: white;
-  transition: all 0.3s ease;
-}
-
-.processingStep.active .stepIcon {
-  background: var(--accent-green);
-}
-
-.processingStep.current .stepIcon {
-  background: var(--primary-blue);
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
-}
-
-.processingStep span {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--neutral-600);
-}
-
-.processingStep.active span,
-.processingStep.current span {
-  color: var(--neutral-800);
-  font-weight: 600;
-}
-
-.stepLine {
-  width: 60px;
-  height: 2px;
-  background: var(--neutral-300);
-  margin: 0 0.5rem;
-}
-
-.progressBarWrapper {
-  margin: 2rem 0;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.progressBarWrapper .progressBar {
-  flex: 1;
-  height: 8px;
-  background: var(--neutral-200);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.progressBarWrapper .progressFill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--primary-blue), #4a9eff);
-  border-radius: 4px;
-  transition: width 0.5s ease;
-  position: relative;
-  overflow: hidden;
-}
-
-.progressBarWrapper .progressFill::after {
-  content: '';
+/* 翻译处理中显示样式 - 简洁版 */
+.processingOverlay {
   position: absolute;
   top: 0;
   left: 0;
-  bottom: 0;
   right: 0;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
-  animation: shimmer 2s infinite;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 12px;
+  z-index: 10;
+  gap: 1rem;
 }
 
-@keyframes shimmer {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(100%);
-  }
+.processingSpinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.progressText {
+.processingSpinner .spinning {
+  color: white;
+  animation: spin 1s linear infinite;
+}
+
+.processingText {
   font-size: 1rem;
-  font-weight: 600;
-  color: var(--primary-blue);
-  min-width: 50px;
-  text-align: right;
+  font-weight: 500;
+  color: white;
+  margin: 0;
 }
 
-.processingTip {
-  margin: 1rem 0 0 0;
-  font-size: 0.9rem;
-  color: var(--neutral-500);
-}
-
-[data-theme="dark"] .processingContainer {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
-}
-
-[data-theme="dark"] .processingTitle {
-  color: #4a9eff;
-}
-
-[data-theme="dark"] .processingStep span {
-  color: var(--neutral-400);
-}
-
-[data-theme="dark"] .processingStep.active span,
-[data-theme="dark"] .processingStep.current span {
-  color: var(--neutral-200);
-}
-
-[data-theme="dark"] .stepIcon {
-  background: var(--neutral-700);
-}
-
-[data-theme="dark"] .stepLine {
-  background: var(--neutral-700);
-}
-
-[data-theme="dark"] .progressBarWrapper .progressBar {
-  background: var(--neutral-700);
-}
-
-[data-theme="dark"] .progressText {
-  color: #4a9eff;
-}
-
-[data-theme="dark"] .processingTip {
-  color: var(--neutral-400);
+[data-theme="dark"] .processingOverlay {
+  background: rgba(0, 0, 0, 0.6);
 }
 
 /* 已上传状态样式 */

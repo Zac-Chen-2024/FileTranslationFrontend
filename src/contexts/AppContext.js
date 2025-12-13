@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
 import wsService from '../services/websocket';
+import { ProcessingStep, getStatusDisplay } from '../constants/status';
 
 // 初始状态
 const initialState = {
@@ -476,6 +477,11 @@ export const AppProvider = ({ children }) => {
         if (data.progress !== undefined) updates.processingProgress = data.progress;
         if (data.translated_path) updates.translatedImagePath = data.translated_path;
         if (data.translation_info) updates.translationTextInfo = data.translation_info;
+        // 提取LLM翻译结果（支持两种命名格式）
+        const llmResult = data.llm_translation_result || data.llmTranslationResult || data.translations;
+        if (llmResult) updates.llmTranslationResult = llmResult;
+        // 提取处理步骤
+        if (data.processing_step) updates.processingStep = data.processing_step;
       }
 
       // ✅ 只需调用updateMaterial，Reducer会自动同步更新currentMaterial
@@ -485,23 +491,23 @@ export const AppProvider = ({ children }) => {
 
   const handleLLMStarted = useCallback((data) => {
     if (data.material_id) {
-      // ✅ LLM 开始时更新状态
+      // LLM 开始时更新状态
       actions.updateMaterial(data.material_id, {
         processingProgress: data.progress || 70,
-        processingStep: 'llm_translating',  // 设置为LLM翻译中
-        status: '处理中'  // 保持处理中状态
+        processingStep: ProcessingStep.LLM_TRANSLATING,
+        status: getStatusDisplay(ProcessingStep.LLM_TRANSLATING)
       });
     }
   }, [actions]);
 
   const handleLLMCompleted = useCallback((data) => {
     if (data.material_id) {
-      // ✅ 更新完整状态：progress, translations, status, processing_step
+      // 更新完整状态：progress, translations, status, processing_step
       actions.updateMaterial(data.material_id, {
         processingProgress: data.progress || 100,
         llmTranslationResult: data.translations,
-        status: '已翻译',  // 设置为已翻译状态
-        processingStep: 'llm_translated'  // 设置处理步骤
+        status: getStatusDisplay(ProcessingStep.LLM_TRANSLATED),
+        processingStep: ProcessingStep.LLM_TRANSLATED
       });
 
       actions.showNotification('LLM优化完成', `成功优化 ${data.translations?.length || 0} 个翻译区域`, 'success');
@@ -519,11 +525,12 @@ export const AppProvider = ({ children }) => {
   const handleMaterialError = useCallback((data) => {
     if (data.material_id) {
       actions.updateMaterial(data.material_id, {
-        status: '翻译失败',
+        status: getStatusDisplay(ProcessingStep.FAILED),
+        processingStep: ProcessingStep.FAILED,
         translationError: data.error
       });
     }
-    actions.showNotification('翻译失败', data.error || '翻译过程中发生错误', 'error');
+    actions.showNotification('处理失败', data.error || '处理过程中发生错误', 'error');
   }, [actions]);
 
   // ✅ 监听当前客户端变化，加入对应房间
