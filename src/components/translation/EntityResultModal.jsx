@@ -5,9 +5,7 @@ const EntityResultModal = ({
   isOpen,
   onClose,
   entities,
-  onAIOptimize,
   onConfirm,
-  onSkip,
   loading
 }) => {
   const [editedEntities, setEditedEntities] = useState([]);
@@ -51,12 +49,6 @@ const EntityResultModal = ({
     onConfirm(validEntities);
   };
 
-  const handleAIOptimize = () => {
-    // 传递当前的实体列表给 AI 优化
-    const validEntities = editedEntities.filter(e => e.chinese_name.trim() !== '');
-    onAIOptimize(validEntities);
-  };
-
   return (
     <div className="entity-result-overlay" onClick={onClose}>
       <div className="entity-result-content" onClick={(e) => e.stopPropagation()}>
@@ -80,7 +72,7 @@ const EntityResultModal = ({
 
         <div className="entity-result-body">
           <p className="entity-result-desc">
-            请编辑实体翻译信息，或点击"AI优化"自动查找官方英文名称
+            请检查并编辑实体翻译信息，确认后将用于翻译
           </p>
 
           <div className="entity-editable-table">
@@ -146,12 +138,12 @@ const EntityResultModal = ({
         </div>
 
         <div className="entity-result-footer">
-          <button className="entity-skip-btn" onClick={onSkip} disabled={loading}>
-            跳过
-          </button>
-          <button className="entity-ai-btn" onClick={handleAIOptimize} disabled={loading}>
-            {loading ? 'AI优化中...' : 'AI优化'}
-          </button>
+          <div className="entity-btn-wrapper">
+            <button className="entity-ai-btn" disabled={true}>
+              深度搜索
+            </button>
+            <span className="entity-btn-hint">正在开发</span>
+          </div>
           <button className="entity-confirm-btn" onClick={handleConfirm} disabled={loading}>
             确认使用
           </button>

@@ -1587,8 +1587,6 @@ const PreviewSection = () => {
                     entities={entityResults}
                     onClose={() => {}} // 不允许直接关闭，必须选择操作
                     onConfirm={handleConfirmEntities}
-                    onAIOptimize={handleAIOptimize}
-                    onSkip={handleEntitySkip}
                     loading={entityModalLoading}
                   />
                   {/* 显示翻译进行中状态 - 包括所有阶段：拆分、上传、百度翻译、AI优化 */}
