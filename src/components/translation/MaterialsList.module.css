@@ -859,44 +859,40 @@
 
 /* ========== 侧边栏收缩功能 ========== */
 .collapsedSidebar {
-  width: 36px;
-  min-width: 36px;
+  width: 0;
+  min-width: 0;
   flex-shrink: 0;
-  background: var(--color-bg-primary, white);
-  border-right: 1px solid var(--neutral-200);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding-top: 1rem;
-}
-
-[data-theme="dark"] .collapsedSidebar {
-  background: var(--neutral-100);
-  border-right-color: var(--neutral-700);
+  position: relative;
 }
 
 .expandButton {
-  width: 28px;
-  height: 28px;
+  position: fixed;
+  left: 0;
+  top: 120px;
+  width: 20px;
+  height: 40px;
   border: none;
-  background: var(--neutral-100);
-  border-radius: 6px;
+  background: var(--neutral-200);
+  border-radius: 0 6px 6px 0;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--neutral-600);
+  color: var(--neutral-500);
   transition: all 0.2s ease;
+  z-index: 100;
+  box-shadow: 2px 0 4px rgba(0,0,0,0.1);
 }
 
 .expandButton:hover {
   background: var(--primary-blue);
   color: white;
+  width: 24px;
 }
 
 [data-theme="dark"] .expandButton {
   background: var(--neutral-700);
-  color: var(--neutral-300);
+  color: var(--neutral-400);
 }
 
 [data-theme="dark"] .expandButton:hover {
