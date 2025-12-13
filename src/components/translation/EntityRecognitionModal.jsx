@@ -54,8 +54,9 @@ const EntityRecognitionModal = ({ isOpen, onClose, onConfirm }) => {
             </button>
 
             <button
-              className={`mode-option ${mode === 'deep' ? 'active' : ''}`}
-              onClick={() => setMode('deep')}
+              className="mode-option mode-disabled"
+              disabled={true}
+              title="功能开发中，敬请期待"
             >
               <div className="mode-icon">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -66,6 +67,7 @@ const EntityRecognitionModal = ({ isOpen, onClose, onConfirm }) => {
                 </svg>
               </div>
               <div className="mode-label">深度模式</div>
+              <div className="mode-badge">即将推出</div>
             </button>
           </div>
 
@@ -75,9 +77,6 @@ const EntityRecognitionModal = ({ isOpen, onClose, onConfirm }) => {
             )}
             {mode === 'standard' && (
               <p>快速识别实体，可手动调整（推荐）</p>
-            )}
-            {mode === 'deep' && (
-              <p>全自动深度搜索，耗时30-120秒</p>
             )}
           </div>
         </div>

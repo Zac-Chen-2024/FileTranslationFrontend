@@ -1,7 +1,8 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import AIAssistantModal from './AIAssistantModal';
 import GlobalAIModal from './GlobalAIModal';
+import useCanvasHistory from './hooks/useCanvasHistory';
 import './ImageEditor.css';
 
 /* global fabric */
@@ -43,12 +44,35 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
   const [selectedTextboxes, setSelectedTextboxes] = useState([]);
   const [showGlobalAI, setShowGlobalAI] = useState(false);
 
-  // 撤销/重做功能相关
-  const [canUndo, setCanUndo] = useState(false);
-  const [canRedo, setCanRedo] = useState(false);
-  const historyRef = useRef([]);
-  const historyIndexRef = useRef(-1);
-  const isHistoryOperationRef = useRef(false);
+  // 更新对象引用（用于历史记录恢复后）
+  const updateObjectReferences = useCallback(() => {
+    if (!fabricCanvasRef.current) return;
+    const canvas = fabricCanvasRef.current;
+
+    textObjectsRef.current = [];
+    backgroundRectsRef.current = [];
+
+    canvas.getObjects().forEach((obj) => {
+      if (obj.type === 'textbox' && obj.id !== undefined) {
+        textObjectsRef.current[obj.id] = obj;
+      } else if (obj.type === 'rect' && obj.hasBackground) {
+        const textId = obj.id;
+        if (textId !== undefined) {
+          backgroundRectsRef.current[textId] = obj;
+        }
+      }
+    });
+  }, []);
+
+  // 撤销/重做功能（使用 useCanvasHistory Hook）
+  const {
+    canUndo,
+    canRedo,
+    saveHistory,
+    handleUndo,
+    handleRedo,
+    isHistoryOperation,
+  } = useCanvasHistory(fabricCanvasRef, updateObjectReferences);
 
   // 文字区域折叠状态（默认折叠，因为一般用不到）
   const [regionsCollapsed, setRegionsCollapsed] = useState(true);
@@ -612,7 +636,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
     // 监听对象修改事件以保存历史和同步遮罩
     canvas.on('object:modified', (e) => {
-      if (!isHistoryOperationRef.current) {
+      if (!isHistoryOperation()) {
         saveHistory();
       }
 
@@ -646,7 +670,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     });
 
     canvas.on('text:changed', () => {
-      if (!isHistoryOperationRef.current) {
+      if (!isHistoryOperation()) {
         saveHistory();
       }
     });
@@ -912,93 +936,6 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       initializedRef.current = false; // 重置初始化标记
     };
   }, []);
-  
-  // 保存历史记录
-  const saveHistory = () => {
-    if (!fabricCanvasRef.current || isHistoryOperationRef.current) return;
-    
-    const canvas = fabricCanvasRef.current;
-    const currentState = JSON.stringify(canvas.toJSON(['id', 'hasBackground', 'isMerged']));
-    
-    // 如果当前不是最新的历史记录，删除后面的记录
-    if (historyIndexRef.current < historyRef.current.length - 1) {
-      historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
-    }
-    
-    // 添加新的历史记录
-    historyRef.current.push(currentState);
-    historyIndexRef.current++;
-    
-    // 限制历史记录数量（最多保存50条）
-    if (historyRef.current.length > 50) {
-      historyRef.current.shift();
-      historyIndexRef.current--;
-    }
-    
-    updateHistoryButtons();
-  };
-  
-  // 更新撤销/重做按钮状态
-  const updateHistoryButtons = () => {
-    setCanUndo(historyIndexRef.current > 0);
-    setCanRedo(historyIndexRef.current < historyRef.current.length - 1);
-  };
-  
-  // 撤销操作
-  const handleUndo = () => {
-    if (!fabricCanvasRef.current || historyIndexRef.current <= 0) return;
-    
-    const canvas = fabricCanvasRef.current;
-    historyIndexRef.current--;
-    isHistoryOperationRef.current = true;
-    
-    canvas.loadFromJSON(historyRef.current[historyIndexRef.current], () => {
-      canvas.renderAll();
-      isHistoryOperationRef.current = false;
-      updateHistoryButtons();
-      
-      // 更新引用
-      updateObjectReferences();
-    });
-  };
-  
-  // 重做操作
-  const handleRedo = () => {
-    if (!fabricCanvasRef.current || historyIndexRef.current >= historyRef.current.length - 1) return;
-    
-    const canvas = fabricCanvasRef.current;
-    historyIndexRef.current++;
-    isHistoryOperationRef.current = true;
-    
-    canvas.loadFromJSON(historyRef.current[historyIndexRef.current], () => {
-      canvas.renderAll();
-      isHistoryOperationRef.current = false;
-      updateHistoryButtons();
-      
-      // 更新引用
-      updateObjectReferences();
-    });
-  };
-  
-  // 更新对象引用
-  const updateObjectReferences = () => {
-    if (!fabricCanvasRef.current) return;
-    const canvas = fabricCanvasRef.current;
-    
-    textObjectsRef.current = [];
-    backgroundRectsRef.current = [];
-    
-    canvas.getObjects().forEach((obj) => {
-      if (obj.type === 'textbox' && obj.id !== undefined) {
-        textObjectsRef.current[obj.id] = obj;
-      } else if (obj.type === 'rect' && obj.hasBackground) {
-        const textId = obj.id;
-        if (textId !== undefined) {
-          backgroundRectsRef.current[textId] = obj;
-        }
-      }
-    });
-  };
   
   // 初始化文本区域
   const initializeTextRegions = async (regionsData) => {
@@ -2568,7 +2505,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
   };
 
   // AI助手相关函数
-  const updateAIButton = (selected) => {
+  const updateAIButton = (selected, activeSelection = null) => {
     const canvas = fabricCanvasRef.current;
     if (!canvas) return;
 
@@ -2593,36 +2530,33 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     // AI按钮与文本框的间距
     const aiButtonOffset = 20;
 
+    // 获取边界框：多选时使用activeSelection的整体边界，单选时使用单个对象边界
+    let boundingRect;
     if (textboxes.length === 1) {
-      // 单选：右上角，增加20px间距
-      const tb = textboxes[0];
-      const boundingRect = tb.getBoundingRect(true); // 获取包含旋转和缩放的真实边界框
-
-      // 将canvas坐标转换为屏幕坐标
-      const screenX = boundingRect.left * vpt[0] + vpt[4];
-      const screenY = boundingRect.top * vpt[3] + vpt[5];
-      const screenRight = (boundingRect.left + boundingRect.width) * vpt[0] + vpt[4];
-
-      targetX = rect.left + screenRight + aiButtonOffset;
-      targetY = rect.top + screenY - aiButtonOffset;
+      // 单选：使用单个文本框的边界
+      boundingRect = textboxes[0].getBoundingRect(true);
+    } else if (activeSelection && activeSelection.type === 'activeSelection') {
+      // 多选：直接使用activeSelection的整体边界（canvas坐标系）
+      boundingRect = activeSelection.getBoundingRect(true);
     } else {
-      // 多选：计算包围盒的右上角，增加20px间距
-      let minX = Infinity, minY = Infinity, maxX = -Infinity;
-
+      // 降级方案：手动计算（不应该触发）
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       textboxes.forEach(tb => {
-        const boundingRect = tb.getBoundingRect(true);
-        minX = Math.min(minX, boundingRect.left);
-        minY = Math.min(minY, boundingRect.top);
-        maxX = Math.max(maxX, boundingRect.left + boundingRect.width);
+        const tbRect = tb.getBoundingRect(true);
+        minX = Math.min(minX, tbRect.left);
+        minY = Math.min(minY, tbRect.top);
+        maxX = Math.max(maxX, tbRect.left + tbRect.width);
+        maxY = Math.max(maxY, tbRect.top + tbRect.height);
       });
-
-      // 将canvas坐标转换为屏幕坐标
-      const screenX = maxX * vpt[0] + vpt[4];
-      const screenY = minY * vpt[3] + vpt[5];
-
-      targetX = rect.left + screenX + aiButtonOffset;
-      targetY = rect.top + screenY - aiButtonOffset;
+      boundingRect = { left: minX, top: minY, width: maxX - minX, height: maxY - minY };
     }
+
+    // 将canvas坐标转换为屏幕坐标
+    const screenY = boundingRect.top * vpt[3] + vpt[5];
+    const screenRight = (boundingRect.left + boundingRect.width) * vpt[0] + vpt[4];
+
+    targetX = rect.left + screenRight + aiButtonOffset;
+    targetY = rect.top + screenY - aiButtonOffset;
 
     // 钳制位置到滚动容器的可见区域内
     const buttonWidth = 36;
@@ -2676,14 +2610,14 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     // 获取当前选中的对象
     let selected = [];
     if (activeSelection.type === 'activeSelection') {
-      // 多选
+      // 多选：传递activeSelection用于正确计算边界框
       selected = activeSelection.getObjects();
+      updateAIButton(selected, activeSelection);
     } else {
       // 单选
       selected = [activeSelection];
+      updateAIButton(selected);
     }
-
-    updateAIButton(selected);
   };
 
   // 处理AI修改应用
