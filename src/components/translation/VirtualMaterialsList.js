@@ -133,7 +133,7 @@ const VirtualMaterialItem = React.memo(({
 });
 
 
-const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDropped }) => {
+const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDropped, collapsed = false, onToggleCollapse }) => {
   const { state, actions } = useApp();
   const { t } = useLanguage();
   const { materials, currentClient, currentMaterial } = state;
@@ -617,6 +617,23 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
     );
   }
 
+  // 收缩状态：只显示展开按钮
+  if (collapsed) {
+    return (
+      <div className={styles.collapsedSidebar}>
+        <button
+          className={styles.expandButton}
+          onClick={onToggleCollapse}
+          title="展开材料列表"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M9 18l6-6-6-6"/>
+          </svg>
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={materialsSectionRef}
@@ -627,6 +644,15 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
       onDrop={handleDrop}
     >
       <div className={styles.header}>
+        <button
+          className={styles.collapseButton}
+          onClick={onToggleCollapse}
+          title="收起材料列表"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M15 18l-6-6 6-6"/>
+          </svg>
+        </button>
         <h3 className={styles.title}>{t('materialListFor', { name: clientName })}</h3>
         <div className={styles.actions}>
           <button
@@ -751,6 +777,8 @@ export default React.memo(VirtualMaterialsList, (prevProps, nextProps) => {
     prevProps.clientName === nextProps.clientName &&
     prevProps.onAddMaterial === nextProps.onAddMaterial &&
     prevProps.onExport === nextProps.onExport &&
-    prevProps.onFilesDropped === nextProps.onFilesDropped
+    prevProps.onFilesDropped === nextProps.onFilesDropped &&
+    prevProps.collapsed === nextProps.collapsed &&
+    prevProps.onToggleCollapse === nextProps.onToggleCollapse
   );
 });

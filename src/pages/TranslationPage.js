@@ -19,6 +19,7 @@ const TranslationPage = () => {
   const [loading, setLoading] = useState(true);
   const [hasLoadedMaterials, setHasLoadedMaterials] = useState(false);
   const [showExportConfirm, setShowExportConfirm] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // 客户初始化
   useEffect(() => {
@@ -203,6 +204,8 @@ const TranslationPage = () => {
           onExport={handleExport}
           onFilesDropped={handleFilesDropped}
           clientName={currentClient.name}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         />
         <PreviewSection />
       </div>
