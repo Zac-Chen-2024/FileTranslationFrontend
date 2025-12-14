@@ -1,0 +1,376 @@
+/* 侧边栏容器 */
+.sidebar {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+/* ========== 客户选择器 ========== */
+.clientSelector {
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.clientHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.clientHeader:hover {
+  background: #f9fafb;
+}
+
+.clientLabel {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2937;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 4px 8px;
+  margin: -4px -8px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.clientLabel.clickable {
+  cursor: text;
+}
+
+.clientLabel.clickable:hover {
+  background: #e5e7eb;
+}
+
+/* 重命名输入框 */
+.renameInput {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2937;
+  border: 1px solid #667eea;
+  border-radius: 4px;
+  padding: 4px 8px;
+  outline: none;
+  background: #fff;
+}
+
+/* 导出按钮 */
+.exportBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.exportBtn:hover {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+/* 客户下拉列表 */
+.clientDropdown {
+  border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.clientList {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.clientItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-left: 3px solid transparent;
+}
+
+.clientItem:hover {
+  background: #f3f4f6;
+}
+
+.clientItem.active {
+  background: #e0e7ff;
+  border-left-color: #667eea;
+}
+
+.clientName {
+  font-size: 14px;
+  color: #374151;
+}
+
+.checkIcon {
+  color: #667eea;
+  font-size: 10px;
+}
+
+.addClientBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  color: #667eea;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-top: 1px solid #e5e7eb;
+}
+
+.addClientBtn:hover {
+  background: #f3f4f6;
+}
+
+.dropdownLoading,
+.dropdownEmpty {
+  padding: 24px 16px;
+  text-align: center;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.dropdownEmpty p {
+  margin: 0;
+}
+
+/* ========== 材料区域 ========== */
+.materialSection {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.noClient,
+.noMaterials,
+.materialLoading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  font-size: 14px;
+  padding: 24px;
+}
+
+.noClient p,
+.noMaterials p {
+  margin: 0;
+}
+
+.hint {
+  font-size: 12px;
+  margin-top: 8px !important;
+  color: #d1d5db;
+}
+
+.materialList {
+  padding: 8px 0;
+}
+
+.materialItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-left: 3px solid transparent;
+}
+
+.materialItem:hover {
+  background: #f3f4f6;
+}
+
+.materialItem.active {
+  background: #dbeafe;
+  border-left-color: #3b82f6;
+}
+
+.fileIcon {
+  color: #9ca3af;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.materialName {
+  flex: 1;
+  font-size: 13px;
+  color: #374151;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pageCount {
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.statusDone {
+  color: #10b981;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.statusProcessing {
+  color: #f59e0b;
+  font-size: 14px;
+  flex-shrink: 0;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* 滚动条 */
+.materialSection::-webkit-scrollbar,
+.clientList::-webkit-scrollbar {
+  width: 6px;
+}
+
+.materialSection::-webkit-scrollbar-track,
+.clientList::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.materialSection::-webkit-scrollbar-thumb,
+.clientList::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+.materialSection::-webkit-scrollbar-thumb:hover,
+.clientList::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* ========== 底部用户区域 ========== */
+.userSection {
+  border-top: 1px solid #e5e7eb;
+  padding: 8px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.userRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.userRow:hover {
+  background: #f3f4f6;
+}
+
+.userAvatar {
+  width: 32px;
+  height: 32px;
+  background: #667eea;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.userNameText {
+  flex: 1;
+  font-size: 14px;
+  color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.menuArrow {
+  color: #9ca3af;
+  transition: transform 0.2s;
+}
+
+.menuArrow.menuOpen {
+  transform: rotate(180deg);
+}
+
+/* 用户菜单 */
+.userMenu {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-bottom: none;
+  padding: 4px 0;
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  color: #374151;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.menuItem:hover {
+  background: #f3f4f6;
+}
+
+.menuItem svg {
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+.menuDivider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 4px 0;
+}
+
+.logoutItem {
+  color: #dc2626;
+}
+
+.logoutItem:hover {
+  background: #fef2f2;
+}
+
+.logoutItem svg {
+  color: #dc2626;
+}

@@ -1,0 +1,133 @@
+/* Claude风格布局 */
+.layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #f9fafb;
+}
+
+/* Header */
+.header {
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+/* 主体区域 */
+.body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* 侧边栏 */
+.sidebar {
+  width: 280px;
+  min-width: 280px;
+  background: #fff;
+  color: #333;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: all 0.3s ease;
+  overflow: hidden;
+  border-right: 1px solid #e5e7eb;
+}
+
+.sidebar.collapsed {
+  width: 0;
+  min-width: 0;
+  border-right: none;
+}
+
+/* 侧边栏内容 */
+.sidebarContent {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* 统一的收放按钮 - 扁平化 */
+.toggleBtn {
+  position: absolute;
+  left: 280px;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 40px;
+  border: 1px solid #e5e7eb;
+  border-left: none;
+  background: #f9fafb;
+  color: #6b7280;
+  border-radius: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  z-index: 20;
+}
+
+.toggleBtn:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.toggleBtn.toggleCollapsed {
+  left: 0;
+  transform: translate(0, -50%);
+  border-radius: 0;
+}
+
+/* 主内容区 */
+.main {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+/* 滚动条美化 */
+.sidebarContent::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebarContent::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebarContent::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+.sidebarContent::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .sidebar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 50;
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.1);
+  }
+
+  .sidebar.collapsed {
+    transform: translateX(-100%);
+    width: 280px;
+    min-width: 280px;
+  }
+
+  .toggleBtn {
+    left: 280px;
+  }
+
+  .toggleBtn.toggleCollapsed {
+    left: 0;
+  }
+}

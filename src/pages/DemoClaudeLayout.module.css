@@ -1,0 +1,177 @@
+/* Demo页面主内容区样式 */
+.mainContent {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.mainContent.dragging {
+  background: #f0f4ff;
+}
+
+/* 欢迎界面 */
+.welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+}
+
+.welcomeIcon {
+  color: #d1d5db;
+  margin-bottom: 24px;
+}
+
+.welcomeTitle {
+  font-size: 28px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 12px 0;
+}
+
+.welcomeDesc {
+  font-size: 16px;
+  color: #6b7280;
+  margin: 0 0 40px 0;
+}
+
+.welcomeHints {
+  display: flex;
+  gap: 32px;
+}
+
+.hint {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.hintIcon {
+  width: 28px;
+  height: 28px;
+  background: #667eea;
+  color: white;
+  border-radius: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* 加载状态 */
+.loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: #6b7280;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 未选择材料状态 */
+.noMaterial {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+}
+
+.noMaterialIcon {
+  color: #d1d5db;
+  margin-bottom: 24px;
+}
+
+.noMaterialTitle {
+  font-size: 24px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 12px 0;
+}
+
+.noMaterialDesc {
+  font-size: 16px;
+  color: #6b7280;
+  margin: 0 0 24px 0;
+}
+
+.uploadHint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+/* 预览区域包装 */
+.previewWrapper {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 拖拽上传遮罩 */
+.dropOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(102, 126, 234, 0.1);
+  border: 3px dashed #667eea;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.dropContent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  color: #667eea;
+}
+
+.dropContent p {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .welcomeHints {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .noMaterial {
+    padding: 24px;
+  }
+}

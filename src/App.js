@@ -14,6 +14,7 @@ import TranslationPage from './pages/TranslationPage';
 import ProfilePage from './pages/ProfilePage';
 import ArchivedClientsPage from './pages/ArchivedClientsPage';
 import AdobeStyleImageSeparation from './pages/AdobeStyleImageSeparation';
+import DemoClaudeLayout from './pages/DemoClaudeLayout';
 
 // 通用组件
 import Notification from './components/common/Notification';
@@ -82,15 +83,33 @@ function App() {
                 </ProtectedRoute>
               } 
             />
-            <Route 
-              path="/archived-clients" 
+            <Route
+              path="/archived-clients"
               element={
                 <ProtectedRoute>
                   <ArchivedClientsPage />
                 </ProtectedRoute>
-              } 
+              }
             />
-            
+
+            {/* Demo路由 - Claude风格布局 */}
+            <Route
+              path="/demo-v2"
+              element={
+                <ProtectedRoute>
+                  <DemoClaudeLayout />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/demo-v2/:clientId"
+              element={
+                <ProtectedRoute>
+                  <DemoClaudeLayout />
+                </ProtectedRoute>
+              }
+            />
+
             {/* 重定向 */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
