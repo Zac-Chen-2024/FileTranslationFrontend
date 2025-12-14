@@ -1016,9 +1016,6 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       const textContent = region.dst || region.src || '';
       const calculatedFontSize = calculateFontSize(width, height, textContent);
       
-      // 调试信息
-      console.log(`区域 ${index}: width=${width}, height=${height}, 文本="${textContent}", 计算字号=${calculatedFontSize}`);
-      
       // 创建背景矩形 - 统一使用白色遮罩
       let bgRect = null;
 
@@ -3043,10 +3040,6 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
   const applyMarkdownStylesToCleanText = (textbox, originalText, cleanText) => {
     if (!cleanText) return;
 
-    console.log('=== Markdown样式应用（直接操作styles对象） ===');
-    console.log('原文:', originalText);
-    console.log('纯文本:', cleanText);
-
     // 1. 构建位置映射：原文字符位置 -> 纯文本字符位置
     const originalToCleanMap = new Map();
     let cleanPos = 0;
@@ -3207,8 +3200,6 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         }
       }
     }
-
-    console.log('=== 样式应用完成 ===\n');
   };
 
   // 从文本中移除 markdown 标记（用于显示模式）

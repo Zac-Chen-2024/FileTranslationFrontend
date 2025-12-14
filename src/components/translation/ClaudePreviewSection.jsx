@@ -42,6 +42,10 @@ const ClaudePreviewSection = () => {
   const [llmLoading, setLlmLoading] = React.useState(false);
   const [baiduRegions, setBaiduRegions] = React.useState([]);
 
+  // 🔧 材料切换时的加载状态 - 防止显示旧数据
+  const [materialDataReady, setMaterialDataReady] = React.useState(false);
+  const lastReadyMaterialIdRef = React.useRef(null);
+
   // Edited image states
   const [editedImageData, setEditedImageData] = React.useState(null);
   const [editedImageBlob, setEditedImageBlob] = React.useState(null);
@@ -65,12 +69,27 @@ const ClaudePreviewSection = () => {
     setForceRefresh(prev => prev + 1);
   }, [currentMaterial?.id]); // 只监听 ID，移除 status 和 translatedImagePath
 
-  // 🔧 竞态条件修复：材料切换时取消之前的请求，更新当前材料ID ref
+  // 🔧 竞态条件修复：材料切换时取消之前的请求，清理状态，更新当前材料ID ref
   useEffect(() => {
     // 取消之前的请求
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
+
+    // 🔧 关键修复：材料切换时先设为"未准备好"状态，显示加载中
+    if (currentMaterial?.id !== lastReadyMaterialIdRef.current) {
+      setMaterialDataReady(false);
+    }
+
+    // 🔧 清理上一个材料的状态，避免显示旧数据
+    setBaiduRegions([]);
+    setLlmRegions([]);
+    setLlmLoading(false);
+    setEntityResults([]);
+    setEditedImageData(null);
+    setEditedImageBlob(null);
+    setSavedEditedImage(null);
+    setSavedRegions([]);
 
     // 更新当前材料ID ref
     currentMaterialIdRef.current = currentMaterial?.id || null;
@@ -747,18 +766,6 @@ const ClaudePreviewSection = () => {
   React.useEffect(() => {
     if (!currentMaterial) return;
 
-    // 🔍 调试：打印材料的完整状态
-    console.log('🔍 材料状态诊断:', {
-      id: currentMaterial.id,
-      status: currentMaterial.status,
-      processingStep: currentMaterial.processingStep,
-      entityRecognitionEnabled: currentMaterial.entityRecognitionEnabled,
-      entityRecognitionMode: currentMaterial.entityRecognitionMode,
-      entityRecognitionTriggered: currentMaterial.entityRecognitionTriggered,
-      translationTextInfo: currentMaterial.translationTextInfo ? '存在' : '不存在',
-      processingProgress: currentMaterial.processingProgress
-    });
-
     const step = currentMaterial.processingStep;
 
     // OCR翻译完成，检查是否需要进行实体识别
@@ -771,7 +778,6 @@ const ClaudePreviewSection = () => {
 
         // 检查该PDF Session是否已经触发过实体识别（避免重复）
         if (pdfSessionEntityTriggeredRef.current[sessionId]) {
-          console.log(`⏭️ [PDF Session ${sessionId}] 已触发过实体识别，跳过`);
           return;
         }
 
@@ -782,16 +788,10 @@ const ClaudePreviewSection = () => {
         });
 
         if (!allPagesTranslated) {
-          const translatedCount = pdfPages.filter(page => {
-            const latestPage = state.materials.find(m => m.id === page.id);
-            return latestPage && latestPage.processingStep === 'translated';
-          }).length;
-          console.log(`⏳ [PDF Session ${sessionId}] 等待所有页面完成OCR翻译... (${translatedCount}/${pdfPages.length})`);
           return;
         }
 
         // 所有页面都已翻译，触发整体实体识别
-        console.log(`✅ [PDF Session ${sessionId}] 所有${pdfPages.length}个页面已完成OCR，触发整体实体识别`);
         pdfSessionEntityTriggeredRef.current[sessionId] = true;
 
         // 根据模式触发不同的实体识别
@@ -824,35 +824,23 @@ const ClaudePreviewSection = () => {
     }
     // 禁用实体识别时，OCR完成后自动触发LLM翻译
     else if (step === 'translated' && !currentMaterial.entityRecognitionEnabled && currentMaterial.translationTextInfo) {
-      console.log('🔍 检查LLM触发条件:', {
-        已触发: llmTriggeredRef.current[currentMaterial.id],
-        已有结果: !!currentMaterial.llmTranslationResult,
-        有翻译数据: !!currentMaterial.translationTextInfo,
-        baiduRegions长度: baiduRegions?.length || 0
-      });
-
       // 检查是否已触发过LLM翻译（避免重复）
       if (llmTriggeredRef.current[currentMaterial.id]) {
-        console.log('⏭️ 已触发过LLM，跳过');
         return;
       }
 
       // 检查是否已有LLM翻译结果
       if (currentMaterial.llmTranslationResult) {
-        console.log('⏭️ 已有LLM结果，跳过');
         return;
       }
 
       // 必须等待baiduRegions准备好
       if (!baiduRegions || baiduRegions.length === 0) {
-        console.log('⏭️ baiduRegions未就绪，等待下次触发');
         return;
       }
 
       // 标记为已触发
       llmTriggeredRef.current[currentMaterial.id] = true;
-
-      console.log('🚀 实体识别已禁用，自动触发LLM翻译，regions数量:', baiduRegions.length);
 
       // 触发LLM翻译
       handleLLMTranslate(baiduRegions);
@@ -869,13 +857,11 @@ const ClaudePreviewSection = () => {
 
         // 检查该PDF Session的Modal是否已经显示过
         if (pdfSessionEntityModalShownRef.current[sessionId]) {
-          console.log(`⏭️ [PDF Session ${sessionId}] Modal已显示过，跳过`);
           return;
         }
 
         // 标记为已显示
         pdfSessionEntityModalShownRef.current[sessionId] = true;
-        console.log(`📋 [PDF Session ${sessionId}] 显示实体识别结果Modal（整个PDF统一编辑）`);
 
         try {
           const result = typeof currentMaterial.entityRecognitionResult === 'string'
@@ -1027,15 +1013,28 @@ const ClaudePreviewSection = () => {
   }, [actions, currentMaterial]);
 
   // 解析百度翻译结果
+  // 🔧 竞态条件修复：添加材料ID验证
   // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => {
-    if (!currentMaterial || !currentMaterial.translationTextInfo) {
-      console.log('跳过：没有material或translationTextInfo');
+    if (!currentMaterial) {
+      return;
+    }
+
+    // 🔧 如果材料没有翻译数据，也标记为"准备就绪"（显示原图）
+    if (!currentMaterial.translationTextInfo) {
+      if (currentMaterialIdRef.current === currentMaterial.id) {
+        setMaterialDataReady(true);
+        lastReadyMaterialIdRef.current = currentMaterial.id;
+      }
       return;
     }
 
     const materialId = currentMaterial.id;
-    console.log('=== 处理material ===', materialId);
+
+    // 🔧 验证是否仍是当前材料
+    if (currentMaterialIdRef.current !== materialId) {
+      return;
+    }
 
     try {
       const textInfo = typeof currentMaterial.translationTextInfo === 'string'
@@ -1043,12 +1042,16 @@ const ClaudePreviewSection = () => {
         : currentMaterial.translationTextInfo;
 
       const regions = textInfo.regions || textInfo || [];
-      console.log('解析后的regions数量:', regions.length);
+
+      // 🔧 再次验证材料ID
+      if (currentMaterialIdRef.current !== materialId) {
+        return;
+      }
+
       setBaiduRegions(regions);
 
       // 如果有LLM结果，直接使用
       if (currentMaterial.llmTranslationResult) {
-        console.log('✓ 检测到已有LLM结果，直接使用');
         const llmResult = typeof currentMaterial.llmTranslationResult === 'string'
           ? JSON.parse(currentMaterial.llmTranslationResult)
           : currentMaterial.llmTranslationResult;
@@ -1058,9 +1061,20 @@ const ClaudePreviewSection = () => {
           const llmTrans = llmResult.find(t => t.id === region.id);
           return llmTrans ? { ...region, dst: llmTrans.translation } : region;
         });
+
+        // 🔧 再次验证材料ID
+        if (currentMaterialIdRef.current !== materialId) {
+          return;
+        }
+
         setLlmRegions(updatedRegions);
         llmTriggeredRef.current[materialId] = true; // 标记已处理
       }
+
+      // 🔧 数据解析完成，标记为准备就绪
+      setMaterialDataReady(true);
+      lastReadyMaterialIdRef.current = materialId;
+
       // 移除自动LLM触发逻辑 - 后端会在实体确认后自动触发LLM翻译
     } catch (e) {
       console.error('解析翻译数据失败:', e);
@@ -1082,11 +1096,8 @@ const ClaudePreviewSection = () => {
 
     // ⭐ 如果启用了实体识别，不要自动触发LLM（应该等待用户确认实体后，由后端自动触发）
     if (currentMaterial.entityRecognitionEnabled) {
-      console.log('⏭️ PDF实体识别已启用，跳过自动LLM触发（等待用户确认实体）');
       return;
     }
-
-    console.log('🚀 PDF所有页面翻译完成，检查是否需要为其他页面触发LLM（实体识别已禁用）');
 
     // 🔧 捕获当前材料ID用于后续验证
     const currentId = currentMaterial.id;
@@ -1135,7 +1146,6 @@ const ClaudePreviewSection = () => {
 
           // 🔧 检查材料是否已切换
           if (currentMaterialIdRef.current !== currentId) {
-            console.log(`🔄 材料已切换，忽略页面 ${latestPage.pdfPageNumber} 的LLM响应`);
             return;
           }
 
@@ -1156,10 +1166,9 @@ const ClaudePreviewSection = () => {
         } catch (error) {
           // 🔧 处理请求被取消的情况
           if (error.name === 'AbortError') {
-            console.log(`🔄 页面 ${latestPage.pdfPageNumber} LLM请求已取消`);
             return;
           }
-          console.error(`✗ 页面 ${latestPage.pdfPageNumber} LLM翻译出错:`, error);
+          console.error(`页面 ${latestPage.pdfPageNumber} LLM翻译出错:`, error);
         }
       }));
     };
@@ -1199,24 +1208,14 @@ const ClaudePreviewSection = () => {
       }
 
       const data = await response.json();
-      console.log('LLM API返回数据:', data);
 
       // 🔧 再次检查材料是否已切换（解析JSON后）
       if (currentMaterialIdRef.current !== materialId) {
-        console.log('🔄 材料已切换，忽略LLM响应');
         return;
-      }
-
-      // 显示日志文件信息
-      if (data.log_files) {
-        console.log('LLM翻译日志已保存:', data.log_files);
       }
 
       // 更新LLM regions的翻译结果（Reference的方式）
       if (data.llm_translations) {
-        console.log('收到llm_translations，数量:', data.llm_translations.length);
-        console.log('用于合并的regions数量:', regions.length);
-
         const updatedRegions = regions.map(region => {
           const llmTranslation = data.llm_translations.find(t => t.id === region.id);
           if (llmTranslation) {
@@ -1228,19 +1227,14 @@ const ClaudePreviewSection = () => {
           return region;
         });
 
-        console.log('LLM翻译完成，更新regions数量:', updatedRegions.length);
-        console.log('updatedRegions前3个:', updatedRegions.slice(0, 3));
-        console.log('准备调用setLlmRegions...');
         setLlmRegions(updatedRegions);
-        console.log('setLlmRegions调用完成');
         actions.showNotification(t('aiOptimizationComplete'), t('aiOptimizationSuccessCount', { count: updatedRegions.length }), 'success');
       } else {
-        console.error('data中没有llm_translations字段！', data);
+        console.error('LLM API返回数据缺少llm_translations字段');
       }
     } catch (err) {
       // 🔧 处理请求被取消的情况
       if (err.name === 'AbortError') {
-        console.log('🔄 LLM请求已取消（材料切换）');
         return;
       }
       console.error('LLM翻译错误:', err);
@@ -1542,6 +1536,16 @@ const ClaudePreviewSection = () => {
                         {llmLoading && '优化中...'}
                         {!currentMaterial.processingStep && !llmLoading && currentMaterial.status !== '拆分中' && '处理中...'}
                       </p>
+                    </div>
+                  ) : !materialDataReady && currentMaterial.translationTextInfo ? (
+                    /* 🔧 竞态条件修复：数据正在解析中，显示加载状态而非旧数据 */
+                    <div className={styles.processingOverlay}>
+                      <div className={styles.processingSpinner}>
+                        <svg className={styles.spinning} width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                        </svg>
+                      </div>
+                      <p className={styles.processingText}>加载中...</p>
                     </div>
                   ) : !currentMaterial.translationTextInfo ? (
                     /* ✅ 没有翻译结果时（包括status='已上传'），显示原图编辑器供用户预览和旋转 */
