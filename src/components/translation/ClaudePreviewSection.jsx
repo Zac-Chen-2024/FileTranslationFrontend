@@ -1509,20 +1509,21 @@ const ClaudePreviewSection = () => {
                   {/* 只有在真正翻译进行中时才显示加载界面 */}
                   {/* 排除需要用户交互的状态：entity_pending_confirm, entity_confirmed */}
                   {(() => {
-                    // 修复：只在真正处理中才显示加载界面
-                    const baseCondition = llmLoading ||
+                    // ✅ 修复：llmLoading 为 true 时强制显示加载页面（不受其他条件影响）
+                    if (llmLoading) return true;
+
+                    // 其他处理中状态
+                    const baseCondition =
                       currentMaterial.status === '处理中' ||
                       currentMaterial.status === '拆分中' ||
                       currentMaterial.processingStep === 'splitting' ||
                       currentMaterial.processingStep === 'translating' ||
-                      currentMaterial.processingStep === 'entity_recognizing' ||  // ✅ 添加实体识别加载状态
+                      currentMaterial.processingStep === 'entity_recognizing' ||
                       (currentMaterial.processingStep === 'translated' && !currentMaterial.translationTextInfo) ||
                       (currentMaterial.processingStep === 'uploaded' && currentMaterial.status === '处理中');
                     // 只排除需要用户交互的状态（实体确认相关）
                     const excludeEntitySteps = !['entity_pending_confirm', 'entity_confirmed'].includes(currentMaterial.processingStep);
-                    const shouldShowLoading = baseCondition && excludeEntitySteps;
-
-                    return shouldShowLoading;
+                    return baseCondition && excludeEntitySteps;
                   })() ? (
                     <div className={styles.processingOverlay}>
                       <div className={styles.processingSpinner}>
