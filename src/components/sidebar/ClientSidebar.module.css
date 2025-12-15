@@ -4,6 +4,10 @@
   display: flex;
   flex-direction: column;
   background: #fff;
+  /* 防止文本选择光标 */
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
 }
 
 /* ========== 客户选择器 ========== */

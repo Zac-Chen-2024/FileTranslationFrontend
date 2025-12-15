@@ -6,6 +6,10 @@
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+  /* 防止文本选择光标 */
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
 }
 
 [data-theme="dark"] .previewSection {

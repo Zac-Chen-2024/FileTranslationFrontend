@@ -5,6 +5,10 @@
   flex-direction: column;
   overflow: hidden;
   position: relative;
+  /* 防止文本选择光标 */
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
 }
 
 .mainContent.dragging {
