@@ -9,10 +9,11 @@ import { VERSION, BUILD_TIME, BUILD_NUMBER } from './version';
 import WelcomePage from './pages/WelcomePage';
 import SignInPage from './pages/SignInPage';
 import SignUpPage from './pages/SignUpPage';
-import DashboardPage from './pages/DashboardPage';
-import TranslationPage from './pages/TranslationPage';
-import ProfilePage from './pages/ProfilePage';
-import ArchivedClientsPage from './pages/ArchivedClientsPage';
+// 暂时禁用的页面（重定向到demo-v2）
+// import DashboardPage from './pages/DashboardPage';
+// import TranslationPage from './pages/TranslationPage';
+// import ProfilePage from './pages/ProfilePage';
+// import ArchivedClientsPage from './pages/ArchivedClientsPage';
 import AdobeStyleImageSeparation from './pages/AdobeStyleImageSeparation';
 import DemoClaudeLayout from './pages/DemoClaudeLayout';
 
@@ -58,39 +59,11 @@ function App() {
             {/* 隐藏工具路由 - 无导航入口，仅通过URL访问 */}
             <Route path="/image-separation" element={<AdobeStyleImageSeparation />} />
 
-            {/* 受保护的路由 */}
-            <Route 
-              path="/dashboard" 
-              element={
-                <ProtectedRoute>
-                  <DashboardPage />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/client/:clientId" 
-              element={
-                <ProtectedRoute>
-                  <TranslationPage />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/profile" 
-              element={
-                <ProtectedRoute>
-                  <ProfilePage />
-                </ProtectedRoute>
-              } 
-            />
-            <Route
-              path="/archived-clients"
-              element={
-                <ProtectedRoute>
-                  <ArchivedClientsPage />
-                </ProtectedRoute>
-              }
-            />
+            {/* 受保护的路由 - 暂时禁用，重定向到demo-v2 */}
+            <Route path="/dashboard" element={<Navigate to="/demo-v2" replace />} />
+            <Route path="/client/:clientId" element={<Navigate to="/demo-v2" replace />} />
+            <Route path="/profile" element={<Navigate to="/demo-v2" replace />} />
+            <Route path="/archived-clients" element={<Navigate to="/demo-v2" replace />} />
 
             {/* Demo路由 - Claude风格布局 */}
             <Route

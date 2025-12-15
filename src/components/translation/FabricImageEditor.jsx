@@ -7,7 +7,7 @@ import './ImageEditor.css';
 
 /* global fabric */
 
-function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default', exposeHandlers = false, extraControls = null }) {
+function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default', exposeHandlers = false, extraControls = null, baiduRegions = [], entityResults = [] }) {
   const { t } = useLanguage();
   // 检查 Fabric.js 是否加载
   const [fabricLoaded, setFabricLoaded] = useState(false);
@@ -47,6 +47,24 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
   const [aiButtonPosition, setAiButtonPosition] = useState(null);
   const [selectedTextboxes, setSelectedTextboxes] = useState([]);
   const [showGlobalAI, setShowGlobalAI] = useState(false);
+
+  // 构建实体指导信息（用于AI助手）
+  const buildEntityGuidance = useCallback(() => {
+    if (!entityResults || entityResults.length === 0) return null;
+    const guidance = { organizations: [], persons: [], locations: [], terms: [] };
+    entityResults.forEach(e => {
+      const cn = e.chinese_name || e.entity;
+      const en = e.english_name;
+      if (!cn || !en) return;
+      const item = `${cn} -> ${en}`;
+      const type = (e.type || '').toUpperCase();
+      if (type.includes('PER')) guidance.persons.push(item);
+      else if (type.includes('LOC') || type.includes('GPE')) guidance.locations.push(item);
+      else if (type.includes('ORG')) guidance.organizations.push(item);
+      else guidance.terms.push(item);
+    });
+    return guidance;
+  }, [entityResults]);
 
   // 更新对象引用（用于历史记录恢复后）
   const updateObjectReferences = useCallback(() => {
@@ -2584,7 +2602,19 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       return;
     }
 
-    setSelectedTextboxes(textboxes);
+    // 为每个textbox关联OCR原文
+    const enhancedTextboxes = textboxes.map(tb => {
+      const regionId = tb.regionId ?? tb.regionIndex;
+      let ocrOriginal = '';
+      if (regionId !== undefined && baiduRegions && baiduRegions.length > 0) {
+        const baiduRegion = baiduRegions.find(r => r.id === regionId);
+        ocrOriginal = baiduRegion?.src || '';
+      }
+      // 返回增强的对象，保留原始 fabric 对象的引用
+      return Object.assign(tb, { ocrOriginal });
+    });
+
+    setSelectedTextboxes(enhancedTextboxes);
 
     // 计算AI按钮位置
     const canvasEl = canvas.getElement();
@@ -3807,6 +3837,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
                 onClose={() => setShowAIModal(false)}
                 selectedTextboxes={selectedTextboxes}
                 onApply={handleAIApply}
+                entityGuidance={buildEntityGuidance()}
               />
             </div>
           )}

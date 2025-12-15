@@ -1623,6 +1623,8 @@ const ClaudePreviewSection = () => {
                       key={`editor-${currentMaterial.id}-${currentMaterial.rotationCount || 0}`}
                       imageSrc={getImageUrl()}
                       regions={savedRegions.length > 0 ? savedRegions : llmRegions}
+                      baiduRegions={baiduRegions}
+                      entityResults={entityResults}
                       editorKey={`llm-${currentMaterial.id}`}
                       exposeHandlers={true}
                       // 扩展工具栏控制

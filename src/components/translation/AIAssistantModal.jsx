@@ -9,7 +9,8 @@ const AIAssistantModal = ({
   isOpen,
   onClose,
   selectedTextboxes = [],
-  onApply
+  onApply,
+  entityGuidance = null
 }) => {
   const { t } = useLanguage();
   const [instruction, setInstruction] = useState('');
@@ -41,17 +42,27 @@ const AIAssistantModal = ({
       const texts = selectedTextboxes.map(tb => tb.text);
       const token = localStorage.getItem('auth_token');
 
+      // 构建增强的请求数据：包含OCR原文和实体指导
+      const requestData = {
+        texts: texts,
+        instruction: finalInstruction,
+        mode: processingMode,
+        // 新增：OCR原文列表
+        ocrTexts: selectedTextboxes.map(tb => ({
+          regionId: tb.regionId ?? tb.regionIndex,
+          text: tb.ocrOriginal || ''
+        })),
+        // 新增：实体指导信息
+        entityGuidance: entityGuidance
+      };
+
       const response = await fetch(`${API_URL}/api/ai-revise-text`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          texts: texts,
-          instruction: finalInstruction,
-          mode: processingMode
-        })
+        body: JSON.stringify(requestData)
       });
 
       const data = await response.json();
