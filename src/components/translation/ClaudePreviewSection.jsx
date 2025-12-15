@@ -427,9 +427,8 @@ const ClaudePreviewSection = () => {
 
         if (mode === 'disabled') {
           // 快速模式：直接执行LLM优化
-          // ✅ 设置加载状态：显示"优化中..."
+          // ✅ 设置加载状态：显示加载页面遮住内容
           setLlmLoading(true);
-          actions.showNotification('OCR完成', '正在进行LLM优化翻译...', 'info');
 
           try {
             const llmResult = await atomicAPI.llmOptimize(currentMaterial.id, {
@@ -454,9 +453,8 @@ const ClaudePreviewSection = () => {
           }
         } else if (mode === 'preserve') {
           // 保留先前结果模式：使用已有的实体识别结果直接进行LLM翻译
-          // ✅ 设置加载状态：显示"优化中..."
+          // ✅ 设置加载状态：显示加载页面遮住内容
           setLlmLoading(true);
-          actions.showNotification('OCR完成', '使用先前实体识别结果，正在进行LLM优化翻译...', 'info');
 
           try {
             // 解析已有的实体识别结果
@@ -620,22 +618,27 @@ const ClaudePreviewSection = () => {
 
         if (mode === 'disabled') {
           // 路径A: 不启用实体识别，直接进行LLM优化
-          actions.showNotification('OCR完成', '正在进行LLM优化翻译...', 'info');
+          // ✅ 设置加载状态：显示加载页面遮住内容
+          setLlmLoading(true);
 
-          const llmResults = await Promise.all(materialIds.map(materialId =>
-            atomicAPI.llmOptimize(materialId, { useEntityGuidance: false })
-          ));
+          try {
+            const llmResults = await Promise.all(materialIds.map(materialId =>
+              atomicAPI.llmOptimize(materialId, { useEntityGuidance: false })
+            ));
 
-          const failedLlm = llmResults.filter(r => !r.success);
-          if (failedLlm.length > 0) {
-            console.error(`${failedLlm.length} 页LLM翻译失败`);
+            const failedLlm = llmResults.filter(r => !r.success);
+            if (failedLlm.length > 0) {
+              console.error(`${failedLlm.length} 页LLM翻译失败`);
+            }
+
+            actions.showNotification(
+              '翻译完成',
+              `PDF ${pageCount}页翻译已完成`,
+              'success'
+            );
+          } finally {
+            setLlmLoading(false);
           }
-
-          actions.showNotification(
-            '翻译完成',
-            `PDF ${pageCount}页翻译已完成`,
-            'success'
-          );
 
           atomicFlowInProgressRef.current = false;
 
@@ -732,13 +735,7 @@ const ClaudePreviewSection = () => {
           });
         });
 
-        actions.showNotification(
-          '跳过实体识别',
-          `正在为PDF ${pageIds.length}页进行LLM翻译...`,
-          'info'
-        );
-
-        // 并行执行LLM（无实体指导）
+        // 并行执行LLM（无实体指导，加载页面已显示）
         const llmResults = await Promise.all(pageIds.map(pageId =>
           atomicAPI.llmOptimize(pageId, { useEntityGuidance: false })
         ));
@@ -774,8 +771,7 @@ const ClaudePreviewSection = () => {
           entity_recognition_confirmed: true
         });
 
-        actions.showNotification('跳过实体识别', '正在进行LLM翻译...', 'info');
-
+        // 执行LLM优化（加载页面已显示）
         const llmResult = await atomicAPI.llmOptimize(currentMaterial.id, {
           useEntityGuidance: false
         });
@@ -859,15 +855,11 @@ const ClaudePreviewSection = () => {
 
         try {
           // 步骤1: 并行确认所有页面的实体
-          actions.showNotification('实体确认中', `正在确认PDF ${pageIds.length}页的实体...`, 'info');
-
           await Promise.all(pageIds.map(pageId =>
             atomicAPI.entityConfirm(pageId, entities, translationGuidance)
           ));
 
-          // 步骤2: 并行执行所有页面的LLM优化
-          actions.showNotification('LLM优化中', `正在优化PDF ${pageIds.length}页的翻译...`, 'info');
-
+          // 步骤2: 并行执行所有页面的LLM优化（加载页面已显示）
           const llmResults = await Promise.all(pageIds.map(pageId =>
             atomicAPI.llmOptimize(pageId, { useEntityGuidance: entities.length > 0 })
           ));
@@ -914,6 +906,9 @@ const ClaudePreviewSection = () => {
           processing_step: 'entity_confirmed'
         });
 
+        // ✅ 设置加载状态：显示加载页面遮住内容
+        setLlmLoading(true);
+
         // 步骤1: 原子API确认实体（不自动触发LLM）
         const confirmResult = await atomicAPI.entityConfirm(
           currentMaterial.id,
@@ -924,15 +919,6 @@ const ClaudePreviewSection = () => {
         if (!confirmResult.success) {
           throw new Error(confirmResult.error || '确认实体失败');
         }
-
-        actions.showNotification(
-          '实体确认成功',
-          '正在启动LLM翻译优化...',
-          'info'
-        );
-
-        // ✅ 设置加载状态：显示"优化中..."遮住编辑器
-        setLlmLoading(true);
 
         // 步骤2: 原子API执行LLM优化（前端主动控制）
         try {
@@ -1408,8 +1394,7 @@ const ClaudePreviewSection = () => {
           throw new Error(baiduResult.error || 'OCR翻译失败');
         }
 
-        // 步骤2: LLM优化（不使用实体指导）
-        actions.showNotification('OCR完成', '正在进行LLM优化...', 'info');
+        // 步骤2: LLM优化（不使用实体指导，加载页面已显示）
         const llmResult = await atomicAPI.llmOptimize(currentMaterial.id, {
           useEntityGuidance: false
         });
