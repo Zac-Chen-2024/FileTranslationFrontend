@@ -582,49 +582,123 @@ const ClaudePreviewSection = () => {
         return;  // 单页图片处理完成，直接返回
       }
 
-      // ======= PDF模式：保留原有逻辑（使用旧API）=======
-      if (mode === 'disabled') {
-        // 路径A: 不启用实体识别，直接进行OCR翻译
-        await Promise.all(materialIds.map(id =>
-          materialAPI.enableEntityRecognition(id, false)
+      // ======= PDF模式：使用原子化API并行处理 =======
+      // ✅ 标记原子化流程开始
+      atomicFlowInProgressRef.current = true;
+
+      // 清除旧状态（如果是重新翻译）
+      if (wasRetranslateFlow) {
+        // 重置所有页面的LLM触发标记
+        materialIds.forEach(id => {
+          llmTriggeredRef.current[id] = false;
+        });
+      }
+
+      // 设置所有页面为处理中状态
+      await Promise.all(materialIds.map(id =>
+        actions.updateMaterial(id, {
+          processingStep: 'translating',
+          status: '处理中',
+          entityRecognitionEnabled: mode !== 'disabled',
+          entityRecognitionMode: mode !== 'disabled' ? mode : null
+        })
+      ));
+
+      try {
+        // 步骤1: 并行执行所有页面的百度OCR翻译
+        actions.showNotification('开始翻译', `正在翻译PDF的${pageCount}页...`, 'info');
+
+        const baiduResults = await Promise.all(materialIds.map(materialId =>
+          atomicAPI.translateBaidu(materialId, { clearPreviousData: wasRetranslateFlow })
         ));
 
-        actions.showNotification('开始翻译', '正在启动翻译任务...', 'info');
-        await materialAPI.startTranslation(currentMaterial.clientId, materialIds);
+        // 检查是否所有页面都成功
+        const failedPages = baiduResults.filter(r => !r.success);
+        if (failedPages.length > 0) {
+          console.error(`${failedPages.length} 页OCR翻译失败`);
+        }
 
-        actions.showNotification(
-          '翻译已启动',
-          `正在翻译PDF的${pageCount}页，请稍候...`,
-          'success'
-        );
-      } else if (mode === 'deep') {
-        // 路径B: 深度模式 - 全自动流程
-        await Promise.all(materialIds.map(id =>
-          materialAPI.enableEntityRecognition(id, true, 'deep')
-        ));
+        if (mode === 'disabled') {
+          // 路径A: 不启用实体识别，直接进行LLM优化
+          actions.showNotification('OCR完成', '正在进行LLM优化翻译...', 'info');
 
-        actions.showNotification('开始翻译', '正在启动翻译任务...', 'info');
-        await materialAPI.startTranslation(currentMaterial.clientId, materialIds);
+          const llmResults = await Promise.all(materialIds.map(materialId =>
+            atomicAPI.llmOptimize(materialId, { useEntityGuidance: false })
+          ));
 
-        actions.showNotification(
-          '深度识别启动',
-          `正在翻译PDF的${pageCount}页，翻译完成后将自动进行深度实体识别...`,
-          'info'
-        );
-      } else if (mode === 'standard') {
-        // 路径C: 标准模式 - 快速识别 + 用户选择
-        await Promise.all(materialIds.map(id =>
-          materialAPI.enableEntityRecognition(id, true, 'standard')
-        ));
+          const failedLlm = llmResults.filter(r => !r.success);
+          if (failedLlm.length > 0) {
+            console.error(`${failedLlm.length} 页LLM翻译失败`);
+          }
 
-        actions.showNotification('开始翻译', '正在启动翻译任务...', 'info');
-        await materialAPI.startTranslation(currentMaterial.clientId, materialIds);
+          actions.showNotification(
+            '翻译完成',
+            `PDF ${pageCount}页翻译已完成`,
+            'success'
+          );
 
-        actions.showNotification(
-          '标准模式启动',
-          `正在翻译PDF的${pageCount}页，翻译完成后将进行整体实体识别...`,
-          'info'
-        );
+          atomicFlowInProgressRef.current = false;
+
+        } else if (mode === 'standard' || mode === 'deep') {
+          // 路径B/C: 进行实体识别
+          // 设置所有页面为实体识别中状态
+          await Promise.all(materialIds.map(id =>
+            actions.updateMaterial(id, {
+              processingStep: 'entity_recognizing',
+              status: '处理中'
+            })
+          ));
+
+          actions.showNotification('OCR完成', `正在进行${mode === 'deep' ? '深度' : '快速'}实体识别...`, 'info');
+
+          const entityResults = await Promise.all(materialIds.map(materialId =>
+            atomicAPI.entityRecognize(materialId, mode === 'deep' ? 'deep' : 'fast')
+          ));
+
+          // 检查结果，收集所有实体
+          const allEntities = [];
+          entityResults.forEach((result, index) => {
+            if (result.success) {
+              const entities = result.entities || result.entityResult?.entities || [];
+              allEntities.push(...entities);
+
+              // 更新该页面的状态
+              actions.updateMaterial(materialIds[index], {
+                processingStep: 'entity_pending_confirm',
+                entityRecognitionResult: JSON.stringify(result.entityResult || { entities }),
+                entity_recognition_confirmed: false
+              });
+            }
+          });
+
+          // 清除原子流程标志（接下来由用户确认流程接管）
+          atomicFlowInProgressRef.current = false;
+
+          // 合并去重实体并显示确认对话框
+          const uniqueEntities = [];
+          const seenEntities = new Set();
+          allEntities.forEach(entity => {
+            const key = `${entity.entity || entity.chinese_name}_${entity.type}`;
+            if (!seenEntities.has(key)) {
+              seenEntities.add(key);
+              uniqueEntities.push(entity);
+            }
+          });
+
+          setTimeout(() => {
+            setEntityResults(uniqueEntities);
+          }, 50);
+
+          actions.showNotification(
+            '实体识别完成',
+            `PDF ${pageCount}页共识别到 ${uniqueEntities.length} 个实体，请确认翻译`,
+            'success'
+          );
+        }
+      } catch (pdfError) {
+        console.error('PDF翻译流程失败:', pdfError);
+        actions.showNotification('翻译失败', pdfError.message || 'PDF翻译过程出错', 'error');
+        atomicFlowInProgressRef.current = false;
       }
     } catch (error) {
       console.error('启动翻译失败:', error);
@@ -632,53 +706,106 @@ const ClaudePreviewSection = () => {
     }
   }, [currentMaterial, pdfPages, actions, isRetranslateFlow]);
 
-  // 处理跳过实体识别
+  // 处理跳过实体识别 - 直接进行LLM翻译（不使用实体指导）
+  // ✅ 已迁移到原子化API
   const handleEntitySkip = useCallback(async () => {
     if (!currentMaterial) return;
 
     const isPDF = pdfPages.length > 0 && currentMaterial.pdfSessionId;
 
     try {
-      const { materialAPI } = await import('../../services/api');
-
       // 清空实体结果，隐藏Modal
       setEntityResults([]);
+      setLlmLoading(true);
 
       if (isPDF) {
-        // ===== PDF Session: 禁用所有页面的实体识别 =====
+        // ===== PDF Session: 并行执行所有页面的LLM（无实体指导） =====
         const sessionId = currentMaterial.pdfSessionId;
-        console.log(`⏭️ [PDF Session ${sessionId}] 跳过实体识别，禁用所有${pdfPages.length}个页面的实体识别`);
+        const pageIds = pdfPages.map(p => p.id);
+        console.log(`⏭️ [PDF Session ${sessionId}] 跳过实体识别，直接进行LLM翻译`);
 
-        // 为所有页面禁用实体识别
-        await Promise.all(pdfPages.map(page =>
-          materialAPI.enableEntityRecognition(page.id, false)
-        ));
+        // 更新所有页面状态
+        pageIds.forEach(pageId => {
+          actions.updateMaterial(pageId, {
+            entityRecognitionEnabled: false,
+            entity_recognition_confirmed: true
+          });
+        });
 
         actions.showNotification(
           '跳过实体识别',
-          `PDF的${pdfPages.length}页将直接进行LLM翻译`,
+          `正在为PDF ${pageIds.length}页进行LLM翻译...`,
           'info'
         );
+
+        // 并行执行LLM（无实体指导）
+        const llmResults = await Promise.all(pageIds.map(pageId =>
+          atomicAPI.llmOptimize(pageId, { useEntityGuidance: false })
+        ));
+
+        // 更新所有页面的结果
+        llmResults.forEach((result, index) => {
+          if (result.success) {
+            actions.updateMaterial(pageIds[index], {
+              processingStep: result.processingStep,
+              llmTranslationResult: result.llmTranslationResult
+            });
+          }
+        });
+
+        const failedCount = llmResults.filter(r => !r.success).length;
+        if (failedCount > 0) {
+          actions.showNotification(
+            'LLM翻译部分完成',
+            `${pageIds.length - failedCount}页成功，${failedCount}页失败`,
+            'warning'
+          );
+        } else {
+          actions.showNotification(
+            '翻译完成',
+            `PDF ${pageIds.length}页LLM翻译已完成`,
+            'success'
+          );
+        }
       } else {
-        // ===== 单页图片: 禁用当前页面的实体识别 =====
-        await materialAPI.enableEntityRecognition(currentMaterial.id, false);
-        actions.showNotification('跳过实体识别', '将直接进行LLM翻译', 'info');
+        // ===== 单页图片: 直接执行LLM（无实体指导） =====
+        actions.updateMaterial(currentMaterial.id, {
+          entityRecognitionEnabled: false,
+          entity_recognition_confirmed: true
+        });
+
+        actions.showNotification('跳过实体识别', '正在进行LLM翻译...', 'info');
+
+        const llmResult = await atomicAPI.llmOptimize(currentMaterial.id, {
+          useEntityGuidance: false
+        });
+
+        if (llmResult.success) {
+          actions.updateMaterial(currentMaterial.id, {
+            processingStep: llmResult.processingStep,
+            llmTranslationResult: llmResult.llmTranslationResult
+          });
+          actions.showNotification('翻译完成', 'LLM翻译已完成', 'success');
+        } else {
+          throw new Error(llmResult.error || 'LLM翻译失败');
+        }
       }
     } catch (error) {
       console.error('跳过实体识别失败:', error);
-      actions.showNotification('操作失败', error.message || '无法跳过实体识别', 'error');
+      actions.showNotification('操作失败', error.message || '无法完成翻译', 'error');
+    } finally {
+      setLlmLoading(false);
     }
   }, [currentMaterial, pdfPages, actions]);
 
   // 处理确认实体
+  // ✅ 已迁移到原子化API
   const handleConfirmEntities = useCallback(async (entities) => {
     if (!currentMaterial) return;
 
     const isPDF = pdfPages.length > 0 && currentMaterial.pdfSessionId;
 
     try {
-      const { materialAPI } = await import('../../services/api');
-
       // 清空实体结果，隐藏Modal
       setEntityResults([]);
 
@@ -714,26 +841,71 @@ const ClaudePreviewSection = () => {
       });
 
       if (isPDF) {
-        // ===== PDF Session: 确认整个PDF的实体 =====
+        // ===== PDF Session: 使用原子化API并行确认实体并执行LLM =====
         const sessionId = currentMaterial.pdfSessionId;
         console.log(`✅ [PDF Session ${sessionId}] 确认实体，整个PDF的${pdfPages.length}页将使用统一的实体翻译指导`);
 
         // 立即更新所有页面的本地状态，防止 Modal 重复弹出
-        pdfPages.forEach(page => {
-          actions.updateMaterial(page.id, {
+        const pageIds = pdfPages.map(p => p.id);
+        pageIds.forEach(pageId => {
+          actions.updateMaterial(pageId, {
             entity_recognition_confirmed: true,
-            processing_step: 'entity_confirmed'
+            processingStep: 'entity_confirmed'
           });
         });
 
-        // 确认整个PDF Session的实体
-        await materialAPI.pdfSessionConfirmEntities(sessionId, entities, translationGuidance);
+        // ✅ 设置加载状态：显示"优化中..."
+        setLlmLoading(true);
 
-        actions.showNotification(
-          '实体确认成功',
-          `已确认PDF的${pdfPages.length}页实体翻译，LLM翻译将自动开始`,
-          'success'
-        );
+        try {
+          // 步骤1: 并行确认所有页面的实体
+          actions.showNotification('实体确认中', `正在确认PDF ${pageIds.length}页的实体...`, 'info');
+
+          await Promise.all(pageIds.map(pageId =>
+            atomicAPI.entityConfirm(pageId, entities, translationGuidance)
+          ));
+
+          // 步骤2: 并行执行所有页面的LLM优化
+          actions.showNotification('LLM优化中', `正在优化PDF ${pageIds.length}页的翻译...`, 'info');
+
+          const llmResults = await Promise.all(pageIds.map(pageId =>
+            atomicAPI.llmOptimize(pageId, { useEntityGuidance: entities.length > 0 })
+          ));
+
+          // 更新所有页面的结果
+          llmResults.forEach((result, index) => {
+            if (result.success) {
+              actions.updateMaterial(pageIds[index], {
+                processingStep: result.processingStep,
+                llmTranslationResult: result.llmTranslationResult
+              });
+            }
+          });
+
+          const failedCount = llmResults.filter(r => !r.success).length;
+          if (failedCount > 0) {
+            actions.showNotification(
+              'LLM翻译部分完成',
+              `${pageIds.length - failedCount}页成功，${failedCount}页失败`,
+              'warning'
+            );
+          } else {
+            actions.showNotification(
+              '翻译完成',
+              `PDF ${pageIds.length}页LLM翻译已完成`,
+              'success'
+            );
+          }
+        } catch (pdfConfirmError) {
+          console.error('PDF实体确认/LLM翻译失败:', pdfConfirmError);
+          actions.showNotification(
+            'LLM翻译失败',
+            `${pdfConfirmError.message}（可点击重试按钮重新翻译）`,
+            'error'
+          );
+        } finally {
+          setLlmLoading(false);
+        }
       } else {
         // ===== 单页图片: 使用原子化API确认实体 =====
         // 立即更新本地状态，防止 Modal 重复弹出
@@ -803,6 +975,7 @@ const ClaudePreviewSection = () => {
   }, [currentMaterial, pdfPages, actions]);
 
   // 处理AI优化（深度查询）- 接收实体列表参数
+  // ✅ 已迁移到原子化API
   const handleAIOptimize = useCallback(async (entities) => {
     if (!currentMaterial || !entities || entities.length === 0) return;
 
@@ -810,32 +983,48 @@ const ClaudePreviewSection = () => {
 
     try {
       setEntityModalLoading(true);
-      const { materialAPI } = await import('../../services/api');
 
       if (isPDF) {
-        // ===== PDF Session: 整体深度识别 =====
+        // ===== PDF Session: 并行深度识别所有页面 =====
         const sessionId = currentMaterial.pdfSessionId;
+        const pageIds = pdfPages.map(p => p.id);
         console.log(`🤖 [PDF Session ${sessionId}] 开始AI优化，对整个PDF的实体进行深度识别`);
 
         actions.showNotification(
           'AI优化中',
-          `正在为PDF的${pdfPages.length}页进行深度实体识别，这可能需要1-2分钟...`,
+          `正在为PDF的${pageIds.length}页进行深度实体识别，这可能需要1-2分钟...`,
           'info'
         );
 
-        // 调用PDF Session深度识别API
-        const response = await materialAPI.pdfSessionEntityRecognitionDeep(sessionId, entities);
+        // 并行调用原子API进行深度识别
+        const results = await Promise.all(pageIds.map(pageId =>
+          atomicAPI.entityRecognize(pageId, 'deep')
+        ));
 
-        if (response.success && response.result && response.result.entities) {
-          // 更新实体结果为AI优化后的结果
-          setEntityResults(response.result.entities);
+        // 收集所有实体并去重
+        const allEntities = [];
+        const seenEntities = new Set();
+        results.forEach(result => {
+          if (result.success) {
+            const pageEntities = result.entities || result.entityResult?.entities || [];
+            pageEntities.forEach(entity => {
+              const key = `${entity.entity || entity.chinese_name}_${entity.type}`;
+              if (!seenEntities.has(key)) {
+                seenEntities.add(key);
+                allEntities.push(entity);
+              }
+            });
+          }
+        });
 
-          actions.showNotification(
-            'AI优化完成',
-            `已为 ${response.result.entities.length} 个实体查找官方英文名称`,
-            'success'
-          );
-        }
+        // 更新实体结果为AI优化后的结果
+        setEntityResults(allEntities);
+
+        actions.showNotification(
+          'AI优化完成',
+          `已为 ${allEntities.length} 个实体查找官方英文名称`,
+          'success'
+        );
       } else {
         // ===== 单页图片: 深度识别当前页面 =====
         actions.showNotification(
@@ -844,21 +1033,21 @@ const ClaudePreviewSection = () => {
           'info'
         );
 
-        // 提取实体中文名称列表
-        const entityNames = entities.map(e => e.chinese_name || e.entity);
+        // 调用原子API进行深度识别
+        const response = await atomicAPI.entityRecognize(currentMaterial.id, 'deep');
 
-        // 调用深度识别API（传入实体列表）
-        const response = await materialAPI.entityRecognitionDeep(currentMaterial.id, entityNames);
-
-        if (response.success && response.result && response.result.entities) {
+        if (response.success) {
+          const resultEntities = response.entities || response.entityResult?.entities || [];
           // 更新实体结果为AI优化后的结果
-          setEntityResults(response.result.entities);
+          setEntityResults(resultEntities);
 
           actions.showNotification(
             'AI优化完成',
-            `已为 ${response.result.entities.length} 个实体查找官方英文名称`,
+            `已为 ${resultEntities.length} 个实体查找官方英文名称`,
             'success'
           );
+        } else {
+          throw new Error(response.error || '深度识别失败');
         }
       }
     } catch (error) {
@@ -918,64 +1107,8 @@ const ClaudePreviewSection = () => {
     const step = currentMaterial.processingStep;
     const isPDF = pdfPages.length > 0 && currentMaterial.pdfSessionId;
 
-    // OCR翻译完成，检查是否需要进行实体识别
-    if (step === 'translated' && currentMaterial.entityRecognitionEnabled) {
-
-      if (isPDF) {
-        // ===== PDF Session 整体实体识别逻辑 =====
-        const sessionId = currentMaterial.pdfSessionId;
-
-        // 检查该PDF Session是否已经触发过实体识别（避免重复）
-        if (pdfSessionEntityTriggeredRef.current[sessionId]) {
-          return;
-        }
-
-        // 检查所有页面是否都完成了OCR翻译
-        const allPagesTranslated = pdfPages.every(page => {
-          const latestPage = state.materials.find(m => m.id === page.id);
-          return latestPage && latestPage.processingStep === 'translated';
-        });
-
-        if (!allPagesTranslated) {
-          return;
-        }
-
-        // 所有页面都已翻译，触发整体实体识别
-        pdfSessionEntityTriggeredRef.current[sessionId] = true;
-
-        // 根据模式触发不同的实体识别
-        if (currentMaterial.entityRecognitionMode === 'deep') {
-          triggerPdfSessionDeepEntityRecognition(sessionId);
-        } else if (currentMaterial.entityRecognitionMode === 'standard') {
-          triggerPdfSessionFastEntityRecognition(sessionId);
-        }
-      }
-      // ✅ 单页图片不再由 useEffect 处理，已由原子化API在 handleEntityModeConfirm 中处理
-    }
-    // 禁用实体识别时，OCR完成后自动触发LLM翻译
-    else if (step === 'translated' && !currentMaterial.entityRecognitionEnabled && currentMaterial.translationTextInfo) {
-      // 检查是否已触发过LLM翻译（避免重复）
-      if (llmTriggeredRef.current[currentMaterial.id]) {
-        return;
-      }
-
-      // 检查是否已有LLM翻译结果
-      if (currentMaterial.llmTranslationResult) {
-        return;
-      }
-
-      // 🔧 关键修复：使用 ref 获取最新的 baiduRegions，避免依赖 state 导致的循环触发
-      const currentBaiduRegions = baiduRegionsRef.current;
-      if (!currentBaiduRegions || currentBaiduRegions.length === 0) {
-        return;
-      }
-
-      // 标记为已触发
-      llmTriggeredRef.current[currentMaterial.id] = true;
-
-      // 触发LLM翻译
-      handleLLMTranslate(currentBaiduRegions);
-    }
+    // ✅ 已迁移到原子化API：OCR完成后的实体识别由 handleEntityModeConfirm 处理
+    // 单页图片和PDF都通过 handleEntityModeConfirm 触发，不再需要 useEffect 自动触发
 
     // 快速实体识别完成，显示结果让用户选择
     // 只有在 entity_pending_confirm 状态且还没确认过时才显示
@@ -1033,117 +1166,11 @@ const ClaudePreviewSection = () => {
   // 🔧 关键修复：移除 baiduRegions 依赖，使用 baiduRegionsRef 代替，避免循环触发
   }, [currentMaterial?.id, currentMaterial?.processingStep, currentMaterial?.entityRecognitionEnabled, currentMaterial?.entityRecognitionMode, currentMaterial?.llmTranslationResult, currentMaterial?.entity_recognition_confirmed, currentMaterial?.entityRecognitionResult, pdfPages, state.materials]);
 
-  // 触发深度实体识别
-  // 🔧 竞态条件修复：添加材料ID验证
-  const triggerDeepEntityRecognition = React.useCallback(async () => {
-    const materialId = currentMaterial?.id;
-    if (!materialId) return;
-
-    try {
-      const { materialAPI } = await import('../../services/api');
-      await materialAPI.entityRecognitionDeep(materialId);
-
-      // 🔧 检查材料是否已切换
-      if (currentMaterialIdRef.current !== materialId) {
-        console.log('🔄 材料已切换，忽略深度实体识别响应');
-        return;
-      }
-      console.log('✓ 深度实体识别已启动');
-    } catch (error) {
-      console.error('深度实体识别启动失败:', error);
-      // 🔧 只有当仍是当前材料时才显示错误
-      if (currentMaterialIdRef.current === materialId) {
-        actions.showNotification('实体识别失败', error.message || '无法启动深度识别', 'error');
-      }
-    }
-  }, [currentMaterial, actions]);
-
-  // 触发快速实体识别
-  // 🔧 竞态条件修复：添加材料ID验证
-  const triggerFastEntityRecognition = React.useCallback(async () => {
-    const materialId = currentMaterial?.id;
-    if (!materialId) return;
-
-    try {
-      const { materialAPI } = await import('../../services/api');
-      const response = await materialAPI.entityRecognitionFast(materialId);
-
-      // 🔧 检查材料是否已切换
-      if (currentMaterialIdRef.current !== materialId) {
-        console.log('🔄 材料已切换，忽略快速实体识别响应');
-        return;
-      }
-
-      if (response.success && response.result.entities) {
-        console.log('✓ 快速实体识别完成，识别到', response.result.entities.length, '个实体');
-        // 结果会通过WebSocket更新到material.entityRecognitionResult
-        // 然后上面的useEffect会捕获并显示对话框
-      }
-    } catch (error) {
-      console.error('快速实体识别失败:', error);
-      // 🔧 只有当仍是当前材料时才显示错误
-      if (currentMaterialIdRef.current === materialId) {
-        actions.showNotification('实体识别失败', error.message || '无法启动快速识别', 'error');
-      }
-    }
-  }, [currentMaterial, actions]);
-
-  // 触发PDF Session整体快速实体识别
-  // 🔧 竞态条件修复：添加材料ID验证
-  const triggerPdfSessionFastEntityRecognition = React.useCallback(async (sessionId) => {
-    if (!sessionId) return;
-    const materialId = currentMaterial?.id;
-
-    try {
-      const { materialAPI } = await import('../../services/api');
-      console.log(`🔍 [PDF Session] 开始整体快速实体识别，Session ID: ${sessionId}`);
-      const response = await materialAPI.pdfSessionEntityRecognitionFast(sessionId);
-
-      // 🔧 检查材料是否已切换
-      if (currentMaterialIdRef.current !== materialId) {
-        console.log('🔄 材料已切换，忽略PDF Session快速实体识别响应');
-        return;
-      }
-
-      if (response.success && response.result) {
-        console.log(`✓ [PDF Session] 整体快速实体识别完成，共${response.total_pages}页，识别到 ${response.result.total_entities} 个实体`);
-        // 结果会通过WebSocket更新到所有页面的material.entityRecognitionResult
-        // 然后上面的useEffect会捕获并显示对话框
-      }
-    } catch (error) {
-      console.error('[PDF Session] 整体快速实体识别失败:', error);
-      // 🔧 只有当仍是当前材料时才显示错误
-      if (currentMaterialIdRef.current === materialId) {
-        actions.showNotification('实体识别失败', error.message || '无法启动PDF整体识别', 'error');
-      }
-    }
-  }, [actions, currentMaterial]);
-
-  // 触发PDF Session整体深度实体识别
-  // 🔧 竞态条件修复：添加材料ID验证
-  const triggerPdfSessionDeepEntityRecognition = React.useCallback(async (sessionId) => {
-    if (!sessionId) return;
-    const materialId = currentMaterial?.id;
-
-    try {
-      const { materialAPI } = await import('../../services/api');
-      console.log(`🔍 [PDF Session] 开始整体深度实体识别，Session ID: ${sessionId}`);
-      await materialAPI.pdfSessionEntityRecognitionDeep(sessionId, []);
-
-      // 🔧 检查材料是否已切换
-      if (currentMaterialIdRef.current !== materialId) {
-        console.log('🔄 材料已切换，忽略PDF Session深度实体识别响应');
-        return;
-      }
-      console.log('✓ [PDF Session] 整体深度实体识别已启动');
-    } catch (error) {
-      console.error('[PDF Session] 整体深度实体识别启动失败:', error);
-      // 🔧 只有当仍是当前材料时才显示错误
-      if (currentMaterialIdRef.current === materialId) {
-        actions.showNotification('实体识别失败', error.message || '无法启动PDF深度识别', 'error');
-      }
-    }
-  }, [actions, currentMaterial]);
+  // ✅ 已删除旧的实体识别触发函数，统一使用 atomicAPI.entityRecognize()
+  // - triggerDeepEntityRecognition
+  // - triggerFastEntityRecognition
+  // - triggerPdfSessionFastEntityRecognition
+  // - triggerPdfSessionDeepEntityRecognition
 
   // 解析百度翻译结果
   // 🔧 竞态条件修复：添加材料ID验证
@@ -1219,176 +1246,8 @@ const ClaudePreviewSection = () => {
     }
   }, [currentMaterial?.id, currentMaterial?.translationTextInfo, currentMaterial?.processingProgress, currentMaterial?.entityRecognitionEnabled, currentMaterial?.entityRecognitionConfirmed, pdfSessionProgress?.progress]);
 
-  // 当PDF所有页面翻译完成时，自动为所有页面触发LLM（仅限禁用实体识别时）
-  // 🔧 竞态条件修复：添加AbortController和材料ID检查
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  React.useEffect(() => {
-    // 只有当是PDF多页 && 整体进度达到66% && 所有页面翻译完成时才执行
-    if (!currentMaterial?.pdfSessionId || !pdfSessionProgress || pdfSessionProgress.progress < 66) {
-      return;
-    }
-
-    if (!pdfSessionProgress.allTranslated) {
-      return; // 还有页面未翻译完成
-    }
-
-    // ⭐ 如果启用了实体识别，不要自动触发LLM（应该等待用户确认实体后，由后端自动触发）
-    if (currentMaterial.entityRecognitionEnabled) {
-      return;
-    }
-
-    // 🔧 捕获当前材料ID用于后续验证
-    const currentId = currentMaterial.id;
-    const signal = abortControllerRef.current?.signal;
-
-    // 🔧 使用async IIFE + Promise.all 代替 forEach + async
-    const translatePages = async () => {
-      // 筛选需要翻译的页面
-      const pagesToTranslate = pdfPages.filter(pageRef => {
-        const latestPage = state.materials.find(m => m.id === pageRef.id);
-        if (!latestPage) return false;
-        if (llmTriggeredRef.current[latestPage.id]) return false;
-        if (!latestPage.translationTextInfo) return false;
-        if (latestPage.llmTranslationResult) {
-          llmTriggeredRef.current[latestPage.id] = true;
-          return false;
-        }
-        if (latestPage.processingStep === 'entity_recognizing' ||
-            latestPage.processingStep === 'entity_pending_confirm') {
-          return false;
-        }
-        return true;
-      });
-
-      // 并行处理所有需要翻译的页面
-      await Promise.all(pagesToTranslate.map(async (pageRef) => {
-        // 🔧 每次操作前检查是否已取消
-        if (signal?.aborted) return;
-        if (currentMaterialIdRef.current !== currentId) return;
-
-        const latestPage = state.materials.find(m => m.id === pageRef.id);
-        if (!latestPage) return;
-
-        try {
-          llmTriggeredRef.current[latestPage.id] = true; // 立即标记，防止重复
-
-          const token = localStorage.getItem('auth_token');
-          const response = await fetch(`${API_URL}/api/materials/${latestPage.id}/llm-translate`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            signal // 🔧 添加取消信号
-          });
-
-          // 🔧 检查材料是否已切换
-          if (currentMaterialIdRef.current !== currentId) {
-            return;
-          }
-
-          if (response.ok) {
-            const data = await response.json();
-
-            // 🔧 再次检查材料是否已切换
-            if (currentMaterialIdRef.current !== currentId) return;
-
-            // 更新materials列表中的这个页面
-            actions.updateMaterial(latestPage.id, {
-              llmTranslationResult: data.llm_translations,
-              processingProgress: 100 // LLM完成后设置为100%
-            });
-          } else {
-            console.error(`✗ 页面 ${latestPage.pdfPageNumber} LLM翻译失败:`, await response.text());
-          }
-        } catch (error) {
-          // 🔧 处理请求被取消的情况
-          if (error.name === 'AbortError') {
-            return;
-          }
-          console.error(`页面 ${latestPage.pdfPageNumber} LLM翻译出错:`, error);
-        }
-      }));
-    };
-
-    translatePages();
-  }, [pdfSessionProgress?.allTranslated, pdfSessionProgress?.progress, pdfPages, state.materials]);
-
-  // LLM翻译（完全按照Reference的方式）
-  // 🔧 竞态条件修复：添加AbortController和材料ID检查
-  const handleLLMTranslate = async (regions) => {
-    const materialId = currentMaterial?.id;
-    if (!materialId) return;
-
-    setLlmLoading(true);
-
-    try {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_URL}/api/materials/${materialId}/llm-translate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        signal: abortControllerRef.current?.signal // 🔧 添加取消信号
-      });
-
-      // 🔧 检查材料是否已切换
-      if (currentMaterialIdRef.current !== materialId) {
-        console.log('🔄 材料已切换，忽略LLM响应');
-        return;
-      }
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('LLM翻译失败，响应:', errorText);
-        throw new Error(`LLM翻译失败: ${response.status} ${errorText}`);
-      }
-
-      const data = await response.json();
-
-      // 🔧 再次检查材料是否已切换（解析JSON后）
-      if (currentMaterialIdRef.current !== materialId) {
-        return;
-      }
-
-      // 更新LLM regions的翻译结果（Reference的方式）
-      if (data.llm_translations) {
-        const updatedRegions = regions.map(region => {
-          const llmTranslation = data.llm_translations.find(t => t.id === region.id);
-          if (llmTranslation) {
-            return {
-              ...region,
-              dst: llmTranslation.translation
-            };
-          }
-          return region;
-        });
-
-        setLlmRegions(updatedRegions);
-        actions.showNotification(t('aiOptimizationComplete'), t('aiOptimizationSuccessCount', { count: updatedRegions.length }), 'success');
-      } else {
-        console.error('LLM API返回数据缺少llm_translations字段');
-      }
-    } catch (err) {
-      // 🔧 处理请求被取消的情况
-      if (err.name === 'AbortError') {
-        return;
-      }
-      console.error('LLM翻译错误:', err);
-      // 🔧 只有当仍是当前材料时才显示错误和更新状态
-      if (currentMaterialIdRef.current === materialId) {
-        actions.showNotification('LLM翻译失败', err.message, 'error');
-        // LLM翻译失败时，使用百度原始翻译
-        setLlmRegions(regions);
-      }
-    } finally {
-      // 🔧 只有当仍是当前材料时才更新loading状态
-      if (currentMaterialIdRef.current === materialId) {
-        setLlmLoading(false);
-      }
-    }
-  };
+  // ✅ 已删除旧的 PDF auto-LLM useEffect，PDF的LLM翻译统一由 handleEntityModeConfirm 处理
+  // ✅ 已删除旧的 handleLLMTranslate 函数，LLM翻译统一使用 atomicAPI.llmOptimize()
 
   // ✅ 重构：获取图片URL - 始终从原图加载
   const getImageUrl = () => {
@@ -1528,28 +1387,45 @@ const ClaudePreviewSection = () => {
     }
   }, [currentMaterial, actions]);
 
+  // ✅ 已迁移到原子化API
   const handleRetryTranslation = useCallback(async (translationType) => {
     if (!currentMaterial) return;
-    
+
     try {
       // 显示重试通知
-      actions.showNotification('重新翻译', `正在重新进行${translationType === 'latex' ? 'LaTeX' : 'API'}翻译...`, 'info');
-      
+      actions.showNotification('重新翻译', `正在重新进行${translationType === 'latex' ? 'LaTeX' : 'OCR'}翻译...`, 'info');
+
       if (translationType === 'api') {
-        // 重新调用API翻译
-        const { materialAPI } = await import('../../services/api');
-        await materialAPI.startTranslation(currentMaterial.clientId);
-        
-        // 刷新材料列表
-        setTimeout(async () => {
-          try {
-            const materialsData = await materialAPI.getMaterials(currentMaterial.clientId);
-            actions.setMaterials(materialsData.materials || []);
-          } catch (error) {
-            console.error('刷新材料列表失败:', error);
-          }
-        }, 2000);
-        
+        // 使用原子API重新进行OCR翻译
+        setLlmLoading(true);
+
+        // 步骤1: OCR翻译
+        const baiduResult = await atomicAPI.translateBaidu(currentMaterial.id, {
+          clearPreviousData: true
+        });
+
+        if (!baiduResult.success) {
+          throw new Error(baiduResult.error || 'OCR翻译失败');
+        }
+
+        // 步骤2: LLM优化（不使用实体指导）
+        actions.showNotification('OCR完成', '正在进行LLM优化...', 'info');
+        const llmResult = await atomicAPI.llmOptimize(currentMaterial.id, {
+          useEntityGuidance: false
+        });
+
+        if (llmResult.success) {
+          actions.updateMaterial(currentMaterial.id, {
+            processingStep: llmResult.processingStep,
+            llmTranslationResult: llmResult.llmTranslationResult
+          });
+          actions.showNotification('重试成功', '翻译已完成', 'success');
+        } else {
+          throw new Error(llmResult.error || 'LLM翻译失败');
+        }
+
+        setLlmLoading(false);
+
       } else if (translationType === 'latex') {
         // 生成唯一的请求ID
         const requestId = Date.now();
