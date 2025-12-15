@@ -4,7 +4,9 @@ import ClaudeStyleLayout from '../layouts/ClaudeStyleLayout';
 import ClientSidebar from '../components/sidebar/ClientSidebar';
 import ClaudePreviewSection from '../components/translation/ClaudePreviewSection';
 import AddMaterialModal from '../components/modals/AddMaterialModal';
+import AddClientModal from '../components/modals/AddClientModal';
 import ExportConfirmModal from '../components/modals/ExportConfirmModal';
+import GlobalConfirmDialog from '../components/common/GlobalConfirmDialog';
 import { useApp } from '../contexts/AppContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { clientAPI, materialAPI, exportAPI } from '../services/api';
@@ -25,6 +27,7 @@ const DemoClaudeLayout = () => {
   const [selectedMaterialId, setSelectedMaterialId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showExportConfirm, setShowExportConfirm] = useState(false);
+  const [showAddClientModal, setShowAddClientModal] = useState(false);
 
   // 当URL中有clientId时，加载客户信息
   useEffect(() => {
@@ -99,7 +102,26 @@ const DemoClaudeLayout = () => {
   };
 
   const handleAddClient = () => {
-    navigate('/dashboard');
+    setShowAddClientModal(true);
+  };
+
+  const handleCreateClient = async (clientName) => {
+    try {
+      const response = await clientAPI.createClient({ name: clientName });
+      const newClient = response.client || response;
+
+      actions.showNotification('成功', `客户 "${clientName}" 已创建`, 'success');
+
+      // 自动选中新创建的客户
+      setSelectedClient(newClient);
+      actions.setCurrentClient(newClient);
+      actions.setMaterials([]);
+      navigate(`/demo-v2/${newClient.cid}`);
+    } catch (error) {
+      console.error('创建客户失败:', error);
+      actions.showNotification('错误', '创建客户失败', 'error');
+      throw error;
+    }
   };
 
   // 文件拖拽上传
@@ -332,6 +354,12 @@ const DemoClaudeLayout = () => {
 
       <AddMaterialModal />
 
+      <AddClientModal
+        isOpen={showAddClientModal}
+        onClose={() => setShowAddClientModal(false)}
+        onConfirm={handleCreateClient}
+      />
+
       <ExportConfirmModal
         isOpen={showExportConfirm}
         onClose={() => setShowExportConfirm(false)}
@@ -340,6 +368,8 @@ const DemoClaudeLayout = () => {
         unconfirmedCount={materials.filter(m => m.clientId === clientId && !m.confirmed).length}
         clientName={selectedClient?.name || ''}
       />
+
+      <GlobalConfirmDialog />
     </>
   );
 };

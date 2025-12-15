@@ -61,6 +61,11 @@ const ClaudePreviewSection = () => {
   // 🔧 竞态条件修复：使用ref跟踪当前材料ID和请求取消
   const currentMaterialIdRef = React.useRef(null);
   const abortControllerRef = React.useRef(null);
+
+  // 🔧 关键修复：使用 ref 跟踪 baiduRegions，避免在 useEffect 依赖中使用 state
+  const baiduRegionsRef = React.useRef([]);
+  // ✅ 使用 ref 跟踪原子化流程状态（同步更新，避免 useEffect 竞态条件）
+  const atomicFlowInProgressRef = React.useRef(false);
   // ========== 状态提升结束 ==========
 
   // 监听currentMaterial变化，强制刷新预览
@@ -104,6 +109,11 @@ const ClaudePreviewSection = () => {
       }
     };
   }, [currentMaterial?.id]);
+
+  // 🔧 关键修复：同步 baiduRegions 到 ref，用于在其他 useEffect 中访问最新值而不触发重新渲染
+  React.useEffect(() => {
+    baiduRegionsRef.current = baiduRegions;
+  }, [baiduRegions]);
 
   // ========== ComparisonView的hooks和handlers（已内联到PreviewSection）==========
   const isLatexSelected = currentMaterial?.selectedResult === 'latex';
@@ -377,6 +387,20 @@ const ClaudePreviewSection = () => {
           llmTriggeredRef.current[currentMaterial.id] = false;
         }
 
+        // ✅ 标记原子化流程开始（使用ref同步更新，防止useEffect竞态条件）
+        atomicFlowInProgressRef.current = true;
+
+        // ✅ 设置加载状态：显示"翻译中..."
+        actions.updateMaterial(currentMaterial.id, {
+          processingStep: 'translating',
+          status: '处理中'
+        });
+        actions.setCurrentMaterial({
+          ...currentMaterial,
+          processingStep: 'translating',
+          status: '处理中'
+        });
+
         // 步骤1: 使用原子API执行百度OCR
         actions.showNotification('开始翻译', '正在执行OCR翻译...', 'info');
         const baiduResult = await atomicAPI.translateBaidu(currentMaterial.id, {
@@ -388,17 +412,23 @@ const ClaudePreviewSection = () => {
         }
 
         // 更新材料状态
+        // ✅ 关键修复：提前设置 entityRecognitionEnabled，防止 useEffect 误触发
+        // 注：atomicFlowInProgressRef 已在前面设置为 true（使用 ref 同步更新）
         const updatedMaterial = {
           ...currentMaterial,
           translationTextInfo: baiduResult.translationTextInfo,
           processingStep: baiduResult.processingStep,
-          status: '翻译完成'
+          status: '翻译完成',
+          entityRecognitionEnabled: mode !== 'disabled',
+          entityRecognitionMode: mode !== 'disabled' ? mode : null
         };
         actions.updateMaterial(currentMaterial.id, updatedMaterial);
         actions.setCurrentMaterial(updatedMaterial);
 
         if (mode === 'disabled') {
           // 快速模式：直接执行LLM优化
+          // ✅ 设置加载状态：显示"优化中..."
+          setLlmLoading(true);
           actions.showNotification('OCR完成', '正在进行LLM优化翻译...', 'info');
 
           try {
@@ -418,29 +448,125 @@ const ClaudePreviewSection = () => {
           } catch (llmError) {
             console.error('LLM翻译失败:', llmError);
             actions.showNotification('LLM翻译失败', `${llmError.message}（可点击重试）`, 'error');
+          } finally {
+            setLlmLoading(false);  // ✅ 无论成功失败都清除加载状态
+            atomicFlowInProgressRef.current = false;  // ✅ 清除原子流程标志
+          }
+        } else if (mode === 'preserve') {
+          // 保留先前结果模式：使用已有的实体识别结果直接进行LLM翻译
+          // ✅ 设置加载状态：显示"优化中..."
+          setLlmLoading(true);
+          actions.showNotification('OCR完成', '使用先前实体识别结果，正在进行LLM优化翻译...', 'info');
+
+          try {
+            // 解析已有的实体识别结果
+            let existingResult;
+            if (currentMaterial.entityRecognitionResult) {
+              existingResult = typeof currentMaterial.entityRecognitionResult === 'string'
+                ? JSON.parse(currentMaterial.entityRecognitionResult)
+                : currentMaterial.entityRecognitionResult;
+            }
+
+            const entities = existingResult?.entities || [];
+
+            // 构建翻译指导格式
+            const translationGuidance = {
+              organizations: [],
+              persons: [],
+              locations: [],
+              terms: []
+            };
+
+            entities.forEach(entity => {
+              const chineseName = entity.chinese_name || entity.entity;
+              const englishName = entity.english_name;
+              if (chineseName && englishName) {
+                const guidanceItem = `${chineseName} -> ${englishName}`;
+                const entityType = entity.type || 'ORGANIZATION';
+
+                if (entityType === 'PERSON' || entityType === 'PER') {
+                  translationGuidance.persons.push(guidanceItem);
+                } else if (entityType === 'LOCATION' || entityType === 'LOC' || entityType === 'GPE') {
+                  translationGuidance.locations.push(guidanceItem);
+                } else if (entityType === 'ORGANIZATION' || entityType === 'ORG') {
+                  translationGuidance.organizations.push(guidanceItem);
+                } else {
+                  translationGuidance.terms.push(guidanceItem);
+                }
+              }
+            });
+
+            // 更新材料状态为已确认实体
+            actions.updateMaterial(currentMaterial.id, {
+              processingStep: 'entity_confirmed',
+              entityRecognitionEnabled: true,
+              entityRecognitionMode: 'preserve',
+              entity_recognition_confirmed: true
+            });
+
+            // 执行LLM翻译优化
+            const llmResult = await atomicAPI.llmOptimize(currentMaterial.id, {
+              useEntityGuidance: entities.length > 0,
+              translationGuidance: entities.length > 0 ? translationGuidance : null
+            });
+
+            if (llmResult.success) {
+              actions.showNotification('翻译完成', llmResult.message || '翻译优化已完成', 'success');
+              actions.updateMaterial(currentMaterial.id, {
+                processingStep: llmResult.processingStep,
+                llmTranslationResult: llmResult.llmTranslationResult
+              });
+            } else {
+              throw new Error(llmResult.error || 'LLM翻译失败');
+            }
+          } catch (preserveError) {
+            console.error('保留模式翻译失败:', preserveError);
+            actions.showNotification('翻译失败', `${preserveError.message}（可点击重试）`, 'error');
+          } finally {
+            setLlmLoading(false);  // ✅ 无论成功失败都清除加载状态
+            atomicFlowInProgressRef.current = false;  // ✅ 清除原子流程标志
           }
         } else if (mode === 'standard' || mode === 'deep') {
           // 标准/深度模式：执行实体识别
+          // ✅ 设置加载状态：显示"实体识别中..."
+          actions.updateMaterial(currentMaterial.id, {
+            processingStep: 'entity_recognizing',
+            status: '处理中'
+          });
+          actions.setCurrentMaterial({
+            ...updatedMaterial,
+            processingStep: 'entity_recognizing',
+            status: '处理中'
+          });
+
           actions.showNotification('OCR完成', `正在进行${mode === 'deep' ? '深度' : '快速'}实体识别...`, 'info');
 
           try {
             const entityResult = await atomicAPI.entityRecognize(currentMaterial.id, mode === 'deep' ? 'deep' : 'fast');
 
             if (entityResult.success) {
-              // 更新材料状态
+              const entities = entityResult.entities || entityResult.entityResult?.entities || [];
+
+              // ✅ 修复：强制设置为 entity_pending_confirm，确保弹出确认对话框
               actions.updateMaterial(currentMaterial.id, {
-                processingStep: entityResult.processingStep,
-                entityRecognitionResult: JSON.stringify(entityResult.entityResult),
+                processingStep: 'entity_pending_confirm',
+                entityRecognitionResult: JSON.stringify(entityResult.entityResult || { entities }),
                 entityRecognitionEnabled: true,
-                entityRecognitionMode: mode
+                entityRecognitionMode: mode,
+                entity_recognition_confirmed: false
               });
 
-              // 显示实体结果Modal让用户确认
-              setEntityResults(entityResult.entities || []);
+              // ✅ 实体识别完成，清除原子流程标志（接下来由用户确认流程接管）
+              atomicFlowInProgressRef.current = false;
+
+              // ✅ 修复：使用 setTimeout 确保在下一个事件循环中设置，避免被 useEffect 清除
+              setTimeout(() => {
+                setEntityResults(entities);
+              }, 50);
 
               actions.showNotification(
                 '实体识别完成',
-                `识别到 ${entityResult.entities?.length || 0} 个实体，请确认翻译`,
+                `识别到 ${entities.length} 个实体，请确认翻译`,
                 'success'
               );
             } else {
@@ -449,7 +575,7 @@ const ClaudePreviewSection = () => {
           } catch (entityError) {
             console.error('实体识别失败:', entityError);
             actions.showNotification('实体识别失败', entityError.message, 'error');
-            // 即使实体识别失败，也可以继续LLM翻译
+            atomicFlowInProgressRef.current = false;  // ✅ 失败时也清除标志
           }
         }
 
@@ -633,6 +759,9 @@ const ClaudePreviewSection = () => {
           'info'
         );
 
+        // ✅ 设置加载状态：显示"优化中..."遮住编辑器
+        setLlmLoading(true);
+
         // 步骤2: 原子API执行LLM优化（前端主动控制）
         try {
           const llmResult = await atomicAPI.llmOptimize(currentMaterial.id, {
@@ -662,6 +791,9 @@ const ClaudePreviewSection = () => {
             'error'
           );
           // 注意：实体已确认，只是LLM失败，用户可以手动重试
+        } finally {
+          // ✅ 无论成功失败都清除加载状态
+          setLlmLoading(false);
         }
       }
     } catch (error) {
@@ -752,7 +884,15 @@ const ClaudePreviewSection = () => {
   }, [currentMaterial?.id]);
 
   // ✅ 重构：只检查是否有已保存的regions，不再加载编辑后的图片
+  // 🔧 关键修复：添加 materialId 验证，防止设置其他材料的 regions
   React.useEffect(() => {
+    const materialId = currentMaterial?.id;
+
+    // 验证是否是当前材料
+    if (!materialId || currentMaterialIdRef.current !== materialId) {
+      return;
+    }
+
     if (currentMaterial?.hasEditedVersion && currentMaterial?.editedRegions) {
       // 恢复已保存的regions
       setSavedRegions(currentMaterial.editedRegions);
@@ -763,14 +903,23 @@ const ClaudePreviewSection = () => {
   }, [currentMaterial?.hasEditedVersion, currentMaterial?.editedRegions, currentMaterial?.id]);
 
   // 监听material的processing_step变化，处理实体识别流程
+  // ⚠️ 注意：单页图片已由 handleEntityModeConfirm 使用原子化API处理
+  // 此 useEffect 主要用于 PDF Session 的后台处理
   React.useEffect(() => {
     if (!currentMaterial) return;
 
+    // ✅ 如果正在使用原子化流程处理，跳过此 useEffect 避免冲突
+    // 使用 ref 而不是 state，因为 ref 是同步更新的，避免竞态条件
+    if (atomicFlowInProgressRef.current) {
+      console.log('⏭️ 原子化流程进行中，跳过 useEffect 自动触发');
+      return;
+    }
+
     const step = currentMaterial.processingStep;
+    const isPDF = pdfPages.length > 0 && currentMaterial.pdfSessionId;
 
     // OCR翻译完成，检查是否需要进行实体识别
     if (step === 'translated' && currentMaterial.entityRecognitionEnabled) {
-      const isPDF = pdfPages.length > 0 && currentMaterial.pdfSessionId;
 
       if (isPDF) {
         // ===== PDF Session 整体实体识别逻辑 =====
@@ -800,27 +949,8 @@ const ClaudePreviewSection = () => {
         } else if (currentMaterial.entityRecognitionMode === 'standard') {
           triggerPdfSessionFastEntityRecognition(sessionId);
         }
-      } else {
-        // ===== 单页图片实体识别逻辑 =====
-        // 检查是否已经触发过实体识别（避免重复）
-        if (currentMaterial.entityRecognitionTriggered) {
-          return;
-        }
-
-        // 标记为已触发（前端状态，防止重复）
-        const entityTriggeredKey = `entity_triggered_${currentMaterial.id}`;
-        if (sessionStorage.getItem(entityTriggeredKey)) {
-          return;
-        }
-        sessionStorage.setItem(entityTriggeredKey, 'true');
-
-        // 根据模式触发不同的实体识别
-        if (currentMaterial.entityRecognitionMode === 'deep') {
-          triggerDeepEntityRecognition();
-        } else if (currentMaterial.entityRecognitionMode === 'standard') {
-          triggerFastEntityRecognition();
-        }
       }
+      // ✅ 单页图片不再由 useEffect 处理，已由原子化API在 handleEntityModeConfirm 中处理
     }
     // 禁用实体识别时，OCR完成后自动触发LLM翻译
     else if (step === 'translated' && !currentMaterial.entityRecognitionEnabled && currentMaterial.translationTextInfo) {
@@ -834,8 +964,9 @@ const ClaudePreviewSection = () => {
         return;
       }
 
-      // 必须等待baiduRegions准备好
-      if (!baiduRegions || baiduRegions.length === 0) {
+      // 🔧 关键修复：使用 ref 获取最新的 baiduRegions，避免依赖 state 导致的循环触发
+      const currentBaiduRegions = baiduRegionsRef.current;
+      if (!currentBaiduRegions || currentBaiduRegions.length === 0) {
         return;
       }
 
@@ -843,7 +974,7 @@ const ClaudePreviewSection = () => {
       llmTriggeredRef.current[currentMaterial.id] = true;
 
       // 触发LLM翻译
-      handleLLMTranslate(baiduRegions);
+      handleLLMTranslate(currentBaiduRegions);
     }
 
     // 快速实体识别完成，显示结果让用户选择
@@ -881,8 +1012,10 @@ const ClaudePreviewSection = () => {
             ? JSON.parse(currentMaterial.entityRecognitionResult)
             : currentMaterial.entityRecognitionResult;
 
-          if (result.entities && result.entities.length > 0) {
-            setEntityResults(result.entities);
+          // ✅ 修复：支持多种 API 响应结构
+          const entities = result.entities || result.entityResult?.entities || [];
+          if (entities.length > 0) {
+            setEntityResults(entities);
           }
         } catch (e) {
           console.error('解析实体识别结果失败:', e);
@@ -890,15 +1023,15 @@ const ClaudePreviewSection = () => {
       }
     }
 
-    // 如果已经确认或状态已经变化，清空实体结果
-    if (step !== 'entity_pending_confirm' || currentMaterial.entity_recognition_confirmed) {
-      if (entityResults.length > 0) {
-        setEntityResults([]);
-      }
+    // 如果已确认实体，清空实体结果
+    // ✅ 修复：只在确认后清除，避免在 entity_pending_confirm 状态下误清除
+    if (currentMaterial.entity_recognition_confirmed && entityResults.length > 0) {
+      setEntityResults([]);
     }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentMaterial?.id, currentMaterial?.processingStep, currentMaterial?.entityRecognitionEnabled, currentMaterial?.entityRecognitionMode, currentMaterial?.llmTranslationResult, currentMaterial?.entity_recognition_confirmed, currentMaterial?.entityRecognitionResult, baiduRegions, pdfPages, state.materials]);
+  // 🔧 关键修复：移除 baiduRegions 依赖，使用 baiduRegionsRef 代替，避免循环触发
+  }, [currentMaterial?.id, currentMaterial?.processingStep, currentMaterial?.entityRecognitionEnabled, currentMaterial?.entityRecognitionMode, currentMaterial?.llmTranslationResult, currentMaterial?.entity_recognition_confirmed, currentMaterial?.entityRecognitionResult, pdfPages, state.materials]);
 
   // 触发深度实体识别
   // 🔧 竞态条件修复：添加材料ID验证
@@ -1069,6 +1202,11 @@ const ClaudePreviewSection = () => {
 
         setLlmRegions(updatedRegions);
         llmTriggeredRef.current[materialId] = true; // 标记已处理
+      }
+
+      // 🔧 关键修复：在设置 ready 前再次验证材料ID
+      if (currentMaterialIdRef.current !== materialId) {
+        return;
       }
 
       // 🔧 数据解析完成，标记为准备就绪
@@ -1506,9 +1644,9 @@ const ClaudePreviewSection = () => {
                     onConfirm={handleConfirmEntities}
                     loading={entityModalLoading}
                   />
-                  {/* 显示翻译进行中状态 - 包括所有阶段：拆分、上传、百度翻译、AI优化 */}
+                  {/* 显示翻译进行中状态 - 包括所有阶段：拆分、上传、百度翻译、实体识别、AI优化 */}
                   {/* 只有在真正翻译进行中时才显示加载界面 */}
-                  {/* 排除实体识别相关状态：entity_recognizing, entity_pending_confirm, entity_confirmed */}
+                  {/* 排除需要用户交互的状态：entity_pending_confirm, entity_confirmed */}
                   {(() => {
                     // 修复：只在真正处理中才显示加载界面
                     const baseCondition = llmLoading ||
@@ -1516,9 +1654,11 @@ const ClaudePreviewSection = () => {
                       currentMaterial.status === '拆分中' ||
                       currentMaterial.processingStep === 'splitting' ||
                       currentMaterial.processingStep === 'translating' ||
+                      currentMaterial.processingStep === 'entity_recognizing' ||  // ✅ 添加实体识别加载状态
                       (currentMaterial.processingStep === 'translated' && !currentMaterial.translationTextInfo) ||
-                      (currentMaterial.processingStep === 'uploaded' && currentMaterial.status === '处理中');  // ← 修复：只在处理中才显示
-                    const excludeEntitySteps = !['entity_recognizing', 'entity_pending_confirm', 'entity_confirmed'].includes(currentMaterial.processingStep);
+                      (currentMaterial.processingStep === 'uploaded' && currentMaterial.status === '处理中');
+                    // 只排除需要用户交互的状态（实体确认相关）
+                    const excludeEntitySteps = !['entity_pending_confirm', 'entity_confirmed'].includes(currentMaterial.processingStep);
                     const shouldShowLoading = baseCondition && excludeEntitySteps;
 
                     return shouldShowLoading;
@@ -1533,6 +1673,7 @@ const ClaudePreviewSection = () => {
                         {(currentMaterial.status === '拆分中' || currentMaterial.processingStep === 'splitting') && 'PDF拆分中...'}
                         {currentMaterial.processingStep === 'uploaded' && '准备翻译...'}
                         {(currentMaterial.processingStep === 'translating' || (pdfSessionProgress && pdfSessionProgress.someTranslating)) && '翻译中...'}
+                        {currentMaterial.processingStep === 'entity_recognizing' && '实体识别中...'}
                         {llmLoading && '优化中...'}
                         {!currentMaterial.processingStep && !llmLoading && currentMaterial.status !== '拆分中' && '处理中...'}
                       </p>
@@ -1550,9 +1691,10 @@ const ClaudePreviewSection = () => {
                   ) : !currentMaterial.translationTextInfo ? (
                     /* ✅ 没有翻译结果时（包括status='已上传'），显示原图编辑器供用户预览和旋转 */
                     <FabricImageEditor
+                      key={`editor-${currentMaterial.id}-${currentMaterial.rotationCount || 0}`}
                       imageSrc={getImageUrl()}
                       regions={[]} // 空regions，只显示原图
-                      editorKey={`empty-${currentMaterial.id}-${currentMaterial.rotationCount || 0}`}
+                      editorKey={`empty-${currentMaterial.id}`}
                       exposeHandlers={true}
                       // 扩展工具栏控制
                       extraControls={{
@@ -1616,9 +1758,10 @@ const ClaudePreviewSection = () => {
                   ) : (
                     /* LLM翻译完成：显示可编辑的结果 */
                     <FabricImageEditor
+                      key={`editor-${currentMaterial.id}-${currentMaterial.rotationCount || 0}`}
                       imageSrc={getImageUrl()}
                       regions={savedRegions.length > 0 ? savedRegions : llmRegions}
-                      editorKey={`llm-${currentMaterial.id}-${currentMaterial.rotationCount || 0}`}
+                      editorKey={`llm-${currentMaterial.id}`}
                       exposeHandlers={true}
                       // 扩展工具栏控制
                       extraControls={{
@@ -1700,6 +1843,8 @@ const ClaudePreviewSection = () => {
               isOpen={showEntityModal}
               onClose={() => setShowEntityModal(false)}
               onConfirm={handleEntityModeConfirm}
+              hasExistingEntityResult={!!(currentMaterial?.entityRecognitionResult)}
+              isRetranslate={isRetranslateFlow}
             />
               </>
             )}

@@ -38,6 +38,10 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
   const backgroundRectsRef = useRef([]);
   const initializedRef = useRef(false); // 跟踪是否已经初始化过
 
+  // 🔧 竞态条件修复：跟踪组件是否已卸载，防止异步操作在卸载后执行
+  const mountedRef = useRef(true);
+  const pendingTimeoutsRef = useRef([]);
+
   // AI助手相关状态
   const [showAIModal, setShowAIModal] = useState(false);
   const [aiButtonPosition, setAiButtonPosition] = useState(null);
@@ -843,8 +847,14 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
       // 🔧 延迟计算缩放，确保容器已完全渲染和展开
       // 使用 setTimeout + requestAnimationFrame 双重延迟确保容器布局完成
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
+        // 🔧 竞态条件修复：检查组件是否已卸载
+        if (!mountedRef.current) return;
+
         requestAnimationFrame(() => {
+          // 🔧 竞态条件修复：再次检查
+          if (!mountedRef.current) return;
+
           if (!fabricCanvasRef.current || !canvasWrapperRef.current) {
             console.warn('⚠️ Canvas or wrapper destroyed during delayed initialization');
             return;
@@ -921,10 +931,25 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         previousRegionsRef.current = regions;
         });
       }, 100); // 延迟 100ms 确保容器布局完成
+
+      // 🔧 竞态条件修复：记录 timeout ID，以便在组件卸载时清理
+      pendingTimeoutsRef.current.push(timeoutId);
     }, {
       crossOrigin: 'anonymous'
     });
   }, [fabricLoaded, imageSrc, regions]);
+
+  // 🔧 竞态条件修复：管理组件挂载状态
+  useEffect(() => {
+    mountedRef.current = true;
+
+    return () => {
+      mountedRef.current = false;
+      // 清理所有待处理的 timeout
+      pendingTimeoutsRef.current.forEach(id => clearTimeout(id));
+      pendingTimeoutsRef.current = [];
+    };
+  }, []);
 
   // 清理函数 - 组件卸载时清理 canvas
   useEffect(() => {
@@ -971,6 +996,9 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
   // 初始化文本区域
   const initializeTextRegions = async (regionsData) => {
+    // 🔧 竞态条件修复：检查组件是否已卸载
+    if (!mountedRef.current) return;
+
     if (!fabricCanvasRef.current || !regionsData || !window.fabric) return;
 
     const canvas = fabricCanvasRef.current;
@@ -1126,9 +1154,15 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
     // 应用智能填充到所有背景（只对非模糊背景的矩形应用）
     for (const bgRect of bgRects) {
+      // 🔧 竞态条件修复：检查组件是否已卸载
+      if (!mountedRef.current) return;
+
       // 跳过已经是模糊背景的对象（fabric.Image）
       if (bgRect.type !== 'image' && !bgRect.isBlurBackground) {
         await applySmartFill(bgRect);
+
+        // 🔧 竞态条件修复：await 后再次检查
+        if (!mountedRef.current) return;
       }
     }
     
@@ -1224,9 +1258,12 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     canvas.renderAll();
 
     // 保存初始状态到历史记录
-    setTimeout(() => {
+    // 🔧 竞态条件修复：记录 timeout ID 并检查组件是否已卸载
+    const historyTimeoutId = setTimeout(() => {
+      if (!mountedRef.current) return;
       saveHistory();
     }, 100);
+    pendingTimeoutsRef.current.push(historyTimeoutId);
   };
   
   // 计算合适的字体大小 - 根据文本内容和矩形宽度

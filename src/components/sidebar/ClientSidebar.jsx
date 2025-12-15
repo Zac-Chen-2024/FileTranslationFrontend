@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { clientAPI, authAPI } from '../../services/api';
+import { clientAPI, authAPI, materialAPI } from '../../services/api';
 import { useApp } from '../../contexts/AppContext';
 import styles from './ClientSidebar.module.css';
 
@@ -49,7 +49,7 @@ const ClientSidebar = ({
 }) => {
   const navigate = useNavigate();
   const { state, actions } = useApp();
-  const { user, materials: contextMaterials } = state;
+  const { user, materials: contextMaterials, currentMaterial } = state;
 
   const [clients, setClients] = useState([]);
   const [selectedClient, setSelectedClient] = useState(null);
@@ -141,6 +141,87 @@ const ClientSidebar = ({
   const handleExport = (e) => {
     e.stopPropagation();
     onExport?.(selectedClient);
+  };
+
+  // 删除客户
+  const handleDeleteClient = async (client, e) => {
+    e.stopPropagation();
+
+    actions.openConfirmDialog({
+      title: '删除客户',
+      message: `确定要删除客户 "${client.name}" 吗？该客户下的所有材料也将被删除！`,
+      type: 'danger',
+      confirmText: '删除',
+      cancelText: '取消',
+      onConfirm: async () => {
+        try {
+          await clientAPI.deleteClient(client.cid);
+          actions.showNotification('成功', `客户 "${client.name}" 已删除`, 'success');
+
+          // 从列表中移除
+          setClients(clients.filter(c => c.cid !== client.cid));
+
+          // 如果删除的是当前选中的客户，清除选择
+          if (selectedClient?.cid === client.cid) {
+            setSelectedClient(null);
+            onSelectClient?.(null);
+          }
+        } catch (error) {
+          console.error('删除客户失败:', error);
+          actions.showNotification('错误', '删除客户失败', 'error');
+        }
+      }
+    });
+  };
+
+  // 删除材料
+  const handleDeleteMaterial = async (material, e) => {
+    e.stopPropagation();
+
+    const deleteMessage = material.isPdfSession
+      ? `确定要删除 "${material.name}" 吗？该PDF的所有 ${material.pdfTotalPages} 页都将被删除！`
+      : `确定要删除 "${material.name}" 吗？`;
+
+    actions.openConfirmDialog({
+      title: '删除材料',
+      message: deleteMessage,
+      type: 'danger',
+      confirmText: '删除',
+      cancelText: '取消',
+      onConfirm: async () => {
+        try {
+          if (material.isPdfSession) {
+            // 删除PDF会话的所有页面
+            const allMaterials = contextMaterials.filter(m => m.pdfSessionId === material.mid);
+            const deletePromises = allMaterials.map(page => materialAPI.deleteMaterial(page.id));
+            await Promise.all(deletePromises);
+
+            // 从本地状态中移除
+            const updatedMaterials = contextMaterials.filter(m => m.pdfSessionId !== material.mid);
+            actions.setMaterials(updatedMaterials);
+
+            // ✅ 如果删除的是当前选中的材料，清除 currentMaterial 回到引导界面
+            if (currentMaterial && currentMaterial.pdfSessionId === material.mid) {
+              actions.setCurrentMaterial(null);
+            }
+          } else {
+            await materialAPI.deleteMaterial(material.mid || material.id);
+            const updatedMaterials = contextMaterials.filter(m => m.id !== (material.mid || material.id));
+            actions.setMaterials(updatedMaterials);
+
+            // ✅ 如果删除的是当前选中的材料，清除 currentMaterial 回到引导界面
+            if (currentMaterial && (currentMaterial.id === material.mid || currentMaterial.id === material.id)) {
+              actions.setCurrentMaterial(null);
+            }
+          }
+
+          actions.showNotification('成功', `"${material.name}" 已删除`, 'success');
+        } catch (error) {
+          console.error('删除材料失败:', error);
+          actions.showNotification('错误', '删除材料失败', 'error');
+        }
+      }
+    });
   };
 
   const handleLogout = async () => {
@@ -253,14 +334,32 @@ const ClientSidebar = ({
                     onClick={() => handleSelectClient(client)}
                   >
                     <span className={styles.clientName}>{client.name}</span>
-                    {selectedClient?.cid === client.cid && (
-                      <span className={styles.checkIcon}>●</span>
-                    )}
+                    <div className={styles.clientActions}>
+                      {selectedClient?.cid === client.cid && (
+                        <span className={styles.checkIcon}>●</span>
+                      )}
+                      <button
+                        className={styles.deleteClientBtn}
+                        onClick={(e) => handleDeleteClient(client, e)}
+                        title="删除客户"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                          <path d="M10 11v6M14 11v6"/>
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
-            <button className={styles.addClientBtn} onClick={onAddClient}>
+            <button
+              className={styles.addClientBtn}
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddClient?.();
+              }}
+            >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>
@@ -299,7 +398,19 @@ const ClientSidebar = ({
                     <span className={styles.pageCount}> ({material.pdfTotalPages}页)</span>
                   )}
                 </span>
-                {getMaterialStatus(material)}
+                <div className={styles.materialActions}>
+                  {getMaterialStatus(material)}
+                  <button
+                    className={styles.deleteMaterialBtn}
+                    onClick={(e) => handleDeleteMaterial(material, e)}
+                    title="删除材料"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                      <path d="M10 11v6M14 11v6"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
             ))}
           </div>

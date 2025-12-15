@@ -159,6 +159,25 @@
   margin-top: 4px;
 }
 
+.mode-badge-green {
+  background: #e6f4ea;
+  color: #1e7e34;
+}
+
+/* 保留先前结果选项样式 */
+.mode-option.mode-preserve.active {
+  background: #e6f4ea;
+  border-color: #1e7e34;
+}
+
+.mode-option.mode-preserve.active .mode-icon {
+  color: #1e7e34;
+}
+
+.mode-option.mode-preserve.active .mode-label {
+  color: #1e7e34;
+}
+
 /* 模式说明 */
 .entity-mode-description {
   min-height: 24px;

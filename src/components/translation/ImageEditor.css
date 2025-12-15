@@ -613,19 +613,20 @@
 
 /* ============ 优雅的紧凑型工具栏设计 ============ */
 
-/* 紧凑型主工具栏 - 分区布局 */
+/* 紧凑型主工具栏 - 高度与左侧客户列表header一致 */
 .image-editor .editor-toolbar-compact {
   display: flex !important;
   align-items: center !important;
-  padding: 10px 16px !important;
+  padding: 12px 16px !important;  /* 减小垂直padding */
   background: #f9fafb !important;
   border-bottom: 1px solid #e5e7eb !important;
   gap: 12px !important;
-  min-height: 52px !important;
+  min-height: auto !important;
+  height: 45px !important;  /* 匹配左侧 clientHeader 高度 */
+  box-sizing: border-box !important;
   margin-bottom: 0 !important;
   flex-wrap: nowrap !important;
   width: 100% !important;
-  transition: all 0.2s ease !important;
   position: relative !important;
 }
 
@@ -676,7 +677,6 @@
   padding: 0 12px;
   border-right: 1px solid #e5e7eb;
   flex-shrink: 0;
-  transition: all 0.2s ease;
 }
 
 .image-editor .toolbar-section:last-child {
@@ -688,11 +688,11 @@
   padding-left: 0;
 }
 
-/* 响应式 - 缩小间距 */
+/* 响应式 - 缩小间距，但保持高度一致 */
 @media (max-width: 1400px) {
   .image-editor .editor-toolbar-compact {
     gap: 8px !important;
-    padding: 8px 12px !important;
+    padding: 12px !important;
   }
   .image-editor .toolbar-section {
     gap: 4px;
@@ -703,7 +703,7 @@
 @media (max-width: 1200px) {
   .image-editor .editor-toolbar-compact {
     gap: 6px !important;
-    padding: 6px 10px !important;
+    padding: 12px 10px !important;
   }
   .image-editor .toolbar-section {
     gap: 3px;
@@ -711,26 +711,26 @@
   }
   .image-editor .action-button,
   .image-editor .feature-button {
-    height: 30px;
-    font-size: 13px;
+    height: 26px;
+    font-size: 12px;
   }
   .font-select-compact,
   .font-size-compact,
   .line-spacing-compact {
-    height: 30px;
-    font-size: 13px;
+    height: 26px;
+    font-size: 12px;
   }
   .format-button,
   .align-button {
-    width: 30px;
-    height: 30px;
+    width: 26px;
+    height: 26px;
   }
 }
 
 @media (max-width: 1000px) {
   .image-editor .editor-toolbar-compact {
     gap: 4px !important;
-    padding: 6px 8px !important;
+    padding: 12px 8px !important;
   }
   .image-editor .toolbar-section {
     gap: 2px;
