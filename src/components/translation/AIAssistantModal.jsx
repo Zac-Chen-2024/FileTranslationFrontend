@@ -143,150 +143,148 @@ const AIAssistantModal = ({
     onClose();
   };
 
-  // 获取占位符文本
-  const getPlaceholder = () => {
-    if (!isMultiple) {
-      return t('exampleSimpler');
-    }
-
-    switch (processingMode) {
-      case 'unified':
-        return t('exampleAllSimpler');
-      case 'merge':
-        return t('exampleMergeCoherent');
-      case 'individual':
-        return t('exampleCheckOptimize');
-      default:
-        return '';
-    }
+  // 返回输入重新修改
+  const handleBackToInput = () => {
+    setResults([]);
   };
 
   return (
-    <div className="ai-panel-content">
-      <div className="ai-panel-header">
-        <span className="ai-panel-title">{t('aiAssistant')}</span>
-        <button className="ai-panel-close" onClick={handleClose}>×</button>
+    <div className={`ai-assistant-panel ${results.length > 0 ? 'has-results' : ''}`}>
+      {/* 头部 */}
+      <div className="ai-assistant-header">
+        <div className="ai-assistant-title">
+          <span className="ai-icon">✦</span>
+          <span>{t('aiAssistant')}</span>
+        </div>
+        <button className="ai-assistant-close" onClick={handleClose}>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M1 1L13 13M1 13L13 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        </button>
       </div>
 
-      <div className="ai-panel-body">
-          {/* 输入和操作区域 - 简化版 */}
-          {!results.length && (
-            <div className="ai-simple-card">
-              <button
-                onClick={handleSmartReformat}
-                disabled={loading || selectedTextboxes.length === 0}
-                className="ai-reformat-button"
-              >
-                <span>✨</span> 智能重排
-              </button>
+      {/* 内容区域 */}
+      <div className="ai-assistant-content">
+        {/* 输入界面 */}
+        {!results.length && (
+          <div className="ai-input-section">
+            <button
+              onClick={handleSmartReformat}
+              disabled={loading || selectedTextboxes.length === 0}
+              className="ai-quick-action"
+            >
+              <span className="quick-action-icon">✨</span>
+              <span>智能重排</span>
+            </button>
 
+            <div className="ai-instruction-wrapper">
               <textarea
                 value={instruction}
                 onChange={(e) => setInstruction(e.target.value)}
                 placeholder="输入修改意见..."
-                rows={4}
+                rows={3}
                 disabled={loading}
-                className="ai-input"
+                className="ai-instruction-input"
               />
-
-              <button
-                onClick={() => handleSubmit()}
-                disabled={loading || !instruction.trim()}
-                className="ai-submit-button"
-              >
-                {loading ? '处理中...' : '修改'}
-              </button>
             </div>
-          )}
 
-          {/* 对比结果 */}
-          {results.length > 0 && (
-            <div className="results-section">
-              {processingMode === 'individual' ? (
-                // Individual模式：逐个显示
-                <div className="individual-result">
-                  <div className="progress-bar">
-                    <span>{t('aiProgress', { current: currentIndex + 1, total: selectedTextboxes.length })}</span>
-                  </div>
-
-                  <div className="comparison">
-                    <div className="original-version">
-                      <h4>{t('aiOriginalVersion')}</h4>
-                      <p>{results[currentIndex]?.original}</p>
-                    </div>
-
-                    <div className="arrow">→</div>
-
-                    <div className="revised-version">
-                      <h4>{t('modifiedVersion')}</h4>
-                      <p>{results[currentIndex]?.revised}</p>
-                    </div>
-                  </div>
-
-                  <div className="individual-actions">
-                    <button onClick={handleAcceptCurrent} className="accept-button">
-                      {t('acceptThisModification')}
-                    </button>
-                    <button onClick={handleSkipCurrent} className="skip-button">
-                      {t('skip')}
-                    </button>
-                  </div>
-                </div>
+            <button
+              onClick={() => handleSubmit()}
+              disabled={loading || !instruction.trim()}
+              className="ai-submit-btn"
+            >
+              {loading ? (
+                <>
+                  <span className="loading-spinner"></span>
+                  <span>处理中...</span>
+                </>
               ) : (
-                // Unified或Merge模式：显示所有结果
-                <div className="unified-results">
-                  {processingMode === 'merge' ? (
-                    // 合并模式：显示一个大的对比
-                    <div className="comparison large">
-                      <div className="original-version">
-                        <h4>{t('beforeMerge', { count: selectedTextboxes.length })}</h4>
-                        <p>{results[0]?.original}</p>
-                      </div>
+                <span>提交修改</span>
+              )}
+            </button>
+          </div>
+        )}
 
-                      <div className="arrow">→</div>
+        {/* 结果界面 */}
+        {results.length > 0 && (
+          <div className="ai-results-section">
+            {/* 返回按钮 */}
+            <button className="ai-back-btn" onClick={handleBackToInput}>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M7.5 9L4.5 6L7.5 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span>重新修改</span>
+            </button>
 
-                      <div className="revised-version">
-                        <h4>{t('afterMergeAndModify')}</h4>
-                        <p>{results[0]?.revised}</p>
-                      </div>
+            {processingMode === 'individual' ? (
+              // Individual模式：逐个显示
+              <div className="ai-single-result">
+                <div className="result-progress">
+                  <span className="progress-text">{currentIndex + 1} / {selectedTextboxes.length}</span>
+                </div>
+
+                <div className="result-comparison">
+                  <div className="result-original">
+                    <div className="result-label">原文</div>
+                    <div className="result-text">{results[currentIndex]?.original}</div>
+                  </div>
+                  <div className="result-revised">
+                    <div className="result-label">
+                      <span className="revised-badge">修改后</span>
                     </div>
-                  ) : (
-                    // 统一修改模式：显示列表
-                    <div className="results-list">
-                      {results.map((result, index) => (
-                        <div key={index} className="result-item">
-                          <div className="result-header">
-                            {t('textbox', { index: index + 1 })}
-                          </div>
-                          <div className="comparison">
-                            <div className="original-version">
-                              <label>{t('original')}</label>
-                              <p>{result.original}</p>
-                            </div>
-                            <div className="arrow">→</div>
-                            <div className="revised-version">
-                              <label>{t('modified')}</label>
-                              <p>{result.revised}</p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="unified-actions">
-                    <button onClick={handleAccept} className="accept-all-button">
-                      {t('acceptAllModifications')}
-                    </button>
-                    <button onClick={handleClose} className="cancel-button">
-                      {t('cancel')}
-                    </button>
+                    <div className="result-text">{results[currentIndex]?.revised}</div>
                   </div>
                 </div>
-              )}
-            </div>
-          )}
-        </div>
+
+                <div className="result-actions">
+                  <button onClick={handleAcceptCurrent} className="action-btn primary">
+                    采纳
+                  </button>
+                  <button onClick={handleSkipCurrent} className="action-btn secondary">
+                    跳过
+                  </button>
+                </div>
+              </div>
+            ) : (
+              // Unified模式
+              <div className="ai-unified-results">
+                <div className="results-scroll-area">
+                  {results.map((result, index) => (
+                    <div key={index} className="result-card">
+                      {results.length > 1 && (
+                        <div className="result-card-header">
+                          <span className="result-index">#{index + 1}</span>
+                        </div>
+                      )}
+                      <div className="result-comparison">
+                        <div className="result-original">
+                          <div className="result-label">原文</div>
+                          <div className="result-text">{result.original}</div>
+                        </div>
+                        <div className="result-revised">
+                          <div className="result-label">
+                            <span className="revised-badge">修改后</span>
+                          </div>
+                          <div className="result-text">{result.revised}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="result-actions">
+                  <button onClick={handleAccept} className="action-btn primary">
+                    采纳全部
+                  </button>
+                  <button onClick={handleClose} className="action-btn secondary">
+                    取消
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

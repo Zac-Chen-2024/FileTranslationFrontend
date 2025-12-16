@@ -1468,7 +1468,7 @@ const PreviewSection = () => {
             </button>
 
             {/* 开始翻译/重新翻译按钮 */}
-            {currentMaterial.status === '已上传' && !currentMaterial.translationTextInfo ? (
+            {['已上传', 'uploaded', 'split_completed', '拆分完成'].includes(currentMaterial.status) && !currentMaterial.translationTextInfo ? (
               <button
                 className={styles.startTranslationBtn}
                 onClick={handleStartTranslation}

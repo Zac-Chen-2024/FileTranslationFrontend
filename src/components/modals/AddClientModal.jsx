@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import styles from './AddClientModal.module.css';
+import styles from './Modal.module.css';
 
 const AddClientModal = ({ isOpen, onClose, onConfirm }) => {
   const [clientName, setClientName] = useState('');
@@ -44,10 +44,15 @@ const AddClientModal = ({ isOpen, onClose, onConfirm }) => {
 
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.modal} onClick={e => e.stopPropagation()} onKeyDown={handleKeyDown}>
+      <div
+        className={styles.modal}
+        onClick={e => e.stopPropagation()}
+        onKeyDown={handleKeyDown}
+        style={{ maxWidth: '400px' }}
+      >
         <div className={styles.header}>
           <h3 className={styles.title}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '8px', verticalAlign: 'middle' }}>
               <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
               <circle cx="8.5" cy="7" r="4"/>
               <line x1="20" y1="8" x2="20" y2="14"/>
@@ -55,27 +60,33 @@ const AddClientModal = ({ isOpen, onClose, onConfirm }) => {
             </svg>
             添加客户
           </h3>
+          <button className={styles.closeBtn} onClick={onClose}>
+            &times;
+          </button>
         </div>
 
         <form onSubmit={handleSubmit}>
           <div className={styles.body}>
-            <label className={styles.label}>客户名称</label>
-            <input
-              ref={inputRef}
-              type="text"
-              className={styles.input}
-              value={clientName}
-              onChange={(e) => setClientName(e.target.value)}
-              placeholder="请输入客户名称"
-              disabled={isSubmitting}
-              autoFocus
-            />
+            <div className={styles.formGroup}>
+              <label className={styles.label} htmlFor="clientName">客户名称</label>
+              <input
+                ref={inputRef}
+                type="text"
+                id="clientName"
+                className={styles.input}
+                value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
+                placeholder="请输入客户名称"
+                disabled={isSubmitting}
+                autoFocus
+              />
+            </div>
           </div>
 
           <div className={styles.footer}>
             <button
               type="button"
-              className={`${styles.btn} ${styles.btnCancel}`}
+              className={`${styles.btn} ${styles.btnSecondary}`}
               onClick={onClose}
               disabled={isSubmitting}
             >

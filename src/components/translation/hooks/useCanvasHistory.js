@@ -27,7 +27,20 @@ const useCanvasHistory = (fabricCanvasRef, onHistoryRestore, maxHistory = 50) =>
     if (!fabricCanvasRef.current || isHistoryOperationRef.current) return;
 
     const canvas = fabricCanvasRef.current;
-    const currentState = JSON.stringify(canvas.toJSON(['id', 'hasBackground', 'isMerged']));
+    // 包含所有自定义属性以便正确恢复
+    const customProperties = [
+      // 基础标识
+      'id', 'regionIndex', 'regionId',
+      // 遮罩相关
+      'isMask', 'isCustomMask', 'manuallyEdited', 'isMergedMask', 'mergedIndexes', 'originalBounds',
+      // 文本相关
+      'isMerged', '_markdownText', 'mergedBounds',
+      // 背景相关
+      'hasBackground', 'isBlurBackground',
+      // 样式属性（确保字体样式也被保存）
+      'fontFamily', 'fontSize', 'fill', 'textAlign', 'lineHeight', 'fontWeight', 'fontStyle'
+    ];
+    const currentState = JSON.stringify(canvas.toJSON(customProperties));
 
     // 如果当前不是最新的历史记录，删除后面的记录
     if (historyIndexRef.current < historyRef.current.length - 1) {

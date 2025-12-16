@@ -403,16 +403,17 @@ export const AppProvider = ({ children }) => {
     },
     
     // 上传相关
-    startUpload: (files, message = '准备上传...') => {
-      dispatch({ 
-        type: ActionTypes.START_UPLOAD, 
-        payload: { 
-          files: files, 
-          total: files.length, 
-          current: 0, 
+    startUpload: (files, message = '准备上传...', customTotal = null) => {
+      dispatch({
+        type: ActionTypes.START_UPLOAD,
+        payload: {
+          files: files,
+          total: customTotal !== null ? customTotal : files.length,
+          fileCount: files.length,  // 实际文件数量，用于显示
+          current: 0,
           message: message,
-          canCancel: true 
-        } 
+          canCancel: true
+        }
       });
     },
     

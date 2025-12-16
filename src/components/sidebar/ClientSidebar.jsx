@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { clientAPI, authAPI, materialAPI } from '../../services/api';
 import { useApp } from '../../contexts/AppContext';
+import { isProcessing, isCompleted, isConfirmable, normalizeStatus } from '../../constants/status';
 import styles from './ClientSidebar.module.css';
 
 /**
@@ -45,8 +46,10 @@ const ClientSidebar = ({
   onSelectClient,
   onSelectMaterial,
   onAddClient,
-  onExport
+  onExport,
+  onUploadFiles
 }) => {
+  const fileInputRef = React.useRef(null);
   const navigate = useNavigate();
   const { state, actions } = useApp();
   const { user, materials: contextMaterials, currentMaterial } = state;
@@ -64,7 +67,20 @@ const ClientSidebar = ({
     loadClients();
   }, []);
 
-  // 当选中客户ID变化时，设置选中的客户
+  // 当选中客户ID变化时，设置选中的客户或刷新列表
+  useEffect(() => {
+    if (selectedClientId && !loading) {
+      const client = clients.find(c => c.cid === selectedClientId);
+      if (client) {
+        setSelectedClient(client);
+      } else {
+        // 新创建的客户不在列表中，重新加载
+        loadClients();
+      }
+    }
+  }, [selectedClientId]); // 只依赖 selectedClientId，避免循环
+
+  // clients 更新后同步选中状态
   useEffect(() => {
     if (selectedClientId && clients.length > 0) {
       const client = clients.find(c => c.cid === selectedClientId);
@@ -72,7 +88,7 @@ const ClientSidebar = ({
         setSelectedClient(client);
       }
     }
-  }, [selectedClientId, clients]);
+  }, [clients]);
 
   const loadClients = async () => {
     try {
@@ -255,13 +271,13 @@ const ClientSidebar = ({
     );
   };
 
-  // 获取材料状态
+  // 获取材料状态 - 使用状态机辅助函数
   const getMaterialStatus = (material) => {
-    const status = material.status || material.processingStep;
-    if (status === '已完成' || status === 'confirmed' || material.confirmed) {
+    const normalizedStatus = normalizeStatus(material.processingStep || material.status);
+    if (material.confirmed || isCompleted(normalizedStatus) || isConfirmable(normalizedStatus)) {
       return <span className={styles.statusDone}>✓</span>;
     }
-    if (status === '处理中' || status === 'translating') {
+    if (isProcessing(normalizedStatus)) {
       return <span className={styles.statusProcessing}>⟳</span>;
     }
     return null;
@@ -357,7 +373,11 @@ const ClientSidebar = ({
               className={styles.addClientBtn}
               onClick={(e) => {
                 e.stopPropagation();
-                onAddClient?.();
+                setClientSelectorOpen(false);
+                // 使用setTimeout确保dropdown关闭后再打开modal，避免状态竞争
+                setTimeout(() => {
+                  onAddClient?.();
+                }, 50);
               }}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -370,6 +390,22 @@ const ClientSidebar = ({
         )}
       </div>
 
+      {/* 隐藏的文件输入 */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        style={{ display: 'none' }}
+        multiple
+        accept=".pdf,.jpg,.jpeg,.png,.bmp,.gif,.tiff,.txt,.doc,.docx"
+        onChange={(e) => {
+          const files = Array.from(e.target.files);
+          if (files.length > 0 && onUploadFiles) {
+            onUploadFiles(files);
+          }
+          e.target.value = ''; // 重置以便重复选择同一文件
+        }}
+      />
+
       {/* 材料列表 */}
       <div className={styles.materialSection}>
         {!selectedClient ? (
@@ -378,8 +414,15 @@ const ClientSidebar = ({
           </div>
         ) : processedMaterials.length === 0 ? (
           <div className={styles.noMaterials}>
-            <p>暂无材料</p>
-            <p className={styles.hint}>拖拽文件到右侧上传</p>
+            <div className={styles.uploadArea} onClick={() => fileInputRef.current?.click()}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              <p>点击上传文件</p>
+              <p className={styles.hint}>或拖拽到右侧区域</p>
+            </div>
           </div>
         ) : (
           <div className={styles.materialList}>
@@ -413,6 +456,18 @@ const ClientSidebar = ({
                 </div>
               </div>
             ))}
+            {/* 上传更多按钮 */}
+            <button
+              className={styles.uploadMoreBtn}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              上传文件
+            </button>
           </div>
         )}
       </div>
@@ -451,19 +506,7 @@ const ClientSidebar = ({
                   <circle cx="12" cy="12" r="3"/>
                   <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
                 </svg>
-                设置
-              </button>
-              <button
-                className={styles.menuItem}
-                onClick={() => { navigate('/dashboard'); setShowUserMenu(false); }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="3" width="7" height="9"/>
-                  <rect x="14" y="3" width="7" height="5"/>
-                  <rect x="14" y="12" width="7" height="9"/>
-                  <rect x="3" y="16" width="7" height="5"/>
-                </svg>
-                原版界面
+                设置（开发中）
               </button>
               <div className={styles.menuDivider}></div>
               <button

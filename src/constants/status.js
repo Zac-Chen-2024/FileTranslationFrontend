@@ -78,6 +78,7 @@ export const LEGACY_STATUS_MAP = {
   '已上传': ProcessingStep.UPLOADED,
   '已添加': ProcessingStep.UPLOADED,
   '拆分中': ProcessingStep.SPLITTING,
+  '拆分完成': ProcessingStep.SPLIT_COMPLETED,  // PDF拆分完成
   '翻译中': ProcessingStep.TRANSLATING,
   '正在翻译': ProcessingStep.TRANSLATING,
   '处理中': ProcessingStep.TRANSLATING,

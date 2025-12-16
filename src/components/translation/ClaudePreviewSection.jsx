@@ -8,6 +8,17 @@ import FabricImageEditor from './FabricImageEditor';
 import EntityRecognitionModal from './EntityRecognitionModal';
 import EntityResultModal from './EntityResultModal';
 import styles from './ClaudePreviewSection.module.css';
+// 状态机辅助函数
+import {
+  ProcessingStep,
+  isProcessing,
+  isCompleted,
+  isFailed,
+  isConfirmable,
+  statusMatches,
+  normalizeStatus,
+  isPendingAction
+} from '../../constants/status';
 
 // API URL配置
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5010';
@@ -146,9 +157,12 @@ const ClaudePreviewSection = () => {
           const totalProgress = sessionPages.reduce((sum, page) => sum + (page.processingProgress || 0), 0);
           const avgProgress = Math.round(totalProgress / totalPages);
 
-          // 确定整体状态
-          const allTranslated = sessionPages.every(p => p.status === '翻译完成' && p.processingProgress >= 66);
-          const someTranslating = sessionPages.some(p => p.processingStep === 'translating');
+          // 确定整体状态 - 使用状态机辅助函数
+          const allTranslated = sessionPages.every(p =>
+            (isCompleted(normalizeStatus(p.status)) || isConfirmable(normalizeStatus(p.status))) &&
+            p.processingProgress >= 66
+          );
+          const someTranslating = sessionPages.some(p => isProcessing(normalizeStatus(p.processingStep)));
 
           setPdfSessionProgress({
             progress: avgProgress,
@@ -1505,52 +1519,39 @@ const ClaudePreviewSection = () => {
                     onConfirm={handleConfirmEntities}
                     loading={entityModalLoading}
                   />
-                  {/* 显示翻译进行中状态 - 包括所有阶段：拆分、上传、百度翻译、实体识别、AI优化 */}
-                  {/* 只有在真正翻译进行中时才显示加载界面 */}
-                  {/* 排除需要用户交互的状态：entity_pending_confirm, entity_confirmed */}
+                  {/* 计算加载状态 - 用于传递给 FabricImageEditor */}
                   {(() => {
-                    // ✅ 修复：llmLoading 为 true 时强制显示加载页面（不受其他条件影响）
-                    if (llmLoading) return true;
+                    const normalizedStep = normalizeStatus(currentMaterial.processingStep);
 
-                    // 其他处理中状态
-                    const baseCondition =
-                      currentMaterial.status === '处理中' ||
-                      currentMaterial.status === '拆分中' ||
-                      currentMaterial.processingStep === 'splitting' ||
-                      currentMaterial.processingStep === 'translating' ||
-                      currentMaterial.processingStep === 'entity_recognizing' ||
-                      (currentMaterial.processingStep === 'translated' && !currentMaterial.translationTextInfo) ||
-                      (currentMaterial.processingStep === 'uploaded' && currentMaterial.status === '处理中');
-                    // 只排除需要用户交互的状态（实体确认相关）
-                    const excludeEntitySteps = !['entity_pending_confirm', 'entity_confirmed'].includes(currentMaterial.processingStep);
-                    return baseCondition && excludeEntitySteps;
-                  })() ? (
-                    <div className={styles.processingOverlay}>
-                      <div className={styles.processingSpinner}>
-                        <svg className={styles.spinning} width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-                        </svg>
-                      </div>
-                      <p className={styles.processingText}>
-                        {(currentMaterial.status === '拆分中' || currentMaterial.processingStep === 'splitting') && 'PDF拆分中...'}
-                        {currentMaterial.processingStep === 'uploaded' && '准备翻译...'}
-                        {(currentMaterial.processingStep === 'translating' || (pdfSessionProgress && pdfSessionProgress.someTranslating)) && '翻译中...'}
-                        {currentMaterial.processingStep === 'entity_recognizing' && '实体识别中...'}
-                        {llmLoading && '优化中...'}
-                        {!currentMaterial.processingStep && !llmLoading && currentMaterial.status !== '拆分中' && '处理中...'}
-                      </p>
-                    </div>
-                  ) : !materialDataReady && currentMaterial.translationTextInfo ? (
-                    /* 🔧 竞态条件修复：数据正在解析中，显示加载状态而非旧数据 */
-                    <div className={styles.processingOverlay}>
-                      <div className={styles.processingSpinner}>
-                        <svg className={styles.spinning} width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-                        </svg>
-                      </div>
-                      <p className={styles.processingText}>加载中...</p>
-                    </div>
-                  ) : !currentMaterial.translationTextInfo ? (
+                    // 计算是否显示加载遮罩
+                    const showLoading = llmLoading || (() => {
+                      const baseCondition =
+                        isProcessing(normalizedStep) ||
+                        (statusMatches(normalizedStep, ProcessingStep.TRANSLATED) && !currentMaterial.translationTextInfo) ||
+                        (statusMatches(normalizedStep, ProcessingStep.UPLOADED) && isProcessing(normalizeStatus(currentMaterial.status)));
+                      const excludeEntitySteps = !statusMatches(normalizedStep, [ProcessingStep.ENTITY_PENDING_CONFIRM, ProcessingStep.ENTITY_CONFIRMED]);
+                      return baseCondition && excludeEntitySteps;
+                    })();
+
+                    // 计算加载文本
+                    const getLoadingText = () => {
+                      if (statusMatches(normalizedStep, ProcessingStep.SPLITTING)) {
+                        return currentMaterial.pdfTotalPages
+                          ? `PDF拆分中... (第${currentMaterial.pdfPageNumber || 1}/${currentMaterial.pdfTotalPages}页)`
+                          : 'PDF拆分中...';
+                      }
+                      if (statusMatches(normalizedStep, ProcessingStep.UPLOADED)) return '准备翻译...';
+                      if (statusMatches(normalizedStep, ProcessingStep.TRANSLATING) || (pdfSessionProgress && pdfSessionProgress.someTranslating)) return '翻译中...';
+                      if (statusMatches(normalizedStep, ProcessingStep.ENTITY_RECOGNIZING)) return '实体识别中...';
+                      if (llmLoading) return '优化中...';
+                      return '处理中...';
+                    };
+
+                    const isDataLoading = !materialDataReady && currentMaterial.translationTextInfo;
+                    const finalLoading = showLoading || isDataLoading;
+                    const finalLoadingText = isDataLoading ? '加载中...' : getLoadingText();
+
+                    return !currentMaterial.translationTextInfo ? (
                     /* ✅ 没有翻译结果时（包括status='已上传'），显示原图编辑器供用户预览和旋转 */
                     <FabricImageEditor
                       key={`editor-${currentMaterial.id}-${currentMaterial.rotationCount || 0}`}
@@ -1558,6 +1559,8 @@ const ClaudePreviewSection = () => {
                       regions={[]} // 空regions，只显示原图
                       editorKey={`empty-${currentMaterial.id}`}
                       exposeHandlers={true}
+                      isLoading={finalLoading}
+                      loadingText={finalLoadingText}
                       // 扩展工具栏控制
                       extraControls={{
                         // 页面导航
@@ -1571,10 +1574,16 @@ const ClaudePreviewSection = () => {
                         // 确认
                         isConfirmed: currentMaterial.confirmed,
                         onConfirm: handleConfirm,
-                        // 开始翻译
-                        showStartTranslate: currentMaterial.status === '已上传',
+                        // 开始翻译 - 支持 uploaded 和 split_completed 状态
+                        showStartTranslate: isPendingAction(normalizeStatus(currentMaterial.status)) && !isProcessing(normalizeStatus(currentMaterial.processingStep)),
                         onStartTranslate: handleStartTranslation,
-                        translateLabel: pdfPages.length > 0 ? `开始翻译 (${pdfPages.length})` : '开始翻译'
+                        translateLabel: pdfPages.length > 0 ? `开始翻译 (${pdfPages.length})` : '开始翻译',
+                        // 保存
+                        onSave: () => {
+                          if (window.currentFabricEditor?.handleExport) {
+                            window.currentFabricEditor.handleExport();
+                          }
+                        }
                       }}
                       onExport={async (url, blob, currentRegions, includeText) => {
                         try {
@@ -1627,6 +1636,8 @@ const ClaudePreviewSection = () => {
                       entityResults={entityResults}
                       editorKey={`llm-${currentMaterial.id}`}
                       exposeHandlers={true}
+                      isLoading={finalLoading}
+                      loadingText={finalLoadingText}
                       // 扩展工具栏控制
                       extraControls={{
                         // 页面导航
@@ -1642,7 +1653,13 @@ const ClaudePreviewSection = () => {
                         onConfirm: handleConfirm,
                         // 重新翻译（已翻译状态）
                         showRetranslate: true,
-                        onRetranslate: handleRetranslateCurrentImage
+                        onRetranslate: handleRetranslateCurrentImage,
+                        // 保存
+                        onSave: () => {
+                          if (window.currentFabricEditor?.handleExport) {
+                            window.currentFabricEditor.handleExport();
+                          }
+                        }
                       }}
                       onExport={async (url, blob, currentRegions, includeText) => {
                         try {
@@ -1686,7 +1703,10 @@ const ClaudePreviewSection = () => {
                         }
                       }}
                     />
-                  )}
+                  );
+                  })()}
+              </>
+            )}
 
             {/* 如果连图片都没有，显示占位符 */}
             {!getImageUrl() && (
@@ -1710,8 +1730,6 @@ const ClaudePreviewSection = () => {
               hasExistingEntityResult={!!(currentMaterial?.entityRecognitionResult)}
               isRetranslate={isRetranslateFlow}
             />
-              </>
-            )}
           </>
         ) : (
           <SinglePreview
@@ -1743,12 +1761,15 @@ const SinglePreview = ({ material }) => {
   const { t } = useLanguage();
   const [error, setError] = useState(null);
 
+  // 使用状态机辅助函数判断状态
+  const normalizedStatus = material ? normalizeStatus(material.status || material.processingStep) : null;
+
   // 判断是否正在翻译
-  const isTranslating = material && material.status === '正在翻译';
-  
+  const isTranslating = material && isProcessing(normalizedStatus);
+
   // 判断是否有翻译结果
-  const hasTranslationResult = material && material.translatedImagePath && 
-    (material.status === '翻译完成' || material.status === '已确认');
+  const hasTranslationResult = material && material.translatedImagePath &&
+    (isCompleted(normalizedStatus) || isConfirmable(normalizedStatus));
   
   // 调试日志
   console.log('SinglePreview Debug:', {
@@ -1763,13 +1784,13 @@ const SinglePreview = ({ material }) => {
   });
 
   useEffect(() => {
-    // 当翻译失败时，设置错误信息
-    if (material && material.status === '翻译失败' && material.translationError) {
+    // 当翻译失败时，设置错误信息 - 使用状态机辅助函数
+    if (material && isFailed(normalizedStatus) && material.translationError) {
       setError(material.translationError);
     } else {
       setError(null);
     }
-  }, [material]);
+  }, [material, normalizedStatus]);
 
   if (error) {
     return (
@@ -1828,8 +1849,8 @@ const SinglePreview = ({ material }) => {
     );
   }
 
-  // 根据材料状态显示不同内容
-  if (material.status === '已添加') {
+  // 根据材料状态显示不同内容 - 使用状态机辅助函数
+  if (statusMatches(normalizedStatus, ProcessingStep.UPLOADED)) {
     // 刚添加还未开始翻译
     return (
       <div className={styles.singlePreview}>

@@ -33,12 +33,11 @@
   font-size: 15px;
   font-weight: 600;
   color: #1f2937;
-  flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 180px;
   padding: 4px 8px;
-  margin: -4px -8px;
   border-radius: 4px;
   transition: background 0.15s;
 }
@@ -186,7 +185,30 @@
 }
 
 .dropdownEmpty p {
-  margin: 0;
+  margin: 0 0 12px 0;
+}
+
+.emptyAddBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.emptyAddBtn:hover {
+  background: #2563eb;
+}
+
+.emptyAddBtn svg {
+  flex-shrink: 0;
 }
 
 /* ========== 材料区域 ========== */
@@ -198,7 +220,6 @@
 }
 
 .noClient,
-.noMaterials,
 .materialLoading {
   flex: 1;
   display: flex;
@@ -210,6 +231,13 @@
   padding: 24px;
 }
 
+.noMaterials {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+}
+
 .noClient p,
 .noMaterials p {
   margin: 0;
@@ -218,7 +246,66 @@
 .hint {
   font-size: 12px;
   margin-top: 8px !important;
-  color: #d1d5db;
+  color: #9ca3af;
+}
+
+/* 上传区域 */
+.uploadArea {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  margin: 16px;
+  border: 2px dashed #d1d5db;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #6b7280;
+}
+
+.uploadArea:hover {
+  border-color: #667eea;
+  background: #f5f3ff;
+  color: #667eea;
+}
+
+.uploadArea svg {
+  margin-bottom: 12px;
+}
+
+.uploadArea p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.uploadArea p:first-of-type {
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+/* 上传更多按钮 */
+.uploadMoreBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: calc(100% - 32px);
+  margin: 8px 16px 16px;
+  padding: 10px;
+  border: 1px dashed #d1d5db;
+  border-radius: 6px;
+  background: transparent;
+  color: #6b7280;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.uploadMoreBtn:hover {
+  border-color: #667eea;
+  background: #f5f3ff;
+  color: #667eea;
 }
 
 .materialList {

@@ -7,7 +7,7 @@ import './ImageEditor.css';
 
 /* global fabric */
 
-function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default', exposeHandlers = false, extraControls = null, baiduRegions = [], entityResults = [] }) {
+function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default', exposeHandlers = false, extraControls = null, baiduRegions = [], entityResults = [], isLoading = false, loadingText = '处理中...' }) {
   const { t } = useLanguage();
   // 检查 Fabric.js 是否加载
   const [fabricLoaded, setFabricLoaded] = useState(false);
@@ -71,19 +71,85 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     if (!fabricCanvasRef.current) return;
     const canvas = fabricCanvasRef.current;
 
+    // 🔧 显式清除 canvas 的活动对象，确保选择状态完全重置
+    canvas.discardActiveObject();
+
+    // 撤销/重做后清空选中状态（因为原对象已被替换）
+    setSelectedObjects([]);
+    setSelectedTextboxes([]);
+    setSelectedMasks([]);
+    setAiButtonPosition(null);
+
     textObjectsRef.current = [];
     backgroundRectsRef.current = [];
 
+    // 收集所有对象
+    const textboxes = [];
+    const masks = [];
+
     canvas.getObjects().forEach((obj) => {
-      if (obj.type === 'textbox' && obj.id !== undefined) {
-        textObjectsRef.current[obj.id] = obj;
-      } else if (obj.type === 'rect' && obj.hasBackground) {
-        const textId = obj.id;
-        if (textId !== undefined) {
-          backgroundRectsRef.current[textId] = obj;
+      if (obj.type === 'textbox') {
+        textboxes.push(obj);
+        // 使用 regionIndex 作为索引
+        if (obj.regionIndex !== undefined) {
+          textObjectsRef.current[obj.regionIndex] = obj;
+        }
+      } else if (obj.type === 'rect' && obj.isMask === true) {
+        masks.push(obj);
+        // 使用 regionIndex 作为索引
+        if (obj.regionIndex !== undefined) {
+          backgroundRectsRef.current[obj.regionIndex] = obj;
         }
       }
     });
+
+    // 恢复 textbox 和 mask 之间的双向关联
+    textboxes.forEach(textbox => {
+      const regionIndex = textbox.regionIndex;
+      if (regionIndex !== undefined) {
+        // 找到对应的遮罩
+        const correspondingMask = masks.find(m => m.regionIndex === regionIndex);
+        if (correspondingMask) {
+          textbox.bgRect = correspondingMask;
+          correspondingMask.textObj = textbox;
+          correspondingMask.associatedTextbox = textbox;
+        }
+      }
+      // 处理合并的文本框（通过 mergedIndexes 找遮罩）
+      if (textbox.isMerged && textbox.mergedIndexes) {
+        const correspondingMask = masks.find(m =>
+          m.isMergedMask &&
+          JSON.stringify(m.mergedIndexes) === JSON.stringify(textbox.mergedIndexes)
+        );
+        if (correspondingMask) {
+          textbox.bgRect = correspondingMask;
+          correspondingMask.textObj = textbox;
+          correspondingMask.associatedTextbox = textbox;
+        }
+      }
+    });
+
+    // 重新设置文本框的控制点样式
+    textboxes.forEach(textbox => {
+      textbox.set({
+        borderColor: '#2196F3',
+        cornerColor: '#2196F3',
+        cornerSize: 10,
+        transparentCorners: false,
+        hasRotatingPoint: false
+      });
+    });
+
+    // 🔧 重新设置遮罩为不可选中（loadFromJSON 后可能被重置）
+    masks.forEach(mask => {
+      mask.set({
+        selectable: false,
+        evented: false,
+        hoverCursor: 'default'
+      });
+    });
+
+    canvas.renderAll();
   }, []);
 
   // 撤销/重做功能（使用 useCanvasHistory Hook）
@@ -95,9 +161,6 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     handleRedo,
     isHistoryOperation,
   } = useCanvasHistory(fabricCanvasRef, updateObjectReferences);
-
-  // 文字区域折叠状态（默认折叠，因为一般用不到）
-  const [regionsCollapsed, setRegionsCollapsed] = useState(true);
 
   // 遮罩层编辑模式状态
   const [maskEditMode, setMaskEditMode] = useState(false);
@@ -111,7 +174,6 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
   // 工具栏折叠状态
   const [toolbarCollapsed, setToolbarCollapsed] = useState(false);
-  const [toolbarExpanded, setToolbarExpanded] = useState(false);
   const toolbarRef = useRef(null);
 
   // Helper function: Convert RGBA/RGB color to hex format
@@ -259,6 +321,17 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     canvas.on('selection:created', (e) => {
       const selected = e.selected || [];
 
+      // 🔍 调试日志
+      const types = selected.map(obj => obj.type);
+      const textboxCount = types.filter(t => t === 'textbox').length;
+      console.log('📌 selection:created 触发', {
+        selectedCount: selected.length,
+        types: types.join(', '),
+        textboxCount,
+        allTextbox: selected.every(obj => obj.type === 'textbox'),
+        maskEditMode: maskEditModeRef.current
+      });
+
       // 在遮罩编辑模式下，筛选出遮罩对象（只检查统一的 isMask 属性）
       // 使用 maskEditModeRef.current 获取最新的状态值
       if (maskEditModeRef.current) {
@@ -273,6 +346,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           console.log('🎨 设置颜色选择器颜色:', masks[0].fill, '->', hexColor, '透明度:', masks[0].opacity);
         }
       } else {
+        console.log('📌 设置 selectedObjects:', selected.length, '个对象');
         setSelectedObjects(selected);
         updateAIButton(selected);
 
@@ -292,6 +366,13 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     canvas.on('selection:updated', (e) => {
       const selected = e.selected || [];
 
+      // 🔍 调试日志
+      console.log('📌 selection:updated 触发', {
+        selectedCount: selected.length,
+        types: selected.map(obj => obj.type),
+        maskEditMode: maskEditModeRef.current
+      });
+
       // 在遮罩编辑模式下，筛选出遮罩对象（只检查统一的 isMask 属性）
       // 使用 maskEditModeRef.current 获取最新的状态值
       if (maskEditModeRef.current) {
@@ -306,6 +387,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           console.log('🎨 更新颜色选择器颜色:', masks[0].fill, '->', hexColor, '透明度:', masks[0].opacity);
         }
       } else {
+        console.log('📌 更新 selectedObjects:', selected.length, '个对象');
         setSelectedObjects(selected);
         updateAIButton(selected);
 
@@ -696,11 +778,8 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       }
     });
 
-    canvas.on('text:changed', () => {
-      if (!isHistoryOperation()) {
-        saveHistory();
-      }
-    });
+    // 注意：不在 text:changed 时保存历史，因为每个字符都会触发
+    // 改为在 text:editing:exited 时保存历史
 
     // ==================== Markdown 编辑/显示模式切换 ====================
 
@@ -744,6 +823,11 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       applyMarkdownStylesToCleanText(textbox, originalText, displayText);
 
       canvas.renderAll();
+
+      // 文本编辑完成后保存历史
+      if (!isHistoryOperation()) {
+        saveHistory();
+      }
     });
 
     // 监听键盘事件
@@ -996,10 +1080,8 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       const width = entries[0].contentRect.width;
       if (width < COLLAPSE_THRESHOLD && !toolbarCollapsed) {
         setToolbarCollapsed(true);
-        setToolbarExpanded(false);
       } else if (width >= COLLAPSE_THRESHOLD && toolbarCollapsed) {
         setToolbarCollapsed(false);
-        setToolbarExpanded(false);
       }
     });
 
@@ -1007,10 +1089,6 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     return () => observer.disconnect();
   }, [toolbarCollapsed]);
 
-  // 切换工具栏展开/折叠
-  const toggleToolbarExpanded = useCallback(() => {
-    setToolbarExpanded(prev => !prev);
-  }, []);
 
   // 初始化文本区域
   const initializeTextRegions = async (regionsData) => {
@@ -1905,8 +1983,8 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         obj.set({
           selectable: newMode,
           evented: newMode,
-          stroke: newMode ? '#FF6B6B' : 'transparent',
-          strokeWidth: newMode ? 2 : 0
+          stroke: newMode ? '#FF8C00' : 'transparent',
+          strokeWidth: newMode ? 3 : 0
         });
       } else if (obj.type === 'image' && obj.isBlurBackground) {
         // 处理模糊背景图片（如果有的话）
@@ -1923,6 +2001,39 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     canvas.renderAll();
 
     console.log(`遮罩编辑模式: ${newMode ? '开启' : '关闭'}`);
+  };
+
+  // 应用文本样式到选中的对象
+  const applyTextStyle = (property, value) => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
+
+    const activeObject = canvas.getActiveObject();
+    if (!activeObject) return;
+
+    // 处理多选情况
+    const objects = activeObject.type === 'activeSelection'
+      ? activeObject.getObjects()
+      : [activeObject];
+
+    // 过滤出文本框
+    const textboxes = objects.filter(obj => obj.type === 'textbox');
+    if (textboxes.length === 0) return;
+
+    textboxes.forEach(textbox => {
+      textbox.set(property, value);
+    });
+
+    // 更新lastMergeSettings记忆
+    if (property === 'fontSize') lastMergeSettingsRef.current.fontSize = value;
+    if (property === 'fontFamily') lastMergeSettingsRef.current.fontFamily = value;
+    if (property === 'textAlign') lastMergeSettingsRef.current.textAlign = value;
+    if (property === 'lineHeight') lastMergeSettingsRef.current.lineSpacing = value;
+    if (property === 'fontWeight') lastMergeSettingsRef.current.isBold = value === 'bold';
+    if (property === 'fontStyle') lastMergeSettingsRef.current.isItalic = value === 'italic';
+
+    canvas.renderAll();
+    saveHistory();
   };
 
   // 处理遮罩颜色预览（实时更新）
@@ -2062,8 +2173,8 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       height: defaultHeight,
       fill: '#FFFFFF',  // Use white instead of rgba
       opacity: 0.9,     // Set transparency using opacity property
-      stroke: '#FF6B6B',
-      strokeWidth: 2,
+      stroke: '#FF8C00',
+      strokeWidth: 3,
       selectable: maskEditMode,
       evented: maskEditMode,
       originX: 'left',
@@ -2596,7 +2707,8 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     // 筛选文本框
     const textboxes = selected.filter(obj => obj.type === 'textbox');
 
-    if (textboxes.length === 0) {
+    // 只有选中单个文本框时才显示AI助手按钮
+    if (textboxes.length !== 1) {
       setSelectedTextboxes([]);
       setAiButtonPosition(null);
       return;
@@ -3615,191 +3727,262 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     );
   }
 
-  // 计算工具栏className
-  const toolbarClassName = `editor-toolbar-compact${toolbarCollapsed ? ' collapsed' : ''}${toolbarExpanded ? ' expanded' : ''}`;
-
   return (
     <div className="image-editor">
-      {/* 分区式工具栏 */}
-      <div ref={toolbarRef} className={toolbarClassName}>
-        {/* 区域1: 导航 - 始终显示 */}
-        {(extraControls?.showPageNav || extraControls?.onRotate) && (
-          <div className="toolbar-section">
-            {extraControls?.showPageNav && (
-              <div className="action-group page-nav-group">
-                <button onClick={extraControls.onPrevPage} disabled={extraControls.currentPage <= 1} className="action-button" title="上一页">◀</button>
-                <span className="page-info">{extraControls.currentPage}/{extraControls.totalPages}</span>
-                <button onClick={extraControls.onNextPage} disabled={extraControls.currentPage >= extraControls.totalPages} className="action-button" title="下一页">▶</button>
-              </div>
-            )}
+      {/* 主内容区域（工具栏 + 画布） */}
+      <div className="editor-main-area">
+        {/* 简化的顶部工具栏 - 只保留核心操作 */}
+        <div className="editor-toolbar-minimal">
+          {/* 左侧：旋转和历史 */}
+          <div className="toolbar-left-group">
             {extraControls?.onRotate && (
               <button onClick={extraControls.onRotate} className="action-button" title="旋转90°">⟳</button>
             )}
+            <div className="toolbar-divider-v"></div>
+            <button onClick={handleUndo} disabled={!canUndo} className="action-button" title={t('undoShortcut')}>↶</button>
+            <button onClick={handleRedo} disabled={!canRedo} className="action-button" title={t('redoShortcut')}>↷</button>
           </div>
-        )}
 
-        {/* 区域2: 历史 - 始终显示 */}
-        <div className="toolbar-section">
-          <button onClick={handleUndo} disabled={!canUndo} className="action-button" title={t('undoShortcut')}>↶</button>
-          <button onClick={handleRedo} disabled={!canRedo} className="action-button" title={t('redoShortcut')}>↷</button>
-        </div>
-
-        {/* 区域3: 文本编辑 / 遮罩编辑 - 可折叠 */}
-        {!maskEditMode ? (
-          <div className="toolbar-section collapsible">
-            <select
-              className="font-select-compact"
-              value={selectedObjects.length > 0 ? selectedFont : ''}
-              onChange={(e) => { setSelectedFont(e.target.value); updateSelectedStyle('fontFamily', e.target.value); }}
-              disabled={selectedObjects.length === 0}
-              title={t('fontFamily')}
-            >
-              <option value="">{t('fontFamily')}</option>
-              <option value="Arial">{t('fontArial')}</option>
-              <option value="SimSun">{t('fontSimSun')}</option>
-              <option value="SimHei">{t('fontSimHei')}</option>
-              <option value="Microsoft YaHei">{t('fontMicrosoftYaHei')}</option>
-              <option value="KaiTi">{t('fontKaiTi')}</option>
-            </select>
-            <input
-              type="number"
-              className="font-size-compact"
-              value={selectedObjects.length > 0 ? fontSize : ''}
-              placeholder="Size"
-              onChange={(e) => { const size = parseInt(e.target.value) || 11; setFontSize(size); updateSelectedStyle('fontSize', size); }}
-              title={t('fontSize')}
-              disabled={selectedObjects.length === 0}
-            />
-            <div className="format-group">
-              <button className={`format-button ${isBold ? 'active' : ''}`} onClick={() => insertMarkdownTag('**', '**')} title={t('boldTooltip')} disabled={selectedObjects.length === 0}><strong>B</strong></button>
-              <button className={`format-button ${isItalic ? 'active' : ''}`} onClick={() => insertMarkdownTag('*', '*')} title={t('italicTooltip')} disabled={selectedObjects.length === 0}><em>I</em></button>
+          {/* 中间：缩放 */}
+          <div className="toolbar-center-group">
+            <div className="zoom-controls">
+              <button onClick={() => handleZoom(-25)} className="zoom-button">−</button>
+              <span className="zoom-level">{zoomLevel}%</span>
+              <button onClick={() => handleZoom(25)} className="zoom-button">+</button>
             </div>
-            <div className="align-group">
-              <button className={`align-button ${textAlign === 'left' ? 'active' : ''}`} onClick={() => { setTextAlign('left'); updateSelectedStyle('textAlign', 'left'); }} title={t('alignLeft')} disabled={selectedObjects.length === 0}>
-                <div className="align-icon align-left"><span></span><span></span><span></span></div>
-              </button>
-              <button className={`align-button ${textAlign === 'center' ? 'active' : ''}`} onClick={() => { setTextAlign('center'); updateSelectedStyle('textAlign', 'center'); }} title={t('alignCenter')} disabled={selectedObjects.length === 0}>
-                <div className="align-icon align-center"><span></span><span></span><span></span></div>
-              </button>
-              <button className={`align-button ${textAlign === 'right' ? 'active' : ''}`} onClick={() => { setTextAlign('right'); updateSelectedStyle('textAlign', 'right'); }} title={t('alignRight')} disabled={selectedObjects.length === 0}>
-                <div className="align-icon align-right"><span></span><span></span><span></span></div>
-              </button>
-            </div>
-            <input type="color" className="color-picker-compact" value={selectedColor} onChange={(e) => { setSelectedColor(e.target.value); updateSelectedStyle('fill', e.target.value); }} title={t('textColor')} disabled={selectedObjects.length === 0} />
-            <input type="number" className="line-spacing-compact" value={selectedObjects.length > 0 ? lineSpacing : ''} placeholder="行距" min="0.8" max="2.0" step="0.1" onChange={(e) => { const spacing = parseFloat(e.target.value) || 1.2; setLineSpacing(spacing); updateSelectedStyle('lineHeight', spacing); }} title="行间距" disabled={selectedObjects.length === 0} />
           </div>
-        ) : (
-          <div className="toolbar-section mask-controls collapsible">
-            <span className="selected-count">选中: {selectedMasks.length}</span>
-            <input type="color" className="mask-color-picker" value={tempMaskColor} onChange={(e) => handleColorPreview(e.target.value)} title="选择遮罩颜色" />
-            <button className="eyedropper-button" onClick={activateEyedropper} title="吸管取色">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 22l9.5-9.5"/><path d="M12 12L22 2"/><path d="M19 5l-2-2"/></svg>
-            </button>
-            <input type="range" className="opacity-slider" min="0" max="1" step="0.1" value={maskOpacity} onChange={(e) => handleOpacityChange(parseFloat(e.target.value))} title={`透明度: ${Math.round(maskOpacity * 100)}%`} />
-            <span className="opacity-value">{Math.round(maskOpacity * 100)}%</span>
-            <button className="apply-color-button" onClick={applyMaskColor} disabled={selectedMasks.length === 0}>Apply</button>
-          </div>
-        )}
 
-        {/* 展开/折叠按钮 */}
-        {toolbarCollapsed && (
-          <button onClick={toggleToolbarExpanded} className="toolbar-toggle-btn" title={toolbarExpanded ? '收起' : '展开更多'}>
-            {toolbarExpanded ? '▲' : '▼'}
-          </button>
-        )}
-
-        {/* 弹性空间 - 把后面的内容推到右边 */}
-        <div style={{ flex: 1 }}></div>
-
-        {/* 区域4: 功能 - 可折叠，右侧 */}
-        <div className="toolbar-section collapsible">
-          <button onClick={mergeSelectedObjects} disabled={selectedObjects.length < 2} className="feature-button merge-button-compact" title={t('mergeTextboxes')}>Merge</button>
-          <button onClick={toggleMaskEditMode} className={`feature-button ${maskEditMode ? 'active' : ''}`} title={maskEditMode ? t('exitMaskEditMode') : t('enterMaskEditMode')}>{maskEditMode ? '✓' : ''}Mask</button>
-          <button onClick={maskEditMode ? createNewMask : createNewTextbox} className="feature-button" title={maskEditMode ? t('addCustomMask') : t('createNewTextbox')}>
-            {maskEditMode ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg> : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="4" y1="6" x2="20" y2="6"/><line x1="12" y1="6" x2="12" y2="20"/></svg>}
-          </button>
-        </div>
-
-        {/* 区域5: 工具（AI、缩放） */}
-        <div className="toolbar-section">
-          <button onClick={() => setShowGlobalAI(true)} className="global-ai-button" title={t('globalAssistantEdit')}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0L14.59 8.41L23 11L14.59 13.59L12 22L9.41 13.59L1 11L9.41 8.41L12 0Z"/></svg>
-          </button>
-          <div className="zoom-controls">
-            <button onClick={() => handleZoom(-25)} className="zoom-button">−</button>
-            <span className="zoom-level">{zoomLevel}%</span>
-            <button onClick={() => handleZoom(25)} className="zoom-button">+</button>
-          </div>
-        </div>
-
-        {/* 区域6: 操作按钮 - 最右边 */}
-        {(extraControls?.showStartTranslate || extraControls?.showRetranslate || extraControls?.onConfirm) && (
-          <div className="toolbar-section" style={{ borderRight: 'none' }}>
+          {/* 右侧：核心操作按钮 */}
+          <div className="toolbar-right-group">
             {extraControls?.showStartTranslate && (
               <button onClick={extraControls.onStartTranslate} className="action-button primary-action" title="开始翻译">▶ {extraControls.translateLabel || '翻译'}</button>
             )}
             {extraControls?.showRetranslate && (
-              <button onClick={extraControls.onRetranslate} className="action-button" title="重新翻译">⟳ 重译</button>
+              <button onClick={extraControls.onRetranslate} className="action-button retranslate-btn" title="重新翻译">⟳ 重译</button>
             )}
+            <button onClick={() => setShowGlobalAI(true)} className="global-ai-button" title={t('globalAssistantEdit')}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0L14.59 8.41L23 11L14.59 13.59L12 22L9.41 13.59L1 11L9.41 8.41L12 0Z"/></svg>
+            </button>
             {extraControls?.onConfirm && (
               <button onClick={extraControls.onConfirm} className={`action-button ${extraControls.isConfirmed ? 'confirmed-btn' : 'confirm-btn'}`} title={extraControls.isConfirmed ? '取消确认' : '确认翻译'}>
                 {extraControls.isConfirmed ? '✓ 已确认' : '☐ 确认'}
               </button>
             )}
-          </div>
-        )}
-      </div>
-
-      <div className="editor-canvas-container">
-        <div ref={canvasWrapperRef} className="canvas-wrapper">
-          <div className="canvas-inner-wrapper">
-            <canvas ref={canvasRef} id={`fabric-canvas-${editorKey}`} />
+            {extraControls?.onSave && (
+              <button onClick={extraControls.onSave} className="action-button save-btn" title="保存编辑">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                  <polyline points="17 21 17 13 7 13 7 21"/>
+                  <polyline points="7 3 7 8 15 8"/>
+                </svg>
+                保存
+              </button>
+            )}
           </div>
         </div>
 
-        {!regionsCollapsed && (
-          <div className="region-controls">
-            <div className="region-controls-header">
-              <h3>文字区域</h3>
-              <button
-                className="collapse-button"
-                onClick={() => setRegionsCollapsed(true)}
-                title="折叠文字区域"
-              >
-                ✕ 折叠
-              </button>
+        <div className="editor-canvas-container">
+          {/* 加载遮罩 - 仅覆盖画布区域 */}
+          {isLoading && (
+            <div className="canvas-loading-overlay">
+              <div className="canvas-loading-spinner">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                </svg>
+              </div>
+              <span className="canvas-loading-text">{loadingText}</span>
             </div>
-            {regions && regions.map((region, index) => (
-              <div
-                key={index}
-                className="region-control-item"
-                onClick={() => {
-                  const canvas = fabricCanvasRef.current;
-                  const textObj = textObjectsRef.current[index];
-                  if (canvas && textObj) {
-                    canvas.setActiveObject(textObj);
-                    canvas.renderAll();
-                  }
-                }}
-              >
-                <span className="region-label">
-                  {region.src} → {region.dst}
-                </span>
-                <div className="control-buttons">
+          )}
+          {/* PDF页面切换 - 浮动在画布左上角 */}
+          {extraControls?.showPageNav && (
+            <div className="canvas-page-nav">
+              <button onClick={extraControls.onPrevPage} disabled={extraControls.currentPage <= 1} className="page-nav-btn" title="上一页">◀</button>
+              <span className="page-nav-info">{extraControls.currentPage} / {extraControls.totalPages}</span>
+              <button onClick={extraControls.onNextPage} disabled={extraControls.currentPage >= extraControls.totalPages} className="page-nav-btn" title="下一页">▶</button>
+            </div>
+          )}
+          <div ref={canvasWrapperRef} className="canvas-wrapper">
+            <div className="canvas-inner-wrapper">
+              <canvas ref={canvasRef} id={`fabric-canvas-${editorKey}`} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 右侧编辑面板 - 独立于主内容区域，从顶部延伸到底部 */}
+      <div className="edit-panel-right">
+            {/* 文字样式区域 */}
+            <div className="panel-section">
+              <div className="panel-section-title">文字样式</div>
+              <div className="panel-row">
+                <select
+                  value={selectedFont}
+                  onChange={(e) => {
+                    setSelectedFont(e.target.value);
+                    applyTextStyle('fontFamily', e.target.value);
+                  }}
+                  className="panel-select"
+                  disabled={selectedObjects.length === 0}
+                >
+                  <option value="Arial">Arial</option>
+                  <option value="SimSun">宋体</option>
+                  <option value="SimHei">黑体</option>
+                  <option value="Microsoft YaHei">微软雅黑</option>
+                  <option value="KaiTi">楷体</option>
+                  <option value="FangSong">仿宋</option>
+                </select>
+              </div>
+              <div className="panel-row panel-row-inline">
+                <input
+                  type="number"
+                  value={fontSize}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value) || 11;
+                    setFontSize(val);
+                    applyTextStyle('fontSize', val);
+                  }}
+                  className="panel-input-number"
+                  min="8"
+                  max="200"
+                  disabled={selectedObjects.length === 0}
+                />
+                <input
+                  type="color"
+                  value={selectedColor}
+                  onChange={(e) => {
+                    setSelectedColor(e.target.value);
+                    applyTextStyle('fill', e.target.value);
+                  }}
+                  className="panel-color-picker"
+                  disabled={selectedObjects.length === 0}
+                />
+              </div>
+              <div className="panel-row panel-row-inline">
+                <div className="panel-btn-group">
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleRegion(index);
+                    onClick={() => {
+                      const newBold = !isBold;
+                      setIsBold(newBold);
+                      applyTextStyle('fontWeight', newBold ? 'bold' : 'normal');
                     }}
-                  >
-                    切换
+                    className={`panel-btn-icon ${isBold ? 'active' : ''}`}
+                    disabled={selectedObjects.length === 0}
+                    title="粗体"
+                  >B</button>
+                  <button
+                    onClick={() => {
+                      const newItalic = !isItalic;
+                      setIsItalic(newItalic);
+                      applyTextStyle('fontStyle', newItalic ? 'italic' : 'normal');
+                    }}
+                    className={`panel-btn-icon ${isItalic ? 'active' : ''}`}
+                    disabled={selectedObjects.length === 0}
+                    title="斜体"
+                  ><i>I</i></button>
+                </div>
+                <div className="panel-btn-group">
+                  <button onClick={() => { setTextAlign('left'); applyTextStyle('textAlign', 'left'); }} className={`panel-btn-icon ${textAlign === 'left' ? 'active' : ''}`} disabled={selectedObjects.length === 0} title="左对齐">
+                    <span className="align-icon-mini align-left"><span></span><span></span><span></span></span>
+                  </button>
+                  <button onClick={() => { setTextAlign('center'); applyTextStyle('textAlign', 'center'); }} className={`panel-btn-icon ${textAlign === 'center' ? 'active' : ''}`} disabled={selectedObjects.length === 0} title="居中">
+                    <span className="align-icon-mini align-center"><span></span><span></span><span></span></span>
+                  </button>
+                  <button onClick={() => { setTextAlign('right'); applyTextStyle('textAlign', 'right'); }} className={`panel-btn-icon ${textAlign === 'right' ? 'active' : ''}`} disabled={selectedObjects.length === 0} title="右对齐">
+                    <span className="align-icon-mini align-right"><span></span><span></span><span></span></span>
                   </button>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+              <div className="panel-row">
+                <label className="panel-label">行间距</label>
+                <input
+                  type="number"
+                  value={lineSpacing}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value) || 1.2;
+                    setLineSpacing(val);
+                    applyTextStyle('lineHeight', val);
+                  }}
+                  className="panel-input-number"
+                  min="0.5"
+                  max="3"
+                  step="0.1"
+                  disabled={selectedObjects.length === 0}
+                />
+              </div>
+            </div>
+
+            {/* 操作区域 */}
+            <div className="panel-section">
+              <div className="panel-section-title">操作</div>
+              <button
+                onClick={createNewTextbox}
+                className="panel-btn-full secondary"
+              >
+                + 添加文本框
+              </button>
+              <button
+                onClick={mergeSelectedObjects}
+                disabled={selectedObjects.length < 2 || !selectedObjects.every(obj => obj.type === 'textbox')}
+                className="panel-btn-full primary"
+              >
+                ⊕ 合并选中文字
+              </button>
+            </div>
+
+            {/* 遮罩编辑区域 */}
+            <div className="panel-section">
+              <div className="panel-section-title">遮罩层</div>
+              <button
+                onClick={toggleMaskEditMode}
+                className={`panel-btn-full ${maskEditMode ? 'active' : ''}`}
+              >
+                {maskEditMode ? '✓ 编辑中' : '⚙ 编辑遮罩'}
+              </button>
+              {maskEditMode && (
+                <>
+                  <button
+                    onClick={createNewMask}
+                    className="panel-btn-full secondary"
+                  >
+                    + 添加遮罩
+                  </button>
+                  {selectedMasks.length > 0 && (
+                    <div className="panel-mask-controls">
+                      <div className="panel-row panel-row-inline">
+                        <span className="panel-label-small">{selectedMasks.length}个遮罩</span>
+                        <input
+                          type="color"
+                          value={maskColor}
+                          onChange={(e) => handleColorPreview(e.target.value)}
+                          className="panel-color-picker"
+                        />
+                      </div>
+                      <div className="panel-row">
+                        <label className="panel-label">透明度</label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.1"
+                          value={maskOpacity}
+                          onChange={(e) => handleOpacityChange(parseFloat(e.target.value))}
+                          className="panel-slider"
+                        />
+                        <span className="panel-value">{Math.round(maskOpacity * 100)}%</span>
+                      </div>
+                      <button
+                        onClick={applyMaskColor}
+                        className="panel-btn-full primary"
+                      >
+                        应用颜色
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+        </div>
 
       {/* AI助手 */}
       {aiButtonPosition && (
@@ -3831,15 +4014,13 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
           {/* AI助手小对话框 */}
           {showAIModal && (
-            <div className="ai-assistant-panel">
-              <AIAssistantModal
-                isOpen={showAIModal}
-                onClose={() => setShowAIModal(false)}
-                selectedTextboxes={selectedTextboxes}
-                onApply={handleAIApply}
-                entityGuidance={buildEntityGuidance()}
-              />
-            </div>
+            <AIAssistantModal
+              isOpen={showAIModal}
+              onClose={() => setShowAIModal(false)}
+              selectedTextboxes={selectedTextboxes}
+              onApply={handleAIApply}
+              entityGuidance={buildEntityGuidance()}
+            />
           )}
         </div>
       )}

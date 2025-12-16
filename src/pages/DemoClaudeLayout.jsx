@@ -107,7 +107,7 @@ const DemoClaudeLayout = () => {
 
   const handleCreateClient = async (clientName) => {
     try {
-      const response = await clientAPI.createClient({ name: clientName });
+      const response = await clientAPI.addClient({ name: clientName });
       const newClient = response.client || response;
 
       actions.showNotification('成功', `客户 "${clientName}" 已创建`, 'success');
@@ -141,6 +141,11 @@ const DemoClaudeLayout = () => {
       return;
     }
 
+    // 检查是否包含PDF文件
+    const hasPdf = supportedFiles.some(file =>
+      file.name.split('.').pop().toLowerCase() === 'pdf'
+    );
+
     const getFileType = (filename) => {
       const ext = filename.split('.').pop().toLowerCase();
       if (['pdf'].includes(ext)) return 'pdf';
@@ -159,7 +164,10 @@ const DemoClaudeLayout = () => {
       createdAt: new Date().toISOString()
     }));
 
-    actions.startUpload(materialsToAdd, '准备上传文件...');
+    // 如果有PDF，总进度分两步：上传(50%) + 拆分(50%)
+    const totalSteps = hasPdf ? 2 : 1;
+    const fileCountText = supportedFiles.length === 1 ? '1个文件' : `${supportedFiles.length}个文件`;
+    actions.startUpload(materialsToAdd, `${fileCountText}上传中...`, totalSteps);
 
     try {
       const response = await materialAPI.uploadFiles(selectedClient.cid, supportedFiles);
@@ -169,13 +177,86 @@ const DemoClaudeLayout = () => {
         actions.setUploadedMaterials(response.materials.map(m => m.id));
       }
 
-      actions.showNotification('上传成功', `成功上传 ${supportedFiles.length} 个文件`, 'success');
-      actions.updateUploadProgress(supportedFiles.length, '上传完成！', false, false);
+      // 如果包含PDF，等待拆分完成
+      if (hasPdf) {
+        // 上传完成，进度50%，开始拆分
+        actions.updateUploadProgress(1, 'PDF拆分中...', false, true);
 
-      // 重新加载材料列表
-      const materialsResponse = await materialAPI.getMaterials(selectedClient.cid);
-      const materialList = materialsResponse.materials || materialsResponse || [];
-      actions.setMaterials(materialList);
+        // 轮询等待PDF拆分完成（只检查，不更新材料状态）
+        let attempts = 0;
+        const maxAttempts = 60; // 最多等待60秒
+        let finalMaterialList = null;
+
+        while (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          attempts++;
+
+          try {
+            const materialsResponse = await materialAPI.getMaterials(selectedClient.cid);
+            const materialList = materialsResponse.materials || materialsResponse || [];
+
+            // 检查是否有PDF页面（pdfSessionId不为空的材料）
+            const pdfPages = materialList.filter(m => m.pdfSessionId);
+
+            if (pdfPages.length > 0) {
+              // PDF拆分完成，保存最终列表
+              finalMaterialList = materialList;
+              break;
+            }
+          } catch (e) {
+            // 忽略轮询错误，继续等待
+          }
+
+          // 保持显示拆分中
+          actions.updateUploadProgress(1, 'PDF拆分中...', false, true);
+        }
+
+        // 拆分完成或超时后，一次性更新所有状态
+        if (!finalMaterialList) {
+          const materialsResponse = await materialAPI.getMaterials(selectedClient.cid);
+          finalMaterialList = materialsResponse.materials || materialsResponse || [];
+        }
+
+        // 先更新材料列表
+        actions.setMaterials(finalMaterialList);
+
+        const pdfPages = finalMaterialList.filter(m => m.pdfSessionId);
+        if (pdfPages.length > 0) {
+          // 进度100%
+          actions.updateUploadProgress(2, '完成', false, false);
+          actions.showNotification('上传成功', `成功上传 ${supportedFiles.length} 个文件`, 'success');
+
+          // 延迟选中第一个PDF页面，确保状态已更新
+          const firstPage = pdfPages.find(m => m.pdfPageNumber === 1);
+          if (firstPage) {
+            setTimeout(() => {
+              actions.setCurrentMaterial(firstPage);
+            }, 100);
+          }
+        } else {
+          actions.updateUploadProgress(2, '完成', false, false);
+          actions.showNotification('上传成功', `文件已上传，PDF可能仍在处理中`, 'info');
+        }
+
+      } else {
+        // 非PDF文件，直接完成 (totalSteps = 1)
+        actions.updateUploadProgress(1, '完成', false, false);
+        actions.showNotification('上传成功', `成功上传 ${supportedFiles.length} 个文件`, 'success');
+
+        // 重新加载材料列表
+        const materialsResponse = await materialAPI.getMaterials(selectedClient.cid);
+        const materialList = materialsResponse.materials || materialsResponse || [];
+        actions.setMaterials(materialList);
+
+        // 上传完成后自动选中新上传的第一个材料
+        if (response.materials && response.materials.length > 0) {
+          const firstUploadedId = response.materials[0].id;
+          const uploadedMaterial = materialList.find(m => m.id === firstUploadedId);
+          if (uploadedMaterial) {
+            actions.setCurrentMaterial(uploadedMaterial);
+          }
+        }
+      }
 
     } catch (error) {
       actions.showNotification('上传失败', error.message || '文件上传时出现错误', 'error');
@@ -260,6 +341,7 @@ const DemoClaudeLayout = () => {
       onSelectMaterial={handleSelectMaterial}
       onAddClient={handleAddClient}
       onExport={handleExport}
+      onUploadFiles={handleFilesDropped}
     />
   );
 
@@ -281,6 +363,18 @@ const DemoClaudeLayout = () => {
           </div>
           <h1 className={styles.welcomeTitle}>智能文书翻译平台</h1>
           <p className={styles.welcomeDesc}>从左侧选择一个客户开始工作</p>
+
+          {/* 添加第一个客户按钮 */}
+          <button className={styles.addFirstClientBtn} onClick={handleAddClient}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="8.5" cy="7" r="4"/>
+              <line x1="20" y1="8" x2="20" y2="14"/>
+              <line x1="23" y1="11" x2="17" y2="11"/>
+            </svg>
+            添加第一个客户
+          </button>
+
           <div className={styles.welcomeHints}>
             <div className={styles.hint}>
               <span className={styles.hintIcon}>1</span>

@@ -2,7 +2,15 @@ import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react'
 import { useApp } from '../../contexts/AppContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { materialAPI } from '../../services/api';
-import { ProcessingStep, getStatusDisplay } from '../../constants/status';
+import {
+  ProcessingStep,
+  getStatusDisplay,
+  isProcessing,
+  isCompleted,
+  isConfirmable,
+  isFailed,
+  normalizeStatus
+} from '../../constants/status';
 import styles from './MaterialsList.module.css';
 
 // 虚拟滚动配置
@@ -182,19 +190,12 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
     pdfSessions.forEach(sessionMaterial => {
       const pages = sessionMaterial.pages;
 
-      // 计算整体状态 - 支持新旧状态值
-      const isTranslatedStatus = (status) =>
-        status === ProcessingStep.TRANSLATED || status === ProcessingStep.LLM_TRANSLATED ||
-        status === '已翻译' || status === '翻译完成';
-      const isProcessingStatus = (status) =>
-        status === ProcessingStep.TRANSLATING || status === ProcessingStep.SPLITTING ||
-        status === ProcessingStep.LLM_TRANSLATING || status === '处理中' || status === '正在翻译';
-      const isFailedStatus = (status) =>
-        status === ProcessingStep.FAILED || status === '翻译失败';
-
-      const allTranslated = pages.every(p => isTranslatedStatus(p.status));
-      const anyProcessing = pages.some(p => isProcessingStatus(p.status));
-      const anyFailed = pages.some(p => isFailedStatus(p.status));
+      // 计算整体状态 - 使用状态机辅助函数
+      const allTranslated = pages.every(p =>
+        isCompleted(normalizeStatus(p.status)) || isConfirmable(normalizeStatus(p.status))
+      );
+      const anyProcessing = pages.some(p => isProcessing(normalizeStatus(p.status)));
+      const anyFailed = pages.some(p => isFailed(normalizeStatus(p.status)));
       const allConfirmed = pages.every(p => p.confirmed);
 
       if (allConfirmed) {
@@ -233,10 +234,10 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
       if (!existing) {
         unique.push(material);
       } else {
-        // 如果有同名材料，优先保留翻译完成的或更新时间更晚的
-        const isTranslated = (s) => s === ProcessingStep.TRANSLATED || s === ProcessingStep.LLM_TRANSLATED || s === '翻译完成';
+        // 如果有同名材料，优先保留翻译完成的或更新时间更晚的 - 使用状态机辅助函数
+        const isTranslatedStatus = (s) => isCompleted(normalizeStatus(s)) || isConfirmable(normalizeStatus(s));
         const shouldReplace =
-          (isTranslated(material.status) && !isTranslated(existing.status)) ||
+          (isTranslatedStatus(material.status) && !isTranslatedStatus(existing.status)) ||
           (material.status === existing.status && new Date(material.updatedAt) > new Date(existing.updatedAt)) ||
           (material.translatedImagePath && !existing.translatedImagePath);
 
@@ -406,10 +407,8 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
   const handleBatchConfirm = useCallback(async () => {
     const selectedList = Array.from(selectedMaterials);
 
-    // 判断是否可确认的状态
-    const isConfirmable = (status) =>
-      status === ProcessingStep.TRANSLATED || status === ProcessingStep.LLM_TRANSLATED ||
-      status === '翻译完成' || status === '已翻译';
+    // 判断是否可确认的状态 - 使用状态机辅助函数
+    const canConfirmStatus = (status) => isConfirmable(normalizeStatus(status));
 
     // 展开PDF会话中的所有页面
     const materialsToConfirm = [];
@@ -418,11 +417,11 @@ const VirtualMaterialsList = ({ onAddMaterial, onExport, clientName, onFilesDrop
         if (m.isPdfSession) {
           // 添加PDF会话的所有页面
           m.pages.forEach(page => {
-            if (isConfirmable(page.status) && !page.confirmed) {
+            if (canConfirmStatus(page.status) && !page.confirmed) {
               materialsToConfirm.push(page);
             }
           });
-        } else if (isConfirmable(m.status) && !m.confirmed) {
+        } else if (canConfirmStatus(m.status) && !m.confirmed) {
           materialsToConfirm.push(m);
         }
       }

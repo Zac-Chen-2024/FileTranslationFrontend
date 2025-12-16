@@ -47,7 +47,7 @@ function App() {
     <LanguageProvider>
       <AppProvider>
         <NotificationProvider>
-          <Router basename="/FileTranslationFrontend">
+          <Router basename="/">
             <VersionLogger />
         <div className="App">
           <Routes>

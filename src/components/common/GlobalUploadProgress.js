@@ -104,13 +104,13 @@ const GlobalUploadProgress = () => {
           {/* 简化的进度条 */}
           <div className={styles.progressBarContainer}>
             <div className={styles.progressBar}>
-              <div 
+              <div
                 className={styles.progressFill}
                 style={{ width: `${progressPercentage}%` }}
               ></div>
             </div>
             <div className={styles.progressText}>
-              {uploadStatus.current}/{uploadStatus.total} 文件 ({progressPercentage}%)
+              {uploadStatus.message}
             </div>
           </div>
           

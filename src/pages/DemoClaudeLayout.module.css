@@ -41,7 +41,38 @@
 .welcomeDesc {
   font-size: 16px;
   color: #6b7280;
-  margin: 0 0 40px 0;
+  margin: 0 0 24px 0;
+}
+
+/* 添加第一个客户按钮 */
+.addFirstClientBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 28px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 40px;
+}
+
+.addFirstClientBtn:hover {
+  background: #5a67d8;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.addFirstClientBtn:active {
+  transform: translateY(0);
+}
+
+.addFirstClientBtn svg {
+  flex-shrink: 0;
 }
 
 .welcomeHints {
