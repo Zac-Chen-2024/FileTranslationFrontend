@@ -69,16 +69,16 @@ const ClientSidebar = ({
 
   // 当选中客户ID变化时，设置选中的客户或刷新列表
   useEffect(() => {
-    if (selectedClientId && !loading) {
+    if (selectedClientId) {
       const client = clients.find(c => c.cid === selectedClientId);
       if (client) {
         setSelectedClient(client);
-      } else {
+      } else if (!loading) {
         // 新创建的客户不在列表中，重新加载
         loadClients();
       }
     }
-  }, [selectedClientId]); // 只依赖 selectedClientId，避免循环
+  }, [selectedClientId, loading, clients.length]); // 添加 loading 和 clients.length 依赖
 
   // clients 更新后同步选中状态
   useEffect(() => {

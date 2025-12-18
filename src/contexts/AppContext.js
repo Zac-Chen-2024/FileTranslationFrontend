@@ -320,8 +320,9 @@ export const AppProvider = ({ children }) => {
     }
   }, [state.notification]);
 
-  // Action creators
-  const actions = {
+  // Action creators - 使用 useMemo 确保 actions 对象稳定，避免不必要的重新渲染
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const actions = React.useMemo(() => ({
     // 用户相关
     setUser: (user) => {
       dispatch({ type: ActionTypes.SET_USER, payload: user });
@@ -452,7 +453,7 @@ export const AppProvider = ({ children }) => {
     closeConfirmDialog: () => {
       dispatch({ type: ActionTypes.CLOSE_CONFIRM_DIALOG });
     },
-  };
+  }), []);
 
   // ✅ WebSocket 初始化
   useEffect(() => {
@@ -464,6 +465,7 @@ export const AppProvider = ({ children }) => {
   }, []);
 
   // ✅ WebSocket 事件处理函数
+  // 🔧 修复：移除 state.currentMaterial 依赖，避免频繁重新创建回调导致事件监听器重新注册
   const handleMaterialUpdated = useCallback((data) => {
     // 更新材料状态
     if (data.material_id) {
@@ -488,7 +490,7 @@ export const AppProvider = ({ children }) => {
       // ✅ 只需调用updateMaterial，Reducer会自动同步更新currentMaterial
       actions.updateMaterial(data.material_id, updates);
     }
-  }, [state.currentMaterial, actions]);
+  }, [actions]);
 
   const handleLLMStarted = useCallback((data) => {
     if (data.material_id) {
@@ -519,9 +521,24 @@ export const AppProvider = ({ children }) => {
     actions.showNotification('翻译开始', data.message || '正在翻译...', 'info');
   }, [actions]);
 
-  const handleTranslationCompleted = useCallback((data) => {
+  const handleTranslationCompleted = useCallback(async (data) => {
     actions.showNotification('翻译完成', data.message || '翻译已完成', 'success');
-  }, [actions]);
+
+    // 🔧 修复：翻译完成后主动刷新材料数据，确保 UI 更新
+    // 这可以防止 WebSocket material_updated 事件丢失导致的 UI 不同步问题
+    if (state.currentClient?.cid) {
+      try {
+        const { materialAPI } = await import('../services/api');
+        const response = await materialAPI.getMaterials(state.currentClient.cid);
+        if (response.success && response.materials) {
+          actions.setMaterials(response.materials);
+          console.log('[WebSocket] 翻译完成，已刷新材料列表');
+        }
+      } catch (error) {
+        console.error('[WebSocket] 刷新材料列表失败:', error);
+      }
+    }
+  }, [actions, state.currentClient?.cid]);
 
   const handleMaterialError = useCallback((data) => {
     if (data.material_id) {
@@ -536,9 +553,10 @@ export const AppProvider = ({ children }) => {
 
   // ✅ 监听当前客户端变化，加入对应房间
   useEffect(() => {
-    if (state.currentClient?.cid && wsService.isConnected()) {
+    if (state.currentClient?.cid) {
       const clientId = state.currentClient.cid;
 
+      // ✅ 不再检查isConnected，WebSocket服务内部会处理连接状态
       wsService.joinClient(clientId);
 
       // 监听事件

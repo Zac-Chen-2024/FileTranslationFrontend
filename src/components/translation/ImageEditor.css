@@ -2070,3 +2070,139 @@
     box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
   }
 }
+/* ========== 禁用状态样式 ========== */
+
+/* 右侧面板禁用状态 */
+.edit-panel-right.panel-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* 画布区域禁用状态 */
+.canvas-wrapper.canvas-disabled {
+  background: #f3f4f6;
+}
+
+[data-theme="dark"] .canvas-wrapper.canvas-disabled {
+  background: var(--neutral-200, #1f2937);
+}
+
+/* 空白占位符 */
+.canvas-empty-placeholder {
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+}
+
+/* 空白画布提示 */
+.canvas-empty-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #9ca3af;
+}
+
+.canvas-empty-hint svg {
+  stroke: #d1d5db;
+  margin-bottom: 12px;
+}
+
+.canvas-empty-hint p {
+  margin: 0;
+  font-size: 14px;
+  color: #9ca3af;
+}
+
+[data-theme="dark"] .canvas-empty-hint {
+  color: var(--neutral-500);
+}
+
+[data-theme="dark"] .canvas-empty-hint svg {
+  stroke: var(--neutral-400);
+}
+
+[data-theme="dark"] .canvas-empty-hint p {
+  color: var(--neutral-500);
+}
+
+/* 欢迎引导界面样式 */
+.canvas-welcome-guide {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.welcome-icon {
+  margin-bottom: 24px;
+}
+
+.welcome-icon svg {
+  stroke: #6b7280;
+}
+
+.welcome-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 12px 0;
+}
+
+.welcome-subtitle {
+  font-size: 16px;
+  color: #6b7280;
+  margin: 0 0 32px 0;
+}
+
+.welcome-hints {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.welcome-hint-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hint-number {
+  width: 28px;
+  height: 28px;
+  background: #6b7280;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.hint-text {
+  font-size: 15px;
+  color: #4b5563;
+}
+
+/* 暗色模式欢迎引导 */
+[data-theme="dark"] .welcome-icon svg {
+  stroke: var(--neutral-400);
+}
+
+[data-theme="dark"] .welcome-title {
+  color: var(--neutral-200);
+}
+
+[data-theme="dark"] .welcome-subtitle {
+  color: var(--neutral-400);
+}
+
+[data-theme="dark"] .hint-text {
+  color: var(--neutral-300);
+}

@@ -116,7 +116,6 @@ const WelcomePage = () => {
             >
               <div className={styles.featureIcon}>{feature.icon}</div>
               <h3 className={styles.featureTitle}>{feature.title}</h3>
-              <p className={styles.featureDescription}>{feature.description}</p>
             </div>
           ))}
         </div>

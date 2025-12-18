@@ -66,6 +66,58 @@ api.interceptors.response.use(
   }
 );
 
+// ========== 商业级稳定性改进 ==========
+
+/**
+ * 带指数退避的重试请求
+ * @param {Function} requestFn - 返回Promise的请求函数
+ * @param {number} maxRetries - 最大重试次数
+ * @param {number} baseDelay - 基础延迟时间(ms)
+ * @returns {Promise} 请求结果
+ */
+const retryRequest = async (requestFn, maxRetries = 3, baseDelay = 1000) => {
+  let lastError;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await requestFn();
+    } catch (error) {
+      lastError = error;
+      // 不重试4xx客户端错误（除了408请求超时和429限流）
+      const status = error.response?.status;
+      if (status && status >= 400 && status < 500 && status !== 408 && status !== 429) {
+        throw error;
+      }
+      // 最后一次尝试不等待
+      if (attempt < maxRetries - 1) {
+        const delay = baseDelay * Math.pow(2, attempt);
+        console.log(`[API] 请求失败，${delay}ms后重试 (${attempt + 1}/${maxRetries}):`, error.message);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  throw lastError;
+};
+
+/**
+ * 验证响应数据结构
+ * @param {Object} response - 响应对象
+ * @param {string[]} requiredFields - 必需字段列表
+ * @returns {Object} 验证后的响应
+ */
+const validateResponse = (response, requiredFields = []) => {
+  if (!response) {
+    throw new Error('服务器返回空响应');
+  }
+  for (const field of requiredFields) {
+    if (!(field in response)) {
+      console.warn(`[API] 响应缺少字段: ${field}`, response);
+    }
+  }
+  return response;
+};
+
+// ========== 结束稳定性改进 ==========
+
 // API 服务
 export const authAPI = {
   // 登录
@@ -110,9 +162,9 @@ export const authAPI = {
 };
 
 export const clientAPI = {
-  // 获取客户列表
+  // 获取客户列表（带重试）
   getClients: async () => {
-    return await api.get('/api/clients');
+    return await retryRequest(() => api.get('/api/clients'), 3, 1000);
   },
 
   // 添加客户
@@ -142,9 +194,9 @@ export const clientAPI = {
 };
 
 export const materialAPI = {
-  // 获取材料列表
+  // 获取材料列表（带重试）
   getMaterials: async (clientId) => {
-    return await api.get(`/api/clients/${clientId}/materials`);
+    return await retryRequest(() => api.get(`/api/clients/${clientId}/materials`), 3, 1000);
   },
 
   // 上传文件
@@ -538,10 +590,10 @@ export const exportAPI = {
   // 导出客户材料
   exportClientMaterials: async (clientId, filename = 'export.zip') => {
     // 使用原生axios来获取完整的响应对象
-    // 移除超时限制，因为导出可能需要较长时间
+    // 🔧 稳定性修复：设置10分钟超时（0会导致无限等待）
     const response = await api.get(`/api/clients/${clientId}/export`, {
       responseType: 'blob',
-      timeout: 0,  // 0表示没有超时限制
+      timeout: 600000,  // 10分钟超时，适合大文件导出
     });
     
     // 创建下载链接

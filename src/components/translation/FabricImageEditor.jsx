@@ -2,12 +2,13 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import AIAssistantModal from './AIAssistantModal';
 import GlobalAIModal from './GlobalAIModal';
+import EntityResultModal from './EntityResultModal';
 import useCanvasHistory from './hooks/useCanvasHistory';
 import './ImageEditor.css';
 
 /* global fabric */
 
-function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default', exposeHandlers = false, extraControls = null, baiduRegions = [], entityResults = [], isLoading = false, loadingText = '处理中...' }) {
+function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default', exposeHandlers = false, extraControls = null, baiduRegions = [], entityResults = [], isLoading = false, loadingText = '处理中...', entityModalOpen = false, onEntityConfirm, entityModalLoading = false, disabled = false, disabledHint = '从左侧选择材料开始编辑', showWelcome = false }) {
   const { t } = useLanguage();
   // 检查 Fabric.js 是否加载
   const [fabricLoaded, setFabricLoaded] = useState(false);
@@ -103,31 +104,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       }
     });
 
-    // 恢复 textbox 和 mask 之间的双向关联
-    textboxes.forEach(textbox => {
-      const regionIndex = textbox.regionIndex;
-      if (regionIndex !== undefined) {
-        // 找到对应的遮罩
-        const correspondingMask = masks.find(m => m.regionIndex === regionIndex);
-        if (correspondingMask) {
-          textbox.bgRect = correspondingMask;
-          correspondingMask.textObj = textbox;
-          correspondingMask.associatedTextbox = textbox;
-        }
-      }
-      // 处理合并的文本框（通过 mergedIndexes 找遮罩）
-      if (textbox.isMerged && textbox.mergedIndexes) {
-        const correspondingMask = masks.find(m =>
-          m.isMergedMask &&
-          JSON.stringify(m.mergedIndexes) === JSON.stringify(textbox.mergedIndexes)
-        );
-        if (correspondingMask) {
-          textbox.bgRect = correspondingMask;
-          correspondingMask.textObj = textbox;
-          correspondingMask.associatedTextbox = textbox;
-        }
-      }
-    });
+    // 遮罩与文本框已解耦，不再恢复关联
 
     // 重新设置文本框的控制点样式
     textboxes.forEach(textbox => {
@@ -413,146 +390,30 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       console.log('🎭 清空所有选择');
     });
 
-    // 同步遮罩位置和大小到文本框
-    const syncMaskWithTextbox = (textbox) => {
-      if (!textbox || textbox.type !== 'textbox') return;
-
-      const canvas = fabricCanvasRef.current;
-      if (!canvas) return;
-
-      // 同步背景矩形（bgRect）
-      if (textbox.bgRect) {
-        const bgRect = textbox.bgRect;
-
-        // 确保层级关系正确
-        const textIndex = canvas.getObjects().indexOf(textbox);
-        const maskIndex = canvas.getObjects().indexOf(bgRect);
-        if (maskIndex > textIndex) {
-          canvas.moveTo(bgRect, textIndex - 1);
-        }
-
-        // 根据遮罩类型决定同步行为
-        if (bgRect.isCustomMask) {
-          // 自定义遮罩：完全独立，不同步
-          return;
-        } else if (bgRect.manuallyEdited) {
-          // 手动编辑过的遮罩：不自动同步位置和大小
-          return;
-        } else if (bgRect.isMergedMask) {
-          // 合并文本框的遮罩：保持原始大小，仅在文本超出时扩大
-
-          // 获取文本框的实际尺寸（包含缩放）
-          const textActualWidth = textbox.width * textbox.scaleX;
-          const textActualHeight = textbox.height * textbox.scaleY;
-
-          // 保存原始边界（首次）
-          if (!bgRect.originalBounds) {
-            bgRect.originalBounds = {
-              width: bgRect.width * bgRect.scaleX,
-              height: bgRect.height * bgRect.scaleY
-            };
-          }
-
-          const originalBounds = bgRect.originalBounds;
-
-          // 计算是否需要扩大遮罩 - 使用实际尺寸比较
-          const neededWidth = Math.max(originalBounds.width, textActualWidth);
-          const neededHeight = Math.max(originalBounds.height, textActualHeight);
-
-          bgRect.set({
-            left: textbox.left,
-            top: textbox.top,
-            width: neededWidth,
-            height: neededHeight,
-            scaleX: 1,
-            scaleY: 1,
-            angle: textbox.angle
-          });
-
-          // 强制更新矩形的尺寸和填充
-          bgRect.dirty = true;  // 标记对象需要重绘
-          bgRect.setCoords();
-
-          // 确保画布重新渲染这个对象
-          canvas.requestRenderAll();
-        } else {
-          // 普通文本框遮罩：完全同步到文本框
-          bgRect.set({
-            left: textbox.left,
-            top: textbox.top,
-            width: textbox.width * textbox.scaleX,
-            height: textbox.height * textbox.scaleY,
-            scaleX: 1,
-            scaleY: 1,
-            angle: textbox.angle
-          });
-          bgRect.setCoords();
-        }
-      }
-
-      // 同步模糊背景（blurBackground）
-      if (textbox.blurBackground) {
-        textbox.blurBackground.set({
-          left: textbox.left,
-          top: textbox.top,
-          scaleX: (textbox.width * textbox.scaleX) / textbox.blurBackground.width,
-          scaleY: (textbox.height * textbox.scaleY) / textbox.blurBackground.height,
-          angle: textbox.angle
-        });
-        textbox.blurBackground.setCoords();
-
-        // 确保模糊背景在文本框下层
-        const textIndex = canvas.getObjects().indexOf(textbox);
-        const blurIndex = canvas.getObjects().indexOf(textbox.blurBackground);
-        if (blurIndex > textIndex) {
-          canvas.moveTo(textbox.blurBackground, textIndex - 1);
-        }
-      }
-    };
-
-    // 监听对象移动/缩放，更新AI按钮位置并同步遮罩
+    // 监听对象移动，更新AI按钮位置
     canvas.on('object:moving', (e) => {
       updateAIButtonFromCanvas();
 
       // 在遮罩编辑模式下移动遮罩时，标记为手动编辑
-      if (maskEditMode && e.target && e.target.type === 'rect' &&
-          (e.target.isBlurBackground || e.target === e.target.associatedTextbox?.bgRect)) {
+      if (maskEditMode && e.target && e.target.type === 'rect' && e.target.isMask) {
         e.target.manuallyEdited = true;
       }
-
-      // 如果在遮罩编辑模式下，不同步遮罩位置（避免用户手动编辑遮罩时被文本框覆盖）
-      if (e.target && e.target.type === 'textbox' && !maskEditMode) {
-        syncMaskWithTextbox(e.target);
-        canvas.renderAll();
-      }
+      // 遮罩与文本框已解耦，不再同步
     });
 
     canvas.on('object:rotating', (e) => {
       updateAIButtonFromCanvas();
-
-      const activeObject = e.target;
-
-      // 处理单个文本框旋转，但遮罩编辑模式下不同步
-      if (activeObject && activeObject.type === 'textbox' && !maskEditMode) {
-        syncMaskWithTextbox(activeObject);
-        canvas.renderAll();
-      }
+      // 遮罩与文本框已解耦，不再同步
     });
 
     canvas.on('object:scaling', (e) => {
       updateAIButtonFromCanvas();
 
       // 在遮罩编辑模式下缩放遮罩时，标记为手动编辑
-      if (maskEditMode && e.target && e.target.type === 'rect' &&
-          (e.target.isBlurBackground || e.target === e.target.associatedTextbox?.bgRect)) {
+      if (maskEditMode && e.target && e.target.type === 'rect' && e.target.isMask) {
         e.target.manuallyEdited = true;
       }
-
-      // 遮罩编辑模式下不同步
-      if (e.target && e.target.type === 'textbox' && !maskEditMode) {
-        syncMaskWithTextbox(e.target);
-        canvas.renderAll();
-      }
+      // 遮罩与文本框已解耦，不再同步
     });
 
     // 监听文本选中事件，更新加粗/斜体按钮状态
@@ -749,31 +610,13 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         saveHistory();
       }
 
-      // 修改完成后同步遮罩位置
       const modifiedObject = e.target;
       if (modifiedObject) {
-        // 检查是否在遮罩编辑模式下修改了遮罩
-        if (maskEditMode && modifiedObject.type === 'rect' &&
-            (modifiedObject.isBlurBackground || modifiedObject === modifiedObject.associatedTextbox?.bgRect)) {
-          // 标记此遮罩为手动编辑过
+        // 在遮罩编辑模式下修改遮罩时，标记为手动编辑
+        if (maskEditMode && modifiedObject.type === 'rect' && modifiedObject.isMask) {
           modifiedObject.manuallyEdited = true;
-          console.log('标记遮罩为手动编辑:', modifiedObject);
         }
-
-        // 遮罩编辑模式下不同步遮罩
-        if (!maskEditMode) {
-          if (modifiedObject.type === 'textbox' && modifiedObject.bgRect) {
-            syncMaskWithTextbox(modifiedObject);
-          } else if (modifiedObject.type === 'activeSelection') {
-            // 多选修改完成后，同步所有文本框的遮罩
-            const textboxes = modifiedObject.getObjects().filter(obj => obj.type === 'textbox');
-            textboxes.forEach(textbox => {
-              if (textbox.bgRect) {
-                syncMaskWithTextbox(textbox);
-              }
-            });
-          }
-        }
+        // 遮罩与文本框已解耦，不再同步
         canvas.renderAll();
       }
     });
@@ -1143,11 +986,11 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       // 创建背景矩形 - 统一使用白色遮罩
       let bgRect = null;
 
-      // 如果有手动编辑过的遮罩位置，使用保存的位置
-      const maskLeft = region.maskManuallyEdited ? region.maskX : minX;
-      const maskTop = region.maskManuallyEdited ? region.maskY : minY;
-      const maskWidth = region.maskManuallyEdited ? region.maskWidth : width;
-      const maskHeight = region.maskManuallyEdited ? region.maskHeight : height;
+      // 优先使用保存的遮罩位置（解耦后遮罩位置独立保存）
+      const maskLeft = region.maskX !== undefined ? region.maskX : minX;
+      const maskTop = region.maskY !== undefined ? region.maskY : minY;
+      const maskWidth = region.maskWidth !== undefined ? region.maskWidth : width;
+      const maskHeight = region.maskHeight !== undefined ? region.maskHeight : height;
 
       // 所有文本框（初始和合并）都使用统一的白色遮罩
       bgRect = new window.fabric.Rect({
@@ -1206,11 +1049,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       if (region.isMerged) {
         // 合并的文本不需要regionIndex，但可以添加标记
         text.isMerged = true;
-        // 关联模糊背景和文本
-        if (bgRect) {
-          bgRect.textObj = text;
-          text.blurBackground = bgRect;
-        }
+        // 遮罩与文本框已解耦，不再关联
       } else if (region.id !== undefined) {
         text.regionId = region.id;
         text.regionIndex = index;
@@ -1232,10 +1071,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           // 只有非合并的文本才添加到背景矩形数组
           backgroundRectsRef.current.push(bgRect);
         }
-        // 建立双向关联
-        text.bgRect = bgRect;
-        bgRect.textObj = text;
-        bgRect.associatedTextbox = text; // 新增：确保双向关联
+        // 遮罩与文本框已解耦，不再建立关联
         bgRects.push(bgRect);
       }
 
@@ -1282,7 +1118,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         // 计算新的宽度和高度
         const newWidth = this.width * this.scaleX;
         const newHeight = this.height * this.scaleY;
-        
+
         // 更新文本框大小但保持字体大小不变
         this.set({
           width: newWidth,
@@ -1290,64 +1126,29 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           scaleX: 1,
           scaleY: 1
         });
-        
-        // 同步更新背景
-        if (this.bgRect) {
-          this.bgRect.set({
-            width: newWidth,
-            height: newHeight
-          });
-          canvas.renderAll();
-        }
+        // 遮罩与文本框已解耦，不再同步
       });
-      
+
       // 添加缩放结束后的处理
       text.on('modified', function() {
-        // 让Fabric.js自动处理文本框的缩放，不手动干预
         canvas.renderAll();
       });
-      
-      // 监听文本编辑结束，同步更新背景大小
+
+      // 监听文本编辑结束
       text.on('editing:exited', function() {
-        if (this.bgRect) {
-          // 获取文本框的实际大小
-          const bounds = this.getBoundingRect();
-          const scaleX = this.scaleX || 1;
-          const scaleY = this.scaleY || 1;
-          
-          // 更新背景大小
-          this.bgRect.set({
-            width: this.width * scaleX,
-            height: this.height * scaleY
-          });
-          canvas.renderAll();
-        }
+        // 遮罩与文本框已解耦，不再同步
+        canvas.renderAll();
       });
-      
+
       // 监听文本内容改变
       text.on('changed', function() {
-        if (this.bgRect) {
-          // 延迟更新，等待文本框自动调整完成
-          setTimeout(() => {
-            const scaleX = this.scaleX || 1;
-            const scaleY = this.scaleY || 1;
-            this.bgRect.set({
-              width: this.width * scaleX,
-              height: this.height * scaleY
-            });
-            canvas.renderAll();
-          }, 10);
-        }
+        // 遮罩与文本框已解耦，不再同步
+        canvas.renderAll();
       });
-      
+
       text.on('rotating', function() {
-        if (this.bgRect) {
-          // 同步旋转角度
-          this.bgRect.set({
-            angle: this.angle
-          });
-          canvas.renderAll();
-        }
+        // 遮罩与文本框已解耦，不再同步
+        canvas.renderAll();
       });
     });
 
@@ -2239,9 +2040,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       isUserCreated: true // 标记为用户创建的
     });
 
-    // 关联文本框和遮罩
-    bgRect.textObj = textbox;
-    textbox.bgRect = bgRect;
+    // 遮罩与文本框已解耦，不再关联
 
     // 添加到画布
     canvas.add(bgRect);
@@ -2266,21 +2065,12 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     if (!canvas) return;
 
     const activeObject = canvas.getActiveObject();
-    if (!activeObject) {
-      console.log('⚠️ 没有选中对象');
-      return;
-    }
+    if (!activeObject) return;
 
-    // 🔧 使用 ref 获取最新的 maskEditMode 值
+    // 使用 ref 获取最新的 maskEditMode 值
     const currentMaskEditMode = maskEditModeRef.current;
 
-    console.log('🗑️ handleDeleteSelected 被调用');
-    console.log('  - State maskEditMode:', maskEditMode);
-    console.log('  - Ref maskEditModeRef.current:', currentMaskEditMode);
-    console.log('  - 活动对象类型:', activeObject.type);
-
     let objectsToDelete = [];
-    let masksToDelete = [];
 
     // 在遮罩编辑模式下，优先处理遮罩删除
     if (currentMaskEditMode) {
@@ -2299,39 +2089,18 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           canvas.discardActiveObject();
           canvas.renderAll();
           saveHistory();
-          console.log(`删除了 ${selectedMasks.length} 个遮罩层`);
           return;
         }
       }
       // 处理单选遮罩
       else if (activeObject.type === 'rect' || activeObject.type === 'image') {
-        console.log('🔍 检查对象:', {
-          type: activeObject.type,
-          isBlurBackground: activeObject.isBlurBackground,
-          regionIndex: activeObject.regionIndex,
-          mergedIndexes: activeObject.mergedIndexes,
-          isCustomMask: activeObject.isCustomMask,
-          selectable: activeObject.selectable,
-          evented: activeObject.evented,
-          fill: activeObject.fill,
-          stroke: activeObject.stroke
-        });
-
         const isMask = activeObject.isBlurBackground || activeObject.regionIndex !== undefined ||
-                      activeObject.mergedIndexes || activeObject.isCustomMask ||
-                      activeObject === activeObject.associatedTextbox?.bgRect;
-
-        console.log('🔍 isMask 判断结果:', isMask);
+                      activeObject.mergedIndexes || activeObject.isCustomMask || activeObject.isMask;
 
         if (isMask) {
-          // 如果是关联的bgRect，断开关联
-          if (activeObject.associatedTextbox) {
-            activeObject.associatedTextbox.bgRect = null;
-          }
           canvas.remove(activeObject);
           canvas.renderAll();
           saveHistory();
-          console.log('✅ 删除遮罩层成功');
           return;
         }
       }
@@ -2348,17 +2117,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
     if (objectsToDelete.length === 0) return;
 
-    // 收集要删除的遮罩
-    objectsToDelete.forEach(textbox => {
-      // 删除关联的背景遮罩（bgRect）
-      if (textbox.bgRect) {
-        masksToDelete.push(textbox.bgRect);
-      }
-      // 删除关联的模糊背景（blurBackground）
-      if (textbox.blurBackground) {
-        masksToDelete.push(textbox.blurBackground);
-      }
-    });
+    // 遮罩与文本框已解耦，删除文本框时不再删除遮罩
 
     // 删除文本框
     objectsToDelete.forEach(obj => {
@@ -2370,16 +2129,9 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       }
     });
 
-    // 删除遮罩
-    masksToDelete.forEach(mask => {
-      canvas.remove(mask);
-    });
-
     canvas.discardActiveObject();
     canvas.renderAll();
     saveHistory();
-
-    console.log(`已删除 ${objectsToDelete.length} 个文本框和 ${masksToDelete.length} 个遮罩`);
   };
 
   // 刷新选中文本框的白色遮罩
@@ -2450,40 +2202,18 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     const textObjects = selectedObjects.filter(obj => obj.type === 'textbox');
     if (textObjects.length < 2) return;
     
-    // 收集要合并的区域索引和背景矩形
+    // 收集要合并的区域索引（遮罩与文本框已解耦，不再收集bgRects）
     const mergedIndexes = [];
-    const bgRectsToRemove = [];
-    
+
     textObjects.forEach(textObj => {
       if (textObj.regionIndex !== undefined) {
         mergedIndexes.push(textObj.regionIndex);
-        if (backgroundRectsRef.current[textObj.regionIndex]) {
-          bgRectsToRemove.push(backgroundRectsRef.current[textObj.regionIndex]);
-        }
       }
     });
     
     // 计算合并区域的边界（使用原始区域的坐标）
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     const texts = [];
-
-    // 调试：打印所有选中的文本框信息
-    console.log('=== 合并文本框调试信息 ===');
-    console.log('选中的文本框数量:', textObjects.length);
-    textObjects.forEach((textObj, idx) => {
-      const bounds = textObj.getBoundingRect();
-      console.log(`文本框 ${idx}:`, {
-        text: textObj.text.substring(0, 20) + '...',
-        left: textObj.left,
-        top: textObj.top,
-        width: textObj.width,
-        height: textObj.height,
-        scaleX: textObj.scaleX,
-        scaleY: textObj.scaleY,
-        boundingRect: bounds,
-        regionIndex: textObj.regionIndex
-      });
-    });
 
     // 按位置排序文本
     const sortedTexts = textObjects.sort((a, b) => {
@@ -2568,49 +2298,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       height: height
     };
 
-    // 调试：打印合并后的边界
-    console.log('=== 合并后的边界 ===');
-    console.log('minX:', minX, 'minY:', minY);
-    console.log('maxX:', maxX, 'maxY:', maxY);
-    console.log('合并矩形:', mergedBounds);
-    console.log('========================');
-
-    // 创建统一的白色遮罩（替代原来的模糊背景）
-    const mergedMaskRect = new window.fabric.Rect({
-      left: mergedBounds.left,
-      top: mergedBounds.top,
-      width: mergedBounds.width,
-      height: mergedBounds.height,
-      fill: 'white',
-      stroke: 'transparent',
-      strokeWidth: 0,
-      selectable: false,
-      evented: false,
-      isMask: true, // 统一的遮罩标识
-      isMergedMask: true,  // 标记为合并遮罩
-      mergedIndexes: mergedIndexes,
-      originalBounds: {    // 保存原始边界
-        width: mergedBounds.width,
-        height: mergedBounds.height
-      }
-    });
-
-    // 将白色遮罩添加到canvas
-    if (mergedMaskRect) {
-      canvas.add(mergedMaskRect);
-      // 确保遮罩层在所有文本框之下
-      // 找到第一个文本框的位置
-      const objects = canvas.getObjects();
-      const firstTextboxIndex = objects.findIndex(obj => obj.type === 'textbox');
-
-      if (firstTextboxIndex !== -1) {
-        // 将遮罩层移到第一个文本框之前
-        canvas.moveTo(mergedMaskRect, firstTextboxIndex);
-      } else {
-        // 如果没有文本框，放到最上层（背景图之上）
-        canvas.bringToFront(mergedMaskRect);
-      }
-    }
+    // 遮罩与文本框已解耦，合并文本框时不再创建或修改遮罩
 
     // 创建合并的文本，使用上一次的合并设置
     const mergedTextObj = new window.fabric.Textbox(mergedText, {
@@ -2635,23 +2323,14 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       lockScalingFlip: true  // 防止翻转
     });
 
-    // 关联白色遮罩和文本对象
-    if (mergedMaskRect) {
-      mergedMaskRect.textObj = mergedTextObj;
-      mergedTextObj.bgRect = mergedMaskRect;  // 统一使用bgRect属性
-    }
-    
     // 保存原始边界信息和合并索引到文本对象
     mergedTextObj.mergedBounds = mergedBounds;
     mergedTextObj.mergedIndexes = mergedIndexes;
     mergedTextObj.isMerged = true;
     
-    // 移除原始对象
+    // 移除原始文本对象（遮罩与文本框已解耦，不再删除遮罩）
     textObjects.forEach(text => {
       canvas.remove(text);
-    });
-    bgRectsToRemove.forEach(rect => {
-      canvas.remove(rect);
     });
     
     // 添加合并后的文本对象
@@ -2921,16 +2600,12 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     const canvas = fabricCanvasRef.current;
     if (!canvas || textboxes.length < 2) return;
 
-    // 收集要合并的区域索引和背景矩形
+    // 收集要合并的区域索引（遮罩与文本框已解耦，不再收集bgRects）
     const mergedIndexes = [];
-    const bgRectsToRemove = [];
 
     textboxes.forEach(textObj => {
       if (textObj.regionIndex !== undefined) {
         mergedIndexes.push(textObj.regionIndex);
-        if (backgroundRectsRef.current[textObj.regionIndex]) {
-          bgRectsToRemove.push(backgroundRectsRef.current[textObj.regionIndex]);
-        }
       }
     });
 
@@ -2962,41 +2637,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       height: height
     };
 
-    // 创建统一的白色遮罩（替代原来的模糊背景）
-    const mergedMaskRect = new window.fabric.Rect({
-      left: mergedBounds.left,
-      top: mergedBounds.top,
-      width: mergedBounds.width,
-      height: mergedBounds.height,
-      fill: 'white',
-      stroke: 'transparent',
-      strokeWidth: 0,
-      selectable: false,
-      evented: false,
-      isMask: true, // 统一的遮罩标识
-      isMergedMask: true,  // 标记为合并遮罩
-      mergedIndexes: mergedIndexes,
-      originalBounds: {    // 保存原始边界
-        width: mergedBounds.width,
-        height: mergedBounds.height
-      }
-    });
-
-    if (mergedMaskRect) {
-      canvas.add(mergedMaskRect);
-      // 确保遮罩层在所有文本框之下
-      // 找到第一个文本框的位置
-      const objects = canvas.getObjects();
-      const firstTextboxIndex = objects.findIndex(obj => obj.type === 'textbox');
-
-      if (firstTextboxIndex !== -1) {
-        // 将遮罩层移到第一个文本框之前
-        canvas.moveTo(mergedMaskRect, firstTextboxIndex);
-      } else {
-        // 如果没有文本框，放到最上层（背景图之上）
-        canvas.bringToFront(mergedMaskRect);
-      }
-    }
+    // 遮罩与文本框已解耦，合并文本框时不再创建或修改遮罩
 
     // ========== Markdown 处理 ==========
     // 保存原始markdown文本
@@ -3033,27 +2674,17 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     // 应用markdown样式
     applyMarkdownStylesToCleanText(mergedTextObj, markdownText, cleanText);
 
-    // 关联白色遮罩和文本框
-    if (mergedMaskRect) {
-      mergedMaskRect.textObj = mergedTextObj;
-      mergedTextObj.bgRect = mergedMaskRect;  // 统一使用bgRect属性
-    }
-
     mergedTextObj.mergedBounds = mergedBounds;
     mergedTextObj.mergedIndexes = mergedIndexes;
     mergedTextObj.isMerged = true;
 
-    // 移除原始对象
+    // 移除原始文本对象（遮罩与文本框已解耦，不再删除遮罩）
     textboxes.forEach(text => {
       canvas.remove(text);
       const index = textObjectsRef.current.indexOf(text);
       if (index > -1) {
         textObjectsRef.current.splice(index, 1);
       }
-    });
-
-    bgRectsToRemove.forEach(rect => {
-      canvas.remove(rect);
     });
 
     // 添加合并后的文本
@@ -3444,70 +3075,104 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     if (!canvas) return [];
 
     const currentRegions = [];
+    const masks = []; // 独立保存遮罩数据
     let mergedId = 10000; // 为合并的文本框生成ID
+
+    // 收集所有遮罩
+    canvas.getObjects().forEach(obj => {
+      if (obj.type === 'rect' && obj.isMask) {
+        masks.push({
+          regionIndex: obj.regionIndex,
+          left: obj.left,
+          top: obj.top,
+          width: obj.width * obj.scaleX,
+          height: obj.height * obj.scaleY,
+          angle: obj.angle || 0,
+          fill: obj.fill,
+          manuallyEdited: obj.manuallyEdited || false,
+          isCustomMask: obj.isCustomMask || false,
+          isMergedMask: obj.isMergedMask || false
+        });
+      }
+    });
 
     canvas.getObjects().forEach(obj => {
       if (obj.type === 'textbox') {
         // 处理所有文本框，包括原始的和合并的
-        if (obj.regionId !== undefined) {
+        if (obj.regionId !== undefined || obj.regionIndex !== undefined) {
+          const regionId = obj.regionId !== undefined ? obj.regionId : obj.regionIndex;
           // 原始文本框
           const regionData = {
-            id: obj.regionId,
+            id: regionId,
             src: obj.originalText || obj._markdownText || obj.text,
-            // 保存原始 markdown 文本，而不是显示的纯文本
             dst: obj._markdownText || obj.text,
             x: obj.left,
             y: obj.top,
             width: obj.width * obj.scaleX,
             height: obj.height * obj.scaleY,
-            angle: obj.angle || 0, // 保存旋转角度
-            // 保存文本格式属性
+            angle: obj.angle || 0,
             fontSize: obj.fontSize,
             fontFamily: obj.fontFamily,
             textAlign: obj.textAlign,
             lineHeight: obj.lineHeight,
-            fill: obj.fill
+            fill: obj.fill,
+            fontWeight: obj.fontWeight,
+            fontStyle: obj.fontStyle
           };
 
-          // 保存遮罩的角度（所有文本框的遮罩都应该保存角度）
-          if (obj.bgRect) {
-            regionData.maskAngle = obj.bgRect.angle || 0;
-          }
-
-          // 如果有手动编辑过的遮罩，保存遮罩的位置和大小
-          if (obj.bgRect && obj.bgRect.manuallyEdited) {
-            regionData.maskManuallyEdited = true;
-            regionData.maskX = obj.bgRect.left;
-            regionData.maskY = obj.bgRect.top;
-            regionData.maskWidth = obj.bgRect.width * obj.bgRect.scaleX;
-            regionData.maskHeight = obj.bgRect.height * obj.bgRect.scaleY;
+          // 查找对应的遮罩数据（通过regionIndex匹配）
+          const matchingMask = masks.find(m => m.regionIndex === obj.regionIndex);
+          if (matchingMask) {
+            regionData.maskX = matchingMask.left;
+            regionData.maskY = matchingMask.top;
+            regionData.maskWidth = matchingMask.width;
+            regionData.maskHeight = matchingMask.height;
+            regionData.maskAngle = matchingMask.angle;
+            regionData.maskManuallyEdited = matchingMask.manuallyEdited;
           }
 
           currentRegions.push(regionData);
-        } else {
-          // 合并的文本框（没有regionId）
+        } else if (obj.isMerged) {
+          // 合并的文本框
           currentRegions.push({
-            id: mergedId++, // 生成新的ID
-            src: obj._markdownText || obj.text, // 合并的文本没有原文
-            // 保存原始 markdown 文本
+            id: mergedId++,
+            src: obj._markdownText || obj.text,
             dst: obj._markdownText || obj.text,
             x: obj.left,
             y: obj.top,
             width: obj.width * obj.scaleX,
             height: obj.height * obj.scaleY,
-            angle: obj.angle || 0, // 保存旋转角度
-            isMerged: true, // 标记为合并的文本
-            mergedIndexes: obj.mergedIndexes || [], // 保存合并的索引信息
-            // 保存文本格式属性
+            angle: obj.angle || 0,
+            isMerged: true,
+            mergedIndexes: obj.mergedIndexes || [],
             fontSize: obj.fontSize,
             fontFamily: obj.fontFamily,
             textAlign: obj.textAlign,
             lineHeight: obj.lineHeight,
-            fill: obj.fill
+            fill: obj.fill,
+            fontWeight: obj.fontWeight,
+            fontStyle: obj.fontStyle
           });
         }
       }
     });
+
+    // 添加自定义遮罩（没有关联文本框的遮罩）
+    masks.forEach(mask => {
+      if (mask.isCustomMask) {
+        currentRegions.push({
+          id: mergedId++,
+          isCustomMask: true,
+          maskX: mask.left,
+          maskY: mask.top,
+          maskWidth: mask.width,
+          maskHeight: mask.height,
+          maskAngle: mask.angle,
+          fill: mask.fill
+        });
+      }
+    });
+
     return currentRegions;
   };
 
@@ -3731,7 +3396,8 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     <div className="image-editor">
       {/* 主内容区域（工具栏 + 画布） */}
       <div className="editor-main-area">
-        {/* 简化的顶部工具栏 - 只保留核心操作 */}
+        {/* 简化的顶部工具栏 - 只保留核心操作，disabled时隐藏 */}
+        {!disabled && (
         <div className="editor-toolbar-minimal">
           {/* 左侧：旋转和历史 */}
           <div className="toolbar-left-group">
@@ -3780,8 +3446,19 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
             )}
           </div>
         </div>
+        )}
 
         <div className="editor-canvas-container">
+          {/* 实体识别结果 Modal - 仅覆盖画布区域 */}
+          {entityModalOpen && (
+            <EntityResultModal
+              isOpen={entityModalOpen}
+              entities={entityResults}
+              onClose={() => {}}
+              onConfirm={onEntityConfirm}
+              loading={entityModalLoading}
+            />
+          )}
           {/* 加载遮罩 - 仅覆盖画布区域 */}
           {isLoading && (
             <div className="canvas-loading-overlay">
@@ -3801,16 +3478,59 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
               <button onClick={extraControls.onNextPage} disabled={extraControls.currentPage >= extraControls.totalPages} className="page-nav-btn" title="下一页">▶</button>
             </div>
           )}
-          <div ref={canvasWrapperRef} className="canvas-wrapper">
-            <div className="canvas-inner-wrapper">
-              <canvas ref={canvasRef} id={`fabric-canvas-${editorKey}`} />
-            </div>
+          <div ref={canvasWrapperRef} className={`canvas-wrapper ${disabled ? 'canvas-disabled' : ''}`}>
+            {disabled ? (
+              <div className="canvas-empty-placeholder">
+                {showWelcome ? (
+                  /* 欢迎引导界面 - 未选择客户时显示 */
+                  <div className="canvas-welcome-guide">
+                    <div className="welcome-icon">
+                      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                      </svg>
+                    </div>
+                    <h1 className="welcome-title">智能文书翻译平台</h1>
+                    <p className="welcome-subtitle">从左侧选择一个客户开始工作</p>
+                    <div className="welcome-hints">
+                      <div className="welcome-hint-item">
+                        <span className="hint-number">1</span>
+                        <span className="hint-text">选择或创建客户</span>
+                      </div>
+                      <div className="welcome-hint-item">
+                        <span className="hint-number">2</span>
+                        <span className="hint-text">上传需要翻译的文件</span>
+                      </div>
+                      <div className="welcome-hint-item">
+                        <span className="hint-number">3</span>
+                        <span className="hint-text">自动翻译并编辑调整</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* 简单提示 - 选择了客户但未选择材料时显示 */
+                  <div className="canvas-welcome-guide">
+                    <div className="welcome-icon">
+                      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                        <polyline points="21 15 16 10 5 21"/>
+                      </svg>
+                    </div>
+                    <p className="welcome-subtitle" style={{ marginBottom: 0 }}>{disabledHint}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="canvas-inner-wrapper">
+                <canvas ref={canvasRef} id={`fabric-canvas-${editorKey}`} />
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* 右侧编辑面板 - 独立于主内容区域，从顶部延伸到底部 */}
-      <div className="edit-panel-right">
+      <div className={`edit-panel-right ${disabled ? 'panel-disabled' : ''}`}>
             {/* 文字样式区域 */}
             <div className="panel-section">
               <div className="panel-section-title">文字样式</div>

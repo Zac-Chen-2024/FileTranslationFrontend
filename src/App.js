@@ -6,7 +6,8 @@ import { LanguageProvider } from './contexts/LanguageContext';
 import { VERSION, BUILD_TIME, BUILD_NUMBER } from './version';
 
 // 页面组件
-import WelcomePage from './pages/WelcomePage';
+// import WelcomePage from './pages/WelcomePage'; // 已弃用
+import WelcomePageV2 from './pages/WelcomePageV2';
 import SignInPage from './pages/SignInPage';
 import SignUpPage from './pages/SignUpPage';
 // 暂时禁用的页面（重定向到demo-v2）
@@ -29,14 +30,15 @@ function VersionLogger() {
   const location = useLocation();
 
   useEffect(() => {
-    console.log('%c📦 文书翻译平台', 'color: #2196F3; font-size: 20px; font-weight: bold;');
-    console.log('%c版本信息', 'color: #4CAF50; font-size: 14px; font-weight: bold;');
-    console.log(`  版本号: v${VERSION}`);
-    console.log(`  构建时间: ${BUILD_TIME}`);
-    console.log(`  构建编号: ${BUILD_NUMBER}`);
-    console.log(`  当前页面: ${location.pathname}`);
-    console.log(`  环境: ${process.env.NODE_ENV}`);
-    console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #999;');
+    // 生产环境使用保存的原始 console.log
+    const log = window.__originalConsoleLog || console.log;
+    log('%c📦 文书翻译平台', 'color: #2196F3; font-size: 20px; font-weight: bold;');
+    log('%c版本信息', 'color: #4CAF50; font-size: 14px; font-weight: bold;');
+    log(`  版本号: v${VERSION}`);
+    log(`  构建时间: ${BUILD_TIME}`);
+    log(`  构建编号: ${BUILD_NUMBER}`);
+    log(`  环境: ${process.env.NODE_ENV}`);
+    log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #999;');
   }, [location.pathname]);
 
   return null;
@@ -52,7 +54,7 @@ function App() {
         <div className="App">
           <Routes>
             {/* 公开路由 */}
-            <Route path="/" element={<WelcomePage />} />
+            <Route path="/" element={<WelcomePageV2 />} />
             <Route path="/signin" element={<SignInPage />} />
             <Route path="/signup" element={<SignUpPage />} />
 

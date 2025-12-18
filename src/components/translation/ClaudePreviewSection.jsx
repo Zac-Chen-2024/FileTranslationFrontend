@@ -6,7 +6,6 @@ import LaTeXEditModal from '../modals/LaTeXEditModal';
 import LaTeXEditModalV2 from '../modals/LaTeXEditModalV2';
 import FabricImageEditor from './FabricImageEditor';
 import EntityRecognitionModal from './EntityRecognitionModal';
-import EntityResultModal from './EntityResultModal';
 import styles from './ClaudePreviewSection.module.css';
 // 状态机辅助函数
 import {
@@ -23,7 +22,7 @@ import {
 // API URL配置
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5010';
 
-const ClaudePreviewSection = () => {
+const ClaudePreviewSection = ({ isLoading: parentLoading = false, clientName = '', noClient = false }) => {
   const { state, actions } = useApp();
   const { currentMaterial } = state;
   const { t } = useLanguage();
@@ -77,6 +76,9 @@ const ClaudePreviewSection = () => {
   const baiduRegionsRef = React.useRef([]);
   // ✅ 使用 ref 跟踪原子化流程状态（同步更新，避免 useEffect 竞态条件）
   const atomicFlowInProgressRef = React.useRef(false);
+
+  // 🔧 内存泄漏修复：跟踪setTimeout以便在组件卸载时清理
+  const entityTimeoutRef = React.useRef(null);
   // ========== 状态提升结束 ==========
 
   // 监听currentMaterial变化，强制刷新预览
@@ -113,10 +115,15 @@ const ClaudePreviewSection = () => {
     // 创建新的AbortController供后续请求使用
     abortControllerRef.current = new AbortController();
 
-    // 组件卸载或材料切换时取消请求
+    // 组件卸载或材料切换时取消请求和清理定时器
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
+      }
+      // 🔧 内存泄漏修复：清理setTimeout
+      if (entityTimeoutRef.current) {
+        clearTimeout(entityTimeoutRef.current);
+        entityTimeoutRef.current = null;
       }
     };
   }, [currentMaterial?.id]);
@@ -572,8 +579,11 @@ const ClaudePreviewSection = () => {
               atomicFlowInProgressRef.current = false;
 
               // ✅ 修复：使用 setTimeout 确保在下一个事件循环中设置，避免被 useEffect 清除
-              setTimeout(() => {
+              // 🔧 内存泄漏修复：使用ref跟踪timeout以便清理
+              if (entityTimeoutRef.current) clearTimeout(entityTimeoutRef.current);
+              entityTimeoutRef.current = setTimeout(() => {
                 setEntityResults(entities);
+                entityTimeoutRef.current = null;
               }, 50);
 
               actions.showNotification(
@@ -702,8 +712,11 @@ const ClaudePreviewSection = () => {
             }
           });
 
-          setTimeout(() => {
+          // 🔧 内存泄漏修复：使用ref跟踪timeout以便清理
+          if (entityTimeoutRef.current) clearTimeout(entityTimeoutRef.current);
+          entityTimeoutRef.current = setTimeout(() => {
             setEntityResults(uniqueEntities);
+            entityTimeoutRef.current = null;
           }, 50);
 
           actions.showNotification(
@@ -1309,7 +1322,37 @@ const ClaudePreviewSection = () => {
       console.log('handleConfirm - 当前状态:', currentMaterial.confirmed, '新状态:', newConfirmedState);
 
       if (newConfirmedState) {
-        // 确认时调用API
+        // 确认时：先保存最终图片，再调用确认API
+        console.log('确认前先保存最终图片...');
+
+        // 1. 生成并上传最终图片（确保导出时有翻译版本）
+        if (window.currentFabricEditor && window.currentFabricEditor.generateFinalImage) {
+          try {
+            const finalImage = await window.currentFabricEditor.generateFinalImage();
+            if (finalImage && finalImage.blob) {
+              await materialAPI.saveFinalImage(currentMaterial.id, finalImage.blob);
+              console.log('✓ 确认时：最终图片已生成并上传');
+            }
+          } catch (imageError) {
+            console.warn('确认时生成最终图片失败:', imageError);
+            // 继续确认流程，即使图片保存失败
+          }
+        }
+
+        // 2. 保存当前的 regions 数据
+        if (window.currentFabricEditor && window.currentFabricEditor.getCurrentRegions) {
+          try {
+            const currentRegions = window.currentFabricEditor.getCurrentRegions();
+            if (currentRegions && currentRegions.length > 0) {
+              await materialAPI.saveRegions(currentMaterial.id, currentRegions);
+              console.log('✓ 确认时：regions 数据已保存');
+            }
+          } catch (regionsError) {
+            console.warn('确认时保存 regions 失败:', regionsError);
+          }
+        }
+
+        // 3. 调用确认API
         console.log('调用确认API...');
         await materialAPI.confirmMaterial(currentMaterial.id);
       } else {
@@ -1479,52 +1522,51 @@ const ClaudePreviewSection = () => {
     }
   }, [currentMaterial, actions]);
 
-  if (!currentMaterial) {
-    return (
-      <div className={styles.previewSection}>
-        <div className={styles.header}>
-          <h3 className={styles.title}>{t('translationPreview')}</h3>
-        </div>
-        <div className={styles.content}>
-          <div className={styles.placeholder}>
-            <div className={styles.placeholderIcon}>
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <path d="M14 2v6h6"/>
-                <path d="M16 13H8M16 17H8M10 9H8"/>
-              </svg>
-            </div>
-            <h4>{t('selectMaterialToViewTranslation')}</h4>
-            <p>{t('selectMaterialFromList')}</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // 是否处于禁用状态（无客户或无材料）
+  const isDisabled = noClient || !currentMaterial;
+  const disabledHint = noClient
+    ? '从左侧选择客户开始工作'
+    : '从左侧选择材料开始编辑';
 
   return (
     <div className={styles.previewSection}>
       {/* 编辑器内容区 - 工具栏整合到 FabricImageEditor 中 */}
       <div className={styles.editorArea}>
-        {(currentMaterial.type === 'image' || currentMaterial.type === 'pdf') ? (
+        {/* 无客户或无材料时显示空白编辑器 */}
+        {isDisabled ? (
+          <FabricImageEditor
+            key="disabled-editor"
+            imageSrc={null}
+            regions={[]}
+            editorKey="disabled"
+            disabled={true}
+            disabledHint={disabledHint}
+            showWelcome={noClient}
+            extraControls={{}}
+          />
+        ) : (currentMaterial.type === 'image' || currentMaterial.type === 'pdf') ? (
           <>
             {/* 只要有图片就显示编辑器 */}
             {getImageUrl() && (
               <>
-                {/* 实体识别结果 Modal */}
-                  <EntityResultModal
-                    isOpen={currentMaterial.processingStep === 'entity_pending_confirm' && entityResults.length > 0}
-                    entities={entityResults}
-                    onClose={() => {}} // 不允许直接关闭，必须选择操作
-                    onConfirm={handleConfirmEntities}
-                    loading={entityModalLoading}
-                  />
                   {/* 计算加载状态 - 用于传递给 FabricImageEditor */}
                   {(() => {
                     const normalizedStep = normalizeStatus(currentMaterial.processingStep);
 
                     // 计算是否显示加载遮罩
+                    // 注意：SPLITTING 和 SPLIT_COMPLETED 不显示遮罩，因为拆分很快且不阻塞预览
                     const showLoading = llmLoading || (() => {
+                      // 排除拆分相关状态
+                      if (statusMatches(normalizedStep, [ProcessingStep.SPLITTING, ProcessingStep.SPLIT_COMPLETED])) {
+                        return false;
+                      }
+
+                      // 🔧 修复：对于 PDF，检查整个 PDF session 的状态
+                      // 只要有任何页面正在翻译，就显示 loading
+                      if (currentMaterial.pdfSessionId && pdfSessionProgress?.someTranslating) {
+                        return true;
+                      }
+
                       const baseCondition =
                         isProcessing(normalizedStep) ||
                         (statusMatches(normalizedStep, ProcessingStep.TRANSLATED) && !currentMaterial.translationTextInfo) ||
@@ -1561,6 +1603,11 @@ const ClaudePreviewSection = () => {
                       exposeHandlers={true}
                       isLoading={finalLoading}
                       loadingText={finalLoadingText}
+                      // 实体识别 Modal
+                      entityResults={entityResults}
+                      entityModalOpen={currentMaterial.processingStep === 'entity_pending_confirm' && entityResults.length > 0}
+                      onEntityConfirm={handleConfirmEntities}
+                      entityModalLoading={entityModalLoading}
                       // 扩展工具栏控制
                       extraControls={{
                         // 页面导航
@@ -1638,6 +1685,10 @@ const ClaudePreviewSection = () => {
                       exposeHandlers={true}
                       isLoading={finalLoading}
                       loadingText={finalLoadingText}
+                      // 实体识别 Modal
+                      entityModalOpen={currentMaterial.processingStep === 'entity_pending_confirm' && entityResults.length > 0}
+                      onEntityConfirm={handleConfirmEntities}
+                      entityModalLoading={entityModalLoading}
                       // 扩展工具栏控制
                       extraControls={{
                         // 页面导航

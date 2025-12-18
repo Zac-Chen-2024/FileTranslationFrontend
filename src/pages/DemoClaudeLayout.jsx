@@ -28,6 +28,7 @@ const DemoClaudeLayout = () => {
   const [loading, setLoading] = useState(false);
   const [showExportConfirm, setShowExportConfirm] = useState(false);
   const [showAddClientModal, setShowAddClientModal] = useState(false);
+  const [exportDocumentCount, setExportDocumentCount] = useState(0);
 
   // 当URL中有clientId时，加载客户信息
   useEffect(() => {
@@ -265,8 +266,14 @@ const DemoClaudeLayout = () => {
   };
 
   // 导出功能
-  const handleExport = () => {
-    const clientMaterials = materials.filter(m => m.clientId === clientId);
+  const handleExport = (client) => {
+    // 优先使用传入的client，其次是selectedClient，最后是URL中的clientId
+    const targetClientId = client?.cid || selectedClient?.cid || clientId;
+    if (!targetClientId) {
+      actions.showNotification(t('exportFailed'), '请先选择客户', 'error');
+      return;
+    }
+    const clientMaterials = materials.filter(m => String(m.clientId) === String(targetClientId));
     const confirmedMaterials = clientMaterials.filter(m => m.confirmed);
 
     if (confirmedMaterials.length === 0) {
@@ -274,13 +281,29 @@ const DemoClaudeLayout = () => {
       return;
     }
 
+    // 计算实际文档数量（PDF 按 session 计为 1 个文档）
+    const processedSessions = new Set();
+    let documentCount = 0;
+    confirmedMaterials.forEach(m => {
+      if (m.pdfSessionId) {
+        if (!processedSessions.has(m.pdfSessionId)) {
+          processedSessions.add(m.pdfSessionId);
+          documentCount++;
+        }
+      } else {
+        documentCount++;
+      }
+    });
+    setExportDocumentCount(documentCount);
+
     setShowExportConfirm(true);
   };
 
   const handleConfirmExport = async () => {
     setShowExportConfirm(false);
 
-    const clientMaterials = materials.filter(m => m.clientId === clientId);
+    const targetClientId = selectedClient?.cid || clientId;
+    const clientMaterials = materials.filter(m => String(m.clientId) === String(targetClientId));
     const confirmedMaterials = clientMaterials.filter(m => m.confirmed);
 
     try {
@@ -294,7 +317,7 @@ const DemoClaudeLayout = () => {
                       String(now.getHours()).padStart(2, '0') +
                       String(now.getMinutes()).padStart(2, '0');
 
-      await exportAPI.exportClientMaterials(clientId, `${clientName}_${dateStr}.zip`);
+      await exportAPI.exportClientMaterials(targetClientId, `${clientName}_${dateStr}.zip`);
 
       actions.showNotification(t('exportComplete'), t('exportedFiles', { count: confirmedMaterials.length }), 'success');
 
@@ -353,76 +376,14 @@ const DemoClaudeLayout = () => {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {!selectedClient && !clientId ? (
-        // 未选择客户时的欢迎界面
-        <div className={styles.welcome}>
-          <div className={styles.welcomeIcon}>
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-            </svg>
-          </div>
-          <h1 className={styles.welcomeTitle}>智能文书翻译平台</h1>
-          <p className={styles.welcomeDesc}>从左侧选择一个客户开始工作</p>
-
-          {/* 添加第一个客户按钮 */}
-          <button className={styles.addFirstClientBtn} onClick={handleAddClient}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-              <circle cx="8.5" cy="7" r="4"/>
-              <line x1="20" y1="8" x2="20" y2="14"/>
-              <line x1="23" y1="11" x2="17" y2="11"/>
-            </svg>
-            添加第一个客户
-          </button>
-
-          <div className={styles.welcomeHints}>
-            <div className={styles.hint}>
-              <span className={styles.hintIcon}>1</span>
-              <span>选择或创建客户</span>
-            </div>
-            <div className={styles.hint}>
-              <span className={styles.hintIcon}>2</span>
-              <span>上传需要翻译的文件</span>
-            </div>
-            <div className={styles.hint}>
-              <span className={styles.hintIcon}>3</span>
-              <span>自动翻译并编辑调整</span>
-            </div>
-          </div>
-        </div>
-      ) : loading ? (
-        // 加载中
-        <div className={styles.loading}>
-          <div className={styles.spinner}></div>
-          <p>加载中...</p>
-        </div>
-      ) : !currentMaterial ? (
-        // 已选客户但未选材料
-        <div className={styles.noMaterial}>
-          <div className={styles.noMaterialIcon}>
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-              <circle cx="8.5" cy="8.5" r="1.5"/>
-              <polyline points="21 15 16 10 5 21"/>
-            </svg>
-          </div>
-          <h2 className={styles.noMaterialTitle}>{selectedClient?.name}</h2>
-          <p className={styles.noMaterialDesc}>从左侧选择材料，或拖拽文件到此处上传</p>
-          <div className={styles.uploadHint}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="17 8 12 3 7 8"/>
-              <line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
-            <span>支持 PDF、图片、Word 文档</span>
-          </div>
-        </div>
-      ) : (
-        // 显示预览区域
-        <div className={styles.previewWrapper}>
-          <ClaudePreviewSection />
-        </div>
-      )}
+      {/* 始终显示预览区域，由 ClaudePreviewSection 内部处理禁用状态 */}
+      <div className={styles.previewWrapper}>
+        <ClaudePreviewSection
+          isLoading={loading}
+          clientName={selectedClient?.name}
+          noClient={!selectedClient && !clientId}
+        />
+      </div>
 
       {/* 拖拽提示遮罩 */}
       {isDragging && selectedClient && (
@@ -458,7 +419,7 @@ const DemoClaudeLayout = () => {
         isOpen={showExportConfirm}
         onClose={() => setShowExportConfirm(false)}
         onConfirm={handleConfirmExport}
-        confirmedCount={materials.filter(m => m.clientId === clientId && m.confirmed).length}
+        confirmedCount={exportDocumentCount}
         unconfirmedCount={materials.filter(m => m.clientId === clientId && !m.confirmed).length}
         clientName={selectedClient?.name || ''}
       />

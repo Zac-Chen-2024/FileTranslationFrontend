@@ -6,6 +6,8 @@ class WebSocketService {
   constructor() {
     this.socket = null;
     this.listeners = new Map();
+    this.currentClientId = null;  // ✅ 记录当前加入的房间
+    this.pendingJoin = null;      // ✅ 等待连接后加入的房间
   }
 
   connect() {
@@ -16,12 +18,46 @@ class WebSocketService {
     this.socket = io(API_URL, {
       transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: Infinity,  // ✅ 无限重试
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,      // ✅ 最大重连间隔5秒
+    });
+
+    // ✅ 连接成功
+    this.socket.on('connect', () => {
+      console.log('[WebSocket] 连接成功, socket.id:', this.socket.id);
+
+      // ✅ 重连后自动重新加入房间
+      if (this.currentClientId) {
+        console.log('[WebSocket] 重新加入房间:', this.currentClientId);
+        this.socket.emit('join_client', { client_id: this.currentClientId });
+      }
+      // ✅ 处理等待中的加入请求
+      if (this.pendingJoin) {
+        console.log('[WebSocket] 处理等待中的加入请求:', this.pendingJoin);
+        this.socket.emit('join_client', { client_id: this.pendingJoin });
+        this.currentClientId = this.pendingJoin;
+        this.pendingJoin = null;
+      }
+    });
+
+    // ✅ 断开连接
+    this.socket.on('disconnect', (reason) => {
+      console.log('[WebSocket] 断开连接, 原因:', reason);
+    });
+
+    // ✅ 重连中
+    this.socket.on('reconnect_attempt', (attemptNumber) => {
+      console.log('[WebSocket] 重连尝试 #' + attemptNumber);
+    });
+
+    // ✅ 重连成功
+    this.socket.on('reconnect', (attemptNumber) => {
+      console.log('[WebSocket] 重连成功, 尝试次数:', attemptNumber);
     });
 
     this.socket.on('connect_error', (error) => {
-      console.error('WebSocket 连接错误:', error);
+      console.error('[WebSocket] 连接错误:', error.message);
     });
   }
 
@@ -30,19 +66,37 @@ class WebSocketService {
       this.socket.disconnect();
       this.socket = null;
     }
+    this.currentClientId = null;
+    this.pendingJoin = null;
   }
 
   // 加入客户端房间
   joinClient(clientId) {
+    if (!clientId) return;
+
     if (this.socket?.connected) {
+      console.log('[WebSocket] 加入房间:', clientId);
       this.socket.emit('join_client', { client_id: clientId });
+      this.currentClientId = clientId;
+      this.pendingJoin = null;
+    } else {
+      // ✅ 如果还没连接，记录下来等连接后加入
+      console.log('[WebSocket] 连接未就绪，等待连接后加入房间:', clientId);
+      this.pendingJoin = clientId;
     }
   }
 
   // 离开客户端房间
   leaveClient(clientId) {
     if (this.socket?.connected) {
+      console.log('[WebSocket] 离开房间:', clientId);
       this.socket.emit('leave_client', { client_id: clientId });
+    }
+    if (this.currentClientId === clientId) {
+      this.currentClientId = null;
+    }
+    if (this.pendingJoin === clientId) {
+      this.pendingJoin = null;
     }
   }
 

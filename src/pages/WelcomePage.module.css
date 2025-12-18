@@ -9,6 +9,8 @@
   padding: 24px;
   position: relative;
   overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* 背景装饰 */
