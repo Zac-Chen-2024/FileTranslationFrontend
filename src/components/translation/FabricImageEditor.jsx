@@ -26,7 +26,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
   // 记住上一次合并的设置
   const lastMergeSettingsRef = useRef({
-    textAlign: 'center',
+    textAlign: 'left',  // 🔧 默认左对齐
     fontSize: 11,
     lineSpacing: 1.1,
     fontFamily: 'Arial',
@@ -48,6 +48,9 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
   const [aiButtonPosition, setAiButtonPosition] = useState(null);
   const [selectedTextboxes, setSelectedTextboxes] = useState([]);
   const [showGlobalAI, setShowGlobalAI] = useState(false);
+
+  // 保存成功提示状态
+  const [showSaveSuccess, setShowSaveSuccess] = useState(false);
 
   // 构建实体指导信息（用于AI助手）
   const buildEntityGuidance = useCallback(() => {
@@ -957,6 +960,34 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     const texts = [];
 
     regionsData.forEach((region, index) => {
+      // 🔧 解耦：处理独立保存的遮罩（isMask 标识）
+      if (region.isMask) {
+        const isCustom = region.isCustomMask || false;
+        const mask = new window.fabric.Rect({
+          left: region.maskX,
+          top: region.maskY,
+          width: region.maskWidth,
+          height: region.maskHeight,
+          angle: region.maskAngle || 0,
+          fill: region.fill || '#FFFFFF',
+          opacity: region.opacity || 1,
+          stroke: 'transparent',  // 默认不显示边框，进入遮罩编辑模式后才显示
+          strokeWidth: 0,
+          selectable: false,  // 默认不可选，进入遮罩编辑模式后才可选
+          evented: false,
+          originX: 'left',
+          originY: 'top',
+          isMask: true,
+          isCustomMask: isCustom,
+          isMergedMask: region.isMergedMask || false,
+          regionIndex: region.regionIndex,  // 保留原始索引（仅供参考）
+          isRestored: true  // 🔧 标记为已恢复的遮罩，跳过 applySmartFill
+        });
+        bgRects.push(mask);
+        return; // 遮罩不需要创建文本框，直接返回
+      }
+
+      // ===== 以下处理文本框（不再自动创建遮罩） =====
       // 支持两种格式：带points的原始格式，和带x,y,width,height的保存格式
       let minX, minY, width, height;
 
@@ -967,7 +998,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         width = region.width;
         height = region.height;
       } else if (region.points && region.points.length >= 4) {
-        // 原始格式
+        // 原始格式（首次从LLM加载，需要同时创建遮罩）
         const points = region.points;
         minX = Math.min(...points.map(p => p.x));
         minY = Math.min(...points.map(p => p.y));
@@ -975,46 +1006,31 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         const maxY = Math.max(...points.map(p => p.y));
         width = maxX - minX;
         height = maxY - minY;
+
+        // 🔧 首次加载时为文本框创建对应的遮罩
+        const bgRect = new window.fabric.Rect({
+          left: minX,
+          top: minY,
+          width: width,
+          height: height,
+          angle: region.angle || 0,
+          fill: 'white',
+          stroke: 'transparent',
+          strokeWidth: 0,
+          selectable: false,
+          evented: false,
+          isMask: true,
+          regionIndex: index
+        });
+        bgRects.push(bgRect);
       } else {
         // 无效的region，跳过
         return;
       }
-      
+
       const textContent = region.dst || region.src || '';
       const calculatedFontSize = calculateFontSize(width, height, textContent);
-      
-      // 创建背景矩形 - 统一使用白色遮罩
-      let bgRect = null;
 
-      // 优先使用保存的遮罩位置（解耦后遮罩位置独立保存）
-      const maskLeft = region.maskX !== undefined ? region.maskX : minX;
-      const maskTop = region.maskY !== undefined ? region.maskY : minY;
-      const maskWidth = region.maskWidth !== undefined ? region.maskWidth : width;
-      const maskHeight = region.maskHeight !== undefined ? region.maskHeight : height;
-
-      // 所有文本框（初始和合并）都使用统一的白色遮罩
-      bgRect = new window.fabric.Rect({
-        left: maskLeft,
-        top: maskTop,
-        width: maskWidth,
-        height: maskHeight,
-        angle: region.maskAngle || region.angle || 0, // 恢复遮罩旋转角度
-        fill: 'white',
-        stroke: 'transparent',
-        strokeWidth: 0,
-        selectable: false,
-        evented: false,
-        isMask: true, // 统一的遮罩标识
-        regionIndex: index,
-        manuallyEdited: region.maskManuallyEdited || false,
-        isMergedMask: region.isMerged || false, // 标记是否为合并文本的遮罩
-        mergedIndexes: region.mergedIndexes || [],
-        originalBounds: region.isMerged ? {  // 合并遮罩保存原始边界
-          width: maskWidth,
-          height: maskHeight
-        } : null
-      });
-      
       // 创建文本对象
       const text = new window.fabric.Textbox(textContent, {
         left: minX,
@@ -1066,15 +1082,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         hasRotatingPoint: false
       });
 
-      if (bgRect) {
-        if (!region.isMerged) {
-          // 只有非合并的文本才添加到背景矩形数组
-          backgroundRectsRef.current.push(bgRect);
-        }
-        // 遮罩与文本框已解耦，不再建立关联
-        bgRects.push(bgRect);
-      }
-
+      // 🔧 解耦：文本框不再关联遮罩，遮罩已独立保存和加载
       textObjectsRef.current.push(text);
       texts.push(text);
     });
@@ -1090,7 +1098,8 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       if (!mountedRef.current) return;
 
       // 跳过已经是模糊背景的对象（fabric.Image）
-      if (bgRect.type !== 'image' && !bgRect.isBlurBackground) {
+      // 🔧 解耦修复：跳过已保存的遮罩（保留用户设置的颜色和透明度）
+      if (bgRect.type !== 'image' && !bgRect.isBlurBackground && !bgRect.isRestored) {
         await applySmartFill(bgRect);
 
         // 🔧 竞态条件修复：await 后再次检查
@@ -3069,40 +3078,39 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     return charStyles;
   };
 
-  // 获取当前的regions状态（文本框的位置和内容）
+  // 获取当前的regions状态（文本框和遮罩完全解耦，独立保存）
   const getCurrentRegions = () => {
     const canvas = fabricCanvasRef.current;
     if (!canvas) return [];
 
     const currentRegions = [];
-    const masks = []; // 独立保存遮罩数据
-    let mergedId = 10000; // 为合并的文本框生成ID
+    let mergedId = 10000; // 为合并的文本框和遮罩生成ID
 
-    // 收集所有遮罩
+    // 🔧 解耦：遍历所有对象，分别保存文本框和遮罩
     canvas.getObjects().forEach(obj => {
+      // ===== 保存遮罩（独立保存，不再附加到文本框） =====
       if (obj.type === 'rect' && obj.isMask) {
-        masks.push({
-          regionIndex: obj.regionIndex,
-          left: obj.left,
-          top: obj.top,
-          width: obj.width * obj.scaleX,
-          height: obj.height * obj.scaleY,
-          angle: obj.angle || 0,
-          fill: obj.fill,
-          manuallyEdited: obj.manuallyEdited || false,
+        currentRegions.push({
+          id: obj.regionIndex !== undefined ? `mask_${obj.regionIndex}` : mergedId++,
+          isMask: true,  // 标识这是遮罩
+          maskX: obj.left,
+          maskY: obj.top,
+          maskWidth: obj.width * obj.scaleX,
+          maskHeight: obj.height * obj.scaleY,
+          maskAngle: obj.angle || 0,
+          fill: obj.fill || '#FFFFFF',
+          opacity: obj.opacity || 1,
           isCustomMask: obj.isCustomMask || false,
-          isMergedMask: obj.isMergedMask || false
+          isMergedMask: obj.isMergedMask || false,
+          regionIndex: obj.regionIndex  // 保留原始索引（仅供参考）
         });
       }
-    });
-
-    canvas.getObjects().forEach(obj => {
-      if (obj.type === 'textbox') {
-        // 处理所有文本框，包括原始的和合并的
+      // ===== 保存文本框（不再包含遮罩信息） =====
+      else if (obj.type === 'textbox') {
         if (obj.regionId !== undefined || obj.regionIndex !== undefined) {
-          const regionId = obj.regionId !== undefined ? obj.regionId : obj.regionIndex;
           // 原始文本框
-          const regionData = {
+          const regionId = obj.regionId !== undefined ? obj.regionId : obj.regionIndex;
+          currentRegions.push({
             id: regionId,
             src: obj.originalText || obj._markdownText || obj.text,
             dst: obj._markdownText || obj.text,
@@ -3118,20 +3126,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
             fill: obj.fill,
             fontWeight: obj.fontWeight,
             fontStyle: obj.fontStyle
-          };
-
-          // 查找对应的遮罩数据（通过regionIndex匹配）
-          const matchingMask = masks.find(m => m.regionIndex === obj.regionIndex);
-          if (matchingMask) {
-            regionData.maskX = matchingMask.left;
-            regionData.maskY = matchingMask.top;
-            regionData.maskWidth = matchingMask.width;
-            regionData.maskHeight = matchingMask.height;
-            regionData.maskAngle = matchingMask.angle;
-            regionData.maskManuallyEdited = matchingMask.manuallyEdited;
-          }
-
-          currentRegions.push(regionData);
+          });
         } else if (obj.isMerged) {
           // 合并的文本框
           currentRegions.push({
@@ -3154,22 +3149,6 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
             fontStyle: obj.fontStyle
           });
         }
-      }
-    });
-
-    // 添加自定义遮罩（没有关联文本框的遮罩）
-    masks.forEach(mask => {
-      if (mask.isCustomMask) {
-        currentRegions.push({
-          id: mergedId++,
-          isCustomMask: true,
-          maskX: mask.left,
-          maskY: mask.top,
-          maskWidth: mask.width,
-          maskHeight: mask.height,
-          maskAngle: mask.angle,
-          fill: mask.fill
-        });
       }
     });
 
@@ -3435,14 +3414,32 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
               </button>
             )}
             {extraControls?.onSave && (
-              <button onClick={extraControls.onSave} className="action-button save-btn" title="保存编辑">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-                  <polyline points="17 21 17 13 7 13 7 21"/>
-                  <polyline points="7 3 7 8 15 8"/>
-                </svg>
-                保存
-              </button>
+              <div className="save-btn-wrapper">
+                <button
+                  onClick={() => {
+                    extraControls.onSave();
+                    setShowSaveSuccess(true);
+                    setTimeout(() => setShowSaveSuccess(false), 2000);
+                  }}
+                  className="action-button save-btn"
+                  title="保存编辑"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                    <polyline points="17 21 17 13 7 13 7 21"/>
+                    <polyline points="7 3 7 8 15 8"/>
+                  </svg>
+                  保存
+                </button>
+                {showSaveSuccess && (
+                  <div className="save-success-tooltip">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    已保存
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>

@@ -650,6 +650,16 @@ const ClaudePreviewSection = ({ isLoading: parentLoading = false, clientName = '
               atomicAPI.llmOptimize(materialId, { useEntityGuidance: false })
             ));
 
+            // 🔧 修复：更新所有页面的翻译结果
+            llmResults.forEach((result, index) => {
+              if (result.success) {
+                actions.updateMaterial(materialIds[index], {
+                  processingStep: result.processingStep,
+                  llmTranslationResult: result.llmTranslationResult
+                });
+              }
+            });
+
             const failedLlm = llmResults.filter(r => !r.success);
             if (failedLlm.length > 0) {
               console.error(`${failedLlm.length} 页LLM翻译失败`);
@@ -712,18 +722,104 @@ const ClaudePreviewSection = ({ isLoading: parentLoading = false, clientName = '
             }
           });
 
-          // 🔧 内存泄漏修复：使用ref跟踪timeout以便清理
-          if (entityTimeoutRef.current) clearTimeout(entityTimeoutRef.current);
-          entityTimeoutRef.current = setTimeout(() => {
-            setEntityResults(uniqueEntities);
-            entityTimeoutRef.current = null;
-          }, 50);
+          // 🔧 当实体为空时，弹出确认对话框让用户选择
+          if (uniqueEntities.length === 0) {
+            actions.openConfirmDialog({
+              title: '未识别到实体',
+              message: `PDF ${pageCount}页未识别到需要特殊处理的实体（如人名、地名等）。是否直接进行LLM翻译优化？`,
+              type: 'info',
+              confirmText: '继续翻译',
+              cancelText: '取消',
+              onConfirm: async () => {
+                // 用户确认，直接进行LLM翻译
+                try {
+                  setLlmLoading(true);
+                  actions.showNotification('开始优化', '正在进行LLM翻译优化...', 'info');
 
-          actions.showNotification(
-            '实体识别完成',
-            `PDF ${pageCount}页共识别到 ${uniqueEntities.length} 个实体，请确认翻译`,
-            'success'
-          );
+                  // 🔧 修复：先调用 entitySkip 跳过实体确认，将状态从 entity_pending_confirm 变为 translated
+                  console.log(`⏭️ [PDF Session] 实体为空，跳过实体确认步骤`);
+                  const skipResults = await Promise.all(materialIds.map(id =>
+                    atomicAPI.entitySkip(id)
+                  ));
+
+                  const skipFailed = skipResults.filter(r => !r.success);
+                  if (skipFailed.length > 0) {
+                    console.warn(`${skipFailed.length} 页跳过实体确认失败，继续尝试LLM翻译`);
+                  }
+
+                  // 更新所有页面状态为LLM翻译中
+                  await Promise.all(materialIds.map(id =>
+                    actions.updateMaterial(id, {
+                      processingStep: 'llm_translating',
+                      entity_recognition_confirmed: true
+                    })
+                  ));
+
+                  // 并行执行LLM翻译
+                  const llmResults = await Promise.all(materialIds.map(materialId =>
+                    atomicAPI.llmOptimize(materialId, { useEntityGuidance: false })
+                  ));
+
+                  // 🔧 修复：更新所有页面的翻译结果
+                  llmResults.forEach((result, index) => {
+                    if (result.success) {
+                      actions.updateMaterial(materialIds[index], {
+                        processingStep: result.processingStep,
+                        llmTranslationResult: result.llmTranslationResult
+                      });
+                    }
+                  });
+
+                  const failedLlm = llmResults.filter(r => !r.success);
+                  if (failedLlm.length > 0) {
+                    console.error(`${failedLlm.length} 页LLM翻译失败`);
+                  }
+
+                  actions.showNotification(
+                    '翻译完成',
+                    `PDF ${pageCount}页翻译已完成`,
+                    'success'
+                  );
+                } catch (llmError) {
+                  console.error('LLM翻译失败:', llmError);
+                  actions.showNotification('翻译失败', llmError.message || 'LLM翻译失败', 'error');
+                } finally {
+                  setLlmLoading(false);
+                }
+              },
+              onCancel: async () => {
+                // 用户取消，调用 entitySkip 恢复到翻译完成状态
+                try {
+                  await Promise.all(materialIds.map(id =>
+                    atomicAPI.entitySkip(id)
+                  ));
+                } catch (e) {
+                  console.warn('跳过实体确认失败:', e);
+                }
+                materialIds.forEach(id => {
+                  actions.updateMaterial(id, {
+                    processingStep: 'translated',
+                    entity_recognition_confirmed: false
+                  });
+                });
+                actions.showNotification('已取消', '您可以稍后手动进行翻译优化', 'info');
+              }
+            });
+          } else {
+            // 有实体，正常显示实体确认对话框
+            // 🔧 内存泄漏修复：使用ref跟踪timeout以便清理
+            if (entityTimeoutRef.current) clearTimeout(entityTimeoutRef.current);
+            entityTimeoutRef.current = setTimeout(() => {
+              setEntityResults(uniqueEntities);
+              entityTimeoutRef.current = null;
+            }, 50);
+
+            actions.showNotification(
+              '实体识别完成',
+              `PDF ${pageCount}页共识别到 ${uniqueEntities.length} 个实体，请确认翻译`,
+              'success'
+            );
+          }
         }
       } catch (pdfError) {
         console.error('PDF翻译流程失败:', pdfError);
@@ -753,6 +849,16 @@ const ClaudePreviewSection = ({ isLoading: parentLoading = false, clientName = '
         const sessionId = currentMaterial.pdfSessionId;
         const pageIds = pdfPages.map(p => p.id);
         console.log(`⏭️ [PDF Session ${sessionId}] 跳过实体识别，直接进行LLM翻译`);
+
+        // 🔧 修复：先调用 entitySkip 跳过实体确认，将状态从 entity_pending_confirm 变为 translated
+        const skipResults = await Promise.all(pageIds.map(pageId =>
+          atomicAPI.entitySkip(pageId)
+        ));
+
+        const skipFailed = skipResults.filter(r => !r.success);
+        if (skipFailed.length > 0) {
+          console.warn(`${skipFailed.length} 页跳过实体确认失败，继续尝试LLM翻译`);
+        }
 
         // 更新所有页面状态
         pageIds.forEach(pageId => {
@@ -793,6 +899,12 @@ const ClaudePreviewSection = ({ isLoading: parentLoading = false, clientName = '
         }
       } else {
         // ===== 单页图片: 直接执行LLM（无实体指导） =====
+        // 🔧 修复：先调用 entitySkip 跳过实体确认
+        const skipResult = await atomicAPI.entitySkip(currentMaterial.id);
+        if (!skipResult.success) {
+          console.warn('跳过实体确认失败，继续尝试LLM翻译');
+        }
+
         actions.updateMaterial(currentMaterial.id, {
           entityRecognitionEnabled: false,
           entity_recognition_confirmed: true

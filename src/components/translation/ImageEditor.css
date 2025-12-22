@@ -1023,6 +1023,55 @@
   background: #e5e7eb !important;
 }
 
+/* 保存按钮包装器 */
+.image-editor .save-btn-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+/* 保存成功提示 */
+.image-editor .save-success-tooltip {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 8px;
+  padding: 6px 12px;
+  background: #10b981;
+  color: white;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  animation: saveSuccessFadeIn 0.3s ease-out;
+  z-index: 100;
+}
+
+.image-editor .save-success-tooltip::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-bottom-color: #10b981;
+}
+
+@keyframes saveSuccessFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
 /* ========== 扩展控制按钮样式结束 ========== */
 
 /* 文本控制组 - 灵活布局 */
