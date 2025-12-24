@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { clientAPI, authAPI, materialAPI } from '../../services/api';
 import { useApp } from '../../contexts/AppContext';
-import { isProcessing, isCompleted, isConfirmable, normalizeStatus } from '../../constants/status';
+import { isProcessing, normalizeStatus } from '../../constants/status';
 import styles from './ClientSidebar.module.css';
 
 /**
  * 处理材料列表，将PDF页面合并为单个PDF文件显示
+ * 按创建时间倒序排列（最新上传的在最前面）
  */
 const processMaterials = (materials) => {
   if (!materials || materials.length === 0) return [];
@@ -32,7 +33,13 @@ const processMaterials = (materials) => {
     }
   });
 
-  return [...Array.from(pdfSessions.values()), ...nonPdfMaterials];
+  // 合并所有材料并按创建时间倒序排列（最新的在最前面）
+  const allMaterials = [...Array.from(pdfSessions.values()), ...nonPdfMaterials];
+  return allMaterials.sort((a, b) => {
+    const dateA = new Date(a.createdAt || 0);
+    const dateB = new Date(b.createdAt || 0);
+    return dateB - dateA; // 倒序：最新的在前
+  });
 };
 
 /**
@@ -271,10 +278,11 @@ const ClientSidebar = ({
     );
   };
 
-  // 获取材料状态 - 使用状态机辅助函数
+  // 获取材料状态 - 只有确认时才显示绿勾
   const getMaterialStatus = (material) => {
     const normalizedStatus = normalizeStatus(material.processingStep || material.status);
-    if (material.confirmed || isCompleted(normalizedStatus) || isConfirmable(normalizedStatus)) {
+    // 只有明确确认的才显示绿勾
+    if (material.confirmed || normalizedStatus === 'confirmed') {
       return <span className={styles.statusDone}>✓</span>;
     }
     if (isProcessing(normalizedStatus)) {

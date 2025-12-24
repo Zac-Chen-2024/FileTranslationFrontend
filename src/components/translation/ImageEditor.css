@@ -842,6 +842,22 @@
   cursor: not-allowed;
 }
 
+/* 下载按钮样式 */
+.image-editor .download-btn {
+  background: #3b82f6 !important;
+  color: white !important;
+  border-color: #3b82f6 !important;
+}
+
+.image-editor .download-btn:hover:not(:disabled) {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+}
+
+.image-editor .download-btn svg {
+  stroke: white;
+}
+
 /* ========== 扩展控制按钮样式 - 统一扁平化设计 ========== */
 
 /* 页面导航组 */
@@ -2024,6 +2040,53 @@
 
 .panel-btn-full.active:hover:not(:disabled) {
   background: #059669;
+}
+
+/* 添加文本框下拉菜单 */
+.add-textbox-dropdown-container {
+  position: relative;
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.add-textbox-dropdown-container .panel-btn-full {
+  margin-bottom: 0;
+}
+
+.add-textbox-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 100;
+  overflow: hidden;
+}
+
+.dropdown-item {
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: white;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.15s ease;
+}
+
+.dropdown-item:hover {
+  background: #f3f4f6;
+}
+
+.dropdown-item:first-child {
+  border-bottom: 1px solid #e5e7eb;
 }
 
 /* 遮罩控制 */

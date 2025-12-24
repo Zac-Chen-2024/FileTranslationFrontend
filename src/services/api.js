@@ -446,6 +446,15 @@ export const materialAPI = {
       },
     });
   },
+
+  // 下载单个材料的翻译结果
+  downloadMaterial: async (materialId) => {
+    const response = await api.get(`/api/materials/${materialId}/download`, {
+      responseType: 'blob',
+      timeout: 120000,  // 2分钟超时
+    });
+    return response;
+  },
 };
 
 export const translationAPI = {

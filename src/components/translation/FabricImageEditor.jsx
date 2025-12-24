@@ -8,6 +8,9 @@ import './ImageEditor.css';
 
 /* global fabric */
 
+// 画布溢出边距（允许操作层超出图片边界）
+const CANVAS_OVERFLOW_PADDING = 300;
+
 function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default', exposeHandlers = false, extraControls = null, baiduRegions = [], entityResults = [], isLoading = false, loadingText = '处理中...', entityModalOpen = false, onEntityConfirm, entityModalLoading = false, disabled = false, disabledHint = '从左侧选择材料开始编辑', showWelcome = false }) {
   const { t } = useLanguage();
   // 检查 Fabric.js 是否加载
@@ -51,6 +54,10 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
   // 保存成功提示状态
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+
+  // 添加文本框下拉菜单状态
+  const [showAddTextDropdown, setShowAddTextDropdown] = useState(false);
+  const addTextDropdownRef = useRef(null);
 
   // 构建实体指导信息（用于AI助手）
   const buildEntityGuidance = useCallback(() => {
@@ -297,6 +304,213 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       }
     });
 
+    // 自定义控制点：单个文本框的保持中心拉伸
+    fabric.Textbox.prototype.controls.centerStretch = new fabric.Control({
+      x: 0.5,      // 右边
+      y: 0,        // 中间
+      offsetX: 20, // 偏移到 mr 控制点右边
+      cursorStyle: 'ew-resize',
+      actionHandler: function(eventData, transform, x, y) {
+        const textbox = transform.target;
+        if (textbox.type !== 'textbox') return false;
+
+        // 初始化拖动数据
+        if (!textbox.__centerStretchStart) {
+          textbox.__centerStretchStart = {
+            mouseX: x,
+            originalWidth: textbox.width,
+            originalLeft: textbox.left,
+            originalCenterX: textbox.left + (textbox.width * textbox.scaleX) / 2
+          };
+        }
+
+        const startData = textbox.__centerStretchStart;
+        const deltaX = x - startData.mouseX;
+
+        // 计算新宽度（两边各扩展 deltaX）
+        const newWidth = Math.max(20, startData.originalWidth + deltaX * 2 / textbox.scaleX);
+
+        // 保持中心位置不变，计算新的 left
+        const newLeft = startData.originalCenterX - (newWidth * textbox.scaleX) / 2;
+
+        textbox.set({
+          width: newWidth,
+          left: newLeft
+        });
+
+        // 同步遮罩位置
+        if (textbox.bgRect) {
+          textbox.bgRect.set({
+            left: newLeft,
+            width: newWidth * textbox.scaleX
+          });
+          textbox.bgRect.setCoords();
+        }
+
+        textbox.setCoords();
+        canvas.renderAll();
+        return true;
+      },
+      mouseUpHandler: function(eventData, transform) {
+        const textbox = transform.target;
+        textbox.__centerStretchStart = null;
+        return true;
+      },
+      actionName: 'centerStretching',
+      render: function(ctx, left, top, styleOverride, fabricObject) {
+        // 只对单个文本框显示
+        if (fabricObject.type !== 'textbox') return;
+
+        // 绘制双箭头图标
+        ctx.save();
+        ctx.translate(left, top);
+        ctx.fillStyle = '#10b981'; // 绿色
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = 2;
+
+        // 绘制圆形背景
+        ctx.beginPath();
+        ctx.arc(0, 0, 8, 0, 2 * Math.PI);
+        ctx.fill();
+
+        // 绘制双箭头 ↔
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        // 左箭头
+        ctx.moveTo(-4, 0);
+        ctx.lineTo(-2, -2);
+        ctx.moveTo(-4, 0);
+        ctx.lineTo(-2, 2);
+        // 中间线
+        ctx.moveTo(-4, 0);
+        ctx.lineTo(4, 0);
+        // 右箭头
+        ctx.moveTo(4, 0);
+        ctx.lineTo(2, -2);
+        ctx.moveTo(4, 0);
+        ctx.lineTo(2, 2);
+        ctx.stroke();
+
+        ctx.restore();
+      }
+    });
+
+    // 自定义控制点：多选时的左中和右中拉伸（保持中心不变）
+    const createMultiSelectStretchControl = (isLeft) => {
+      return new fabric.Control({
+        x: isLeft ? -0.5 : 0.5,
+        y: 0,
+        cursorStyle: 'ew-resize',
+        actionHandler: function(eventData, transform, x, y) {
+          const activeSelection = transform.target;
+          if (activeSelection.type !== 'activeSelection') return false;
+
+          const textboxes = activeSelection.getObjects().filter(obj => obj.type === 'textbox');
+          if (textboxes.length < 2) return false;
+
+          // 初始化拖动数据
+          if (!activeSelection.__multiStretchStart) {
+            activeSelection.__multiStretchStart = {
+              mouseX: x,
+              textboxes: textboxes.map(tb => ({
+                obj: tb,
+                originalWidth: tb.width,
+                originalCenterX: tb.left + (tb.width / 2),
+                originalLeft: tb.left,
+                originalTop: tb.top
+              }))
+            };
+          }
+
+          const startData = activeSelection.__multiStretchStart;
+          const deltaX = isLeft ? (startData.mouseX - x) : (x - startData.mouseX);
+
+          // 对每个文本框应用宽度调整
+          startData.textboxes.forEach(data => {
+            const newWidth = Math.max(20, data.originalWidth + deltaX * 2);
+            const newLeft = data.originalCenterX - (newWidth / 2);
+
+            data.obj.set({
+              width: newWidth,
+              left: newLeft,
+              top: data.originalTop,
+              scaleX: 1,
+              scaleY: 1
+            });
+
+            // 同步遮罩
+            if (data.obj.bgRect) {
+              data.obj.bgRect.set({
+                left: newLeft,
+                width: newWidth
+              });
+              data.obj.bgRect.setCoords();
+            }
+
+            data.obj.setCoords();
+          });
+
+          canvas.renderAll();
+          return true;
+        },
+        mouseUpHandler: function(eventData, transform) {
+          const activeSelection = transform.target;
+          activeSelection.__multiStretchStart = null;
+
+          // 重新计算 ActiveSelection 的边界
+          if (activeSelection.type === 'activeSelection') {
+            activeSelection.setCoords();
+            canvas.renderAll();
+          }
+          return true;
+        },
+        actionName: 'multiSelectStretching',
+        render: function(ctx, left, top, styleOverride, fabricObject) {
+          // 只对多选显示
+          if (fabricObject.type !== 'activeSelection') return;
+
+          const textboxes = fabricObject.getObjects().filter(obj => obj.type === 'textbox');
+          if (textboxes.length < 2) return;
+
+          // 绘制橙色双箭头按钮
+          ctx.save();
+          ctx.translate(left, top);
+
+          // 圆形背景
+          ctx.fillStyle = '#f97316'; // 橙色
+          ctx.beginPath();
+          ctx.arc(0, 0, 10, 0, 2 * Math.PI);
+          ctx.fill();
+
+          // 绘制双箭头 ↔
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          // 左箭头
+          ctx.moveTo(-5, 0);
+          ctx.lineTo(-2, -3);
+          ctx.moveTo(-5, 0);
+          ctx.lineTo(-2, 3);
+          // 中间线
+          ctx.moveTo(-5, 0);
+          ctx.lineTo(5, 0);
+          // 右箭头
+          ctx.moveTo(5, 0);
+          ctx.lineTo(2, -3);
+          ctx.moveTo(5, 0);
+          ctx.lineTo(2, 3);
+          ctx.stroke();
+
+          ctx.restore();
+        }
+      });
+    };
+
+    // 替换 ActiveSelection 的 ml 和 mr 控制点
+    fabric.ActiveSelection.prototype.controls.ml = createMultiSelectStretchControl(true);
+    fabric.ActiveSelection.prototype.controls.mr = createMultiSelectStretchControl(false);
+
     // 事件监听
     canvas.on('selection:created', (e) => {
       const selected = e.selected || [];
@@ -483,20 +697,22 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       // 获取控制点类型
       const transform = activeObject.__corner;
 
-      // 检查是否是右侧中点控制（mr = middle-right）并且有scalingData
-      if (transform === 'mr' && scalingData) {
-        // 使用特殊的右侧中点处理逻辑（下面的代码会处理）
-        // 这里不做处理，让后面的代码处理
+      // 检查是否是左中点或右中点控制（ml/mr）并且有scalingData
+      if ((transform === 'mr' || transform === 'ml') && scalingData) {
+        // 使用特殊的中点处理逻辑（下面的代码会处理）
+        // 解锁缩放
+        activeObject.lockScalingX = false;
+        activeObject.lockScalingY = false;
       } else {
-        // 对于其他控制点，禁用缩放（只允许右侧中点）
+        // 对于其他控制点，禁用缩放（只允许左右中点）
         activeObject.lockScalingX = true;
         activeObject.lockScalingY = true;
         return;
       }
 
-      // 原有的右侧控制点特殊处理逻辑
+      // 左右中点的特殊处理逻辑
       if (!scalingData) return;
-      if (transform !== 'mr') return;
+      if (transform !== 'mr' && transform !== 'ml') return;
 
       // 只处理文本框
       const textboxes = activeObject.getObjects().filter(obj => obj.type === 'textbox');
@@ -839,12 +1055,19 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
         const scale = initialZoom / 100;
 
-        // 设置画布大小（应用缩放）
-        canvas.setWidth(img.width * scale);
-        canvas.setHeight(img.height * scale);
+        // 设置画布大小（应用缩放 + 溢出边距）
+        // 边距在画布坐标系中是固定的，缩放时会随画布一起缩放
+        canvas.setWidth((img.width + CANVAS_OVERFLOW_PADDING * 2) * scale);
+        canvas.setHeight((img.height + CANVAS_OVERFLOW_PADDING * 2) * scale);
         canvas.setZoom(scale);
 
-        // 设置图片为背景
+        // 设置图片为背景（偏移到边距位置，使用画布坐标）
+        img.set({
+          left: CANVAS_OVERFLOW_PADDING,
+          top: CANVAS_OVERFLOW_PADDING,
+          originX: 'left',
+          originY: 'top'
+        });
         canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
 
         // 初始化文本区域
@@ -935,6 +1158,23 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     return () => observer.disconnect();
   }, [toolbarCollapsed]);
 
+  // 点击外部关闭添加文本框下拉菜单
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (addTextDropdownRef.current && !addTextDropdownRef.current.contains(event.target)) {
+        setShowAddTextDropdown(false);
+      }
+    };
+
+    if (showAddTextDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showAddTextDropdown]);
+
 
   // 初始化文本区域
   const initializeTextRegions = async (regionsData) => {
@@ -948,8 +1188,14 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     // 清除所有对象
     canvas.clear();
 
-    // 重新设置背景图片
+    // 重新设置背景图片（带溢出边距偏移）
     if (imageRef.current) {
+      imageRef.current.set({
+        left: CANVAS_OVERFLOW_PADDING,
+        top: CANVAS_OVERFLOW_PADDING,
+        originX: 'left',
+        originY: 'top'
+      });
       canvas.setBackgroundImage(imageRef.current, canvas.renderAll.bind(canvas));
     }
 
@@ -964,8 +1210,8 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       if (region.isMask) {
         const isCustom = region.isCustomMask || false;
         const mask = new window.fabric.Rect({
-          left: region.maskX,
-          top: region.maskY,
+          left: region.maskX + CANVAS_OVERFLOW_PADDING,
+          top: region.maskY + CANVAS_OVERFLOW_PADDING,
           width: region.maskWidth,
           height: region.maskHeight,
           angle: region.maskAngle || 0,
@@ -980,6 +1226,9 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           isMask: true,
           isCustomMask: isCustom,
           isMergedMask: region.isMergedMask || false,
+          isUserCreated: region.isUserCreated || false,
+          isLinkedMask: region.isLinkedMask || false,
+          linkedTextboxId: region.linkedTextboxId,  // 关联的文本框ID
           regionIndex: region.regionIndex,  // 保留原始索引（仅供参考）
           isRestored: true  // 🔧 标记为已恢复的遮罩，跳过 applySmartFill
         });
@@ -1009,8 +1258,8 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
         // 🔧 首次加载时为文本框创建对应的遮罩
         const bgRect = new window.fabric.Rect({
-          left: minX,
-          top: minY,
+          left: minX + CANVAS_OVERFLOW_PADDING,
+          top: minY + CANVAS_OVERFLOW_PADDING,
           width: width,
           height: height,
           angle: region.angle || 0,
@@ -1031,10 +1280,10 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       const textContent = region.dst || region.src || '';
       const calculatedFontSize = calculateFontSize(width, height, textContent);
 
-      // 创建文本对象
+      // 创建文本对象（位置需加上溢出边距偏移）
       const text = new window.fabric.Textbox(textContent, {
-        left: minX,
-        top: minY,
+        left: minX + CANVAS_OVERFLOW_PADDING,
+        top: minY + CANVAS_OVERFLOW_PADDING,
         width: width,
         angle: region.angle || 0, // 恢复旋转角度
         // 使用保存的格式属性，如果没有则使用默认值
@@ -1066,6 +1315,11 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         // 合并的文本不需要regionIndex，但可以添加标记
         text.isMerged = true;
         // 遮罩与文本框已解耦，不再关联
+      } else if (region.isUserCreated) {
+        // 用户手动创建的文本框
+        text.isUserCreated = true;
+        text.userTextboxId = region.userTextboxId;
+        text.hasLinkedMask = region.hasLinkedMask;
       } else if (region.id !== undefined) {
         text.regionId = region.id;
         text.regionIndex = index;
@@ -1159,6 +1413,41 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         // 遮罩与文本框已解耦，不再同步
         canvas.renderAll();
       });
+    });
+
+    // 🔧 恢复用户创建的文本框与关联遮罩的关系
+    texts.forEach(text => {
+      if (text.isUserCreated && text.hasLinkedMask && text.userTextboxId) {
+        // 找到关联的遮罩
+        const linkedMask = bgRects.find(mask =>
+          mask.isLinkedMask && mask.linkedTextboxId === text.userTextboxId
+        );
+        if (linkedMask) {
+          // 恢复关联
+          text.linkedMask = linkedMask;
+          linkedMask.linkedTextbox = text;
+
+          // 重新添加事件监听器
+          const updateMaskPosition = () => {
+            if (!linkedMask || !text) return;
+            linkedMask.set({
+              left: text.left,
+              top: text.top,
+              width: text.width * text.scaleX,
+              height: text.height * text.scaleY,
+              scaleX: 1,
+              scaleY: 1
+            });
+            linkedMask.setCoords();
+            canvas.renderAll();
+          };
+
+          text.on('moving', updateMaskPosition);
+          text.on('scaling', updateMaskPosition);
+          text.on('modified', updateMaskPosition);
+          text.on('changed', updateMaskPosition);
+        }
+      }
     });
 
     canvas.renderAll();
@@ -1475,6 +1764,13 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     // 创建新的背景图像
     return new Promise((resolve) => {
       fabric.Image.fromURL(tempCanvas.toDataURL(), (img) => {
+        // 设置背景图片位置（带溢出边距偏移）
+        img.set({
+          left: CANVAS_OVERFLOW_PADDING,
+          top: CANVAS_OVERFLOW_PADDING,
+          originX: 'left',
+          originY: 'top'
+        });
         canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas), {
           scaleX: bgImage.scaleX,
           scaleY: bgImage.scaleY
@@ -1970,9 +2266,9 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     const canvas = fabricCanvasRef.current;
     if (!canvas || !imageRef.current) return;
 
-    // 在画布中心创建一个新的白色遮罩矩形
-    const centerX = imageRef.current.width / 2;
-    const centerY = imageRef.current.height / 2;
+    // 在画布中心创建一个新的白色遮罩矩形（需加上溢出边距偏移）
+    const centerX = imageRef.current.width / 2 + CANVAS_OVERFLOW_PADDING;
+    const centerY = imageRef.current.height / 2 + CANVAS_OVERFLOW_PADDING;
     const defaultWidth = 200;
     const defaultHeight = 100;
 
@@ -2009,36 +2305,26 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     console.log('创建新遮罩层');
   };
 
-  // 创建新文本框（带跟随遮罩）
-  const createNewTextbox = () => {
+  // 创建新文本框（可选携带跟随遮罩）
+  const createNewTextbox = (withMask = false) => {
     const canvas = fabricCanvasRef.current;
     if (!canvas || !imageRef.current) return;
 
-    // 在画布中心创建新文本框
-    const centerX = imageRef.current.width / 2;
-    const centerY = imageRef.current.height / 2;
-    const defaultWidth = 300;
-    const defaultHeight = 100;
+    // 关闭下拉菜单
+    setShowAddTextDropdown(false);
 
-    // 先创建白色遮罩
-    const bgRect = new window.fabric.Rect({
-      left: centerX - defaultWidth / 2,
-      top: centerY - defaultHeight / 2,
-      width: defaultWidth,
-      height: defaultHeight,
-      fill: 'white',
-      stroke: 'transparent',
-      strokeWidth: 0,
-      selectable: false,
-      evented: false,
-      isMask: true, // 统一的遮罩标识
-      isUserCreated: true // 标记为用户创建的
-    });
+    // 在画布中心创建新文本框（需加上溢出边距偏移）
+    const centerX = imageRef.current.width / 2 + CANVAS_OVERFLOW_PADDING;
+    const centerY = imageRef.current.height / 2 + CANVAS_OVERFLOW_PADDING;
+    const defaultWidth = 150;
 
-    // 创建文本框
+    // 生成唯一ID（用于关联遮罩）
+    const uniqueId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // 先创建文本框
     const textbox = new window.fabric.Textbox('新建文本', {
       left: centerX - defaultWidth / 2,
-      top: centerY - defaultHeight / 2,
+      top: centerY - 20,
       width: defaultWidth,
       fontSize: 24,
       fill: '#000000',
@@ -2046,14 +2332,67 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       textAlign: 'left',
       originX: 'left',
       originY: 'top',
-      isUserCreated: true // 标记为用户创建的
+      isUserCreated: true,
+      userTextboxId: uniqueId,
+      hasLinkedMask: withMask
     });
 
-    // 遮罩与文本框已解耦，不再关联
-
-    // 添加到画布
-    canvas.add(bgRect);
+    // 先添加文本框到画布以获取实际尺寸
     canvas.add(textbox);
+
+    let bgRect = null;
+
+    if (withMask) {
+      // 直接使用文本框的宽高属性（不需要坐标转换）
+      const actualWidth = textbox.width * textbox.scaleX;
+      const actualHeight = textbox.height * textbox.scaleY;
+
+      // 创建与文本框大小一致的白色遮罩
+      bgRect = new window.fabric.Rect({
+        left: textbox.left,
+        top: textbox.top,
+        width: actualWidth,
+        height: actualHeight,
+        fill: 'white',
+        stroke: 'transparent',
+        strokeWidth: 0,
+        selectable: false,
+        evented: false,
+        isMask: true,
+        isUserCreated: true,
+        isLinkedMask: true,
+        linkedTextboxId: uniqueId // 在创建时就设置关联ID
+      });
+
+      textbox.linkedMask = bgRect;
+      bgRect.linkedTextbox = textbox;
+
+      // 更新遮罩位置和大小的函数
+      const updateMaskPosition = () => {
+        if (!bgRect || !textbox) return;
+        bgRect.set({
+          left: textbox.left,
+          top: textbox.top,
+          width: textbox.width * textbox.scaleX,
+          height: textbox.height * textbox.scaleY,
+          scaleX: 1,
+          scaleY: 1
+        });
+        bgRect.setCoords();
+        canvas.renderAll();
+      };
+
+      // 监听文本框的移动和缩放事件
+      textbox.on('moving', updateMaskPosition);
+      textbox.on('scaling', updateMaskPosition);
+      textbox.on('modified', updateMaskPosition);
+      textbox.on('changed', updateMaskPosition); // 文本内容改变时
+
+      // 添加遮罩到画布（在文本框下方）
+      canvas.add(bgRect);
+      // 将遮罩移到文本框下方
+      canvas.moveTo(bgRect, canvas.getObjects().indexOf(textbox));
+    }
 
     // 将文本框添加到引用数组
     textObjectsRef.current.push(textbox);
@@ -2065,7 +2404,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     saveHistory();
     canvas.renderAll();
 
-    console.log('创建新文本框及其遮罩');
+    console.log(withMask ? '创建新文本框（携带遮罩）' : '创建新文本框（无遮罩）');
   };
 
   // 删除选中的文本框和对应的遮罩
@@ -2734,10 +3073,13 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
 
     const scale = zoom / 100;
 
-    // 使用与初始化时相同的方法设置canvas尺寸
+    // 使用与初始化时相同的方法设置canvas尺寸（含溢出边距）
     canvas.setZoom(scale);
-    canvas.setWidth(imageRef.current.width * scale);
-    canvas.setHeight(imageRef.current.height * scale);
+    canvas.setWidth((imageRef.current.width + CANVAS_OVERFLOW_PADDING * 2) * scale);
+    canvas.setHeight((imageRef.current.height + CANVAS_OVERFLOW_PADDING * 2) * scale);
+
+    // 背景图片位置在画布坐标系中保持不变（CANVAS_OVERFLOW_PADDING）
+    // 无需更新，因为 Fabric.js 会根据 zoom 自动缩放渲染位置
     canvas.renderAll();
 
     // 使用 requestAnimationFrame 确保 DOM 更新后再调整滚动位置
@@ -3093,8 +3435,8 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         currentRegions.push({
           id: obj.regionIndex !== undefined ? `mask_${obj.regionIndex}` : mergedId++,
           isMask: true,  // 标识这是遮罩
-          maskX: obj.left,
-          maskY: obj.top,
+          maskX: obj.left - CANVAS_OVERFLOW_PADDING,
+          maskY: obj.top - CANVAS_OVERFLOW_PADDING,
           maskWidth: obj.width * obj.scaleX,
           maskHeight: obj.height * obj.scaleY,
           maskAngle: obj.angle || 0,
@@ -3102,6 +3444,9 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           opacity: obj.opacity || 1,
           isCustomMask: obj.isCustomMask || false,
           isMergedMask: obj.isMergedMask || false,
+          isUserCreated: obj.isUserCreated || false,
+          isLinkedMask: obj.isLinkedMask || false,
+          linkedTextboxId: obj.linkedTextboxId,  // 关联的文本框ID
           regionIndex: obj.regionIndex  // 保留原始索引（仅供参考）
         });
       }
@@ -3114,8 +3459,8 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
             id: regionId,
             src: obj.originalText || obj._markdownText || obj.text,
             dst: obj._markdownText || obj.text,
-            x: obj.left,
-            y: obj.top,
+            x: obj.left - CANVAS_OVERFLOW_PADDING,
+            y: obj.top - CANVAS_OVERFLOW_PADDING,
             width: obj.width * obj.scaleX,
             height: obj.height * obj.scaleY,
             angle: obj.angle || 0,
@@ -3133,13 +3478,35 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
             id: mergedId++,
             src: obj._markdownText || obj.text,
             dst: obj._markdownText || obj.text,
-            x: obj.left,
-            y: obj.top,
+            x: obj.left - CANVAS_OVERFLOW_PADDING,
+            y: obj.top - CANVAS_OVERFLOW_PADDING,
             width: obj.width * obj.scaleX,
             height: obj.height * obj.scaleY,
             angle: obj.angle || 0,
             isMerged: true,
             mergedIndexes: obj.mergedIndexes || [],
+            fontSize: obj.fontSize,
+            fontFamily: obj.fontFamily,
+            textAlign: obj.textAlign,
+            lineHeight: obj.lineHeight,
+            fill: obj.fill,
+            fontWeight: obj.fontWeight,
+            fontStyle: obj.fontStyle
+          });
+        } else if (obj.isUserCreated) {
+          // 用户手动创建的文本框
+          currentRegions.push({
+            id: obj.userTextboxId || mergedId++,
+            src: obj._markdownText || obj.text,
+            dst: obj._markdownText || obj.text,
+            x: obj.left - CANVAS_OVERFLOW_PADDING,
+            y: obj.top - CANVAS_OVERFLOW_PADDING,
+            width: obj.width * obj.scaleX,
+            height: obj.height * obj.scaleY,
+            angle: obj.angle || 0,
+            isUserCreated: true,
+            userTextboxId: obj.userTextboxId,
+            hasLinkedMask: obj.hasLinkedMask || false,
             fontSize: obj.fontSize,
             fontFamily: obj.fontFamily,
             textAlign: obj.textAlign,
@@ -3174,7 +3541,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       });
     }
 
-    // 临时设置缩放为100%
+    // 临时设置缩放为100%并调整位置偏移
     const currentZoom = canvas.getZoom();
     canvas.setZoom(1);
     canvas.setDimensions({
@@ -3182,11 +3549,35 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       height: imageRef.current.height
     });
 
+    // 临时移动背景图片和所有对象（去除溢出边距偏移）
+    const bgImage = canvas.backgroundImage;
+    if (bgImage) {
+      bgImage.set({ left: 0, top: 0 });
+    }
+    canvas.getObjects().forEach(obj => {
+      obj.set({
+        left: obj.left - CANVAS_OVERFLOW_PADDING,
+        top: obj.top - CANVAS_OVERFLOW_PADDING
+      });
+    });
+    canvas.renderAll();
+
     // 导出图片
     const dataURL = canvas.toDataURL({
       format: 'jpeg',
       quality: 0.95,
       multiplier: 1
+    });
+
+    // 恢复背景图片和所有对象位置
+    if (bgImage) {
+      bgImage.set({ left: CANVAS_OVERFLOW_PADDING, top: CANVAS_OVERFLOW_PADDING });
+    }
+    canvas.getObjects().forEach(obj => {
+      obj.set({
+        left: obj.left + CANVAS_OVERFLOW_PADDING,
+        top: obj.top + CANVAS_OVERFLOW_PADDING
+      });
     });
 
     if (!includeText) {
@@ -3196,11 +3587,11 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       });
     }
 
-    // 恢复缩放
+    // 恢复缩放和画布尺寸（含溢出边距）
     canvas.setZoom(currentZoom);
     canvas.setDimensions({
-      width: imageRef.current.width * currentZoom,
-      height: imageRef.current.height * currentZoom
+      width: (imageRef.current.width + CANVAS_OVERFLOW_PADDING * 2) * currentZoom,
+      height: (imageRef.current.height + CANVAS_OVERFLOW_PADDING * 2) * currentZoom
     });
 
     canvas.renderAll();
@@ -3253,6 +3644,18 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         width: imageRef.current.width,
         height: imageRef.current.height
       });
+
+      // 临时移动背景图片和所有对象（去除溢出边距偏移）
+      const bgImage = canvas.backgroundImage;
+      if (bgImage) {
+        bgImage.set({ left: 0, top: 0 });
+      }
+      canvas.getObjects().forEach(obj => {
+        obj.set({
+          left: obj.left - CANVAS_OVERFLOW_PADDING,
+          top: obj.top - CANVAS_OVERFLOW_PADDING
+        });
+      });
       canvas.renderAll();
 
       const editedDataURL = canvas.toDataURL({
@@ -3272,6 +3675,17 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         format: 'jpeg',
         quality: 0.95,
         multiplier: 1
+      });
+
+      // 恢复背景图片和所有对象位置
+      if (bgImage) {
+        bgImage.set({ left: CANVAS_OVERFLOW_PADDING, top: CANVAS_OVERFLOW_PADDING });
+      }
+      canvas.getObjects().forEach(obj => {
+        obj.set({
+          left: obj.left + CANVAS_OVERFLOW_PADDING,
+          top: obj.top + CANVAS_OVERFLOW_PADDING
+        });
       });
 
       // 恢复原始缩放和尺寸
@@ -3315,6 +3729,18 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         width: imageRef.current.width,
         height: imageRef.current.height
       });
+
+      // 临时移动背景图片和所有对象（去除溢出边距偏移）
+      const bgImage = canvas.backgroundImage;
+      if (bgImage) {
+        bgImage.set({ left: 0, top: 0 });
+      }
+      canvas.getObjects().forEach(obj => {
+        obj.set({
+          left: obj.left - CANVAS_OVERFLOW_PADDING,
+          top: obj.top - CANVAS_OVERFLOW_PADDING
+        });
+      });
       canvas.renderAll();
 
       // 生成带文字的版本
@@ -3322,6 +3748,17 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         format: 'jpeg',
         quality: 0.95,
         multiplier: 1
+      });
+
+      // 恢复背景图片和所有对象位置
+      if (bgImage) {
+        bgImage.set({ left: CANVAS_OVERFLOW_PADDING, top: CANVAS_OVERFLOW_PADDING });
+      }
+      canvas.getObjects().forEach(obj => {
+        obj.set({
+          left: obj.left + CANVAS_OVERFLOW_PADDING,
+          top: obj.top + CANVAS_OVERFLOW_PADDING
+        });
       });
 
       // 恢复原始缩放和尺寸
@@ -3344,6 +3781,50 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     });
   };
 
+  // 下载单个文件（调用后端API）
+  const handleDownload = async () => {
+    if (!extraControls?.materialId) {
+      console.error('没有材料ID，无法下载');
+      return;
+    }
+
+    try {
+      const { materialAPI } = await import('../../services/api');
+      const response = await materialAPI.downloadMaterial(extraControls.materialId);
+
+      // 从响应头获取文件名
+      const contentDisposition = response.headers?.['content-disposition'];
+      let filename = 'translated_file';
+      if (contentDisposition) {
+        // 尝试匹配 filename*=UTF-8''xxx 格式
+        let match = contentDisposition.match(/filename\*=UTF-8''([^;\s]+)/i);
+        if (match) {
+          filename = decodeURIComponent(match[1]);
+        } else {
+          // 尝试匹配 filename="xxx" 或 filename=xxx 格式
+          match = contentDisposition.match(/filename=["']?([^"';\n]+)["']?/i);
+          if (match) {
+            filename = match[1].trim();
+          }
+        }
+      }
+
+      // 创建下载链接
+      const blob = new Blob([response.data], { type: response.headers?.['content-type'] || 'application/octet-stream' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('下载失败:', error);
+      alert('下载失败: ' + (error.response?.data?.error || error.message));
+    }
+  };
+
   // 暴露必要的函数到全局或组件ref
   useEffect(() => {
     if (exposeHandlers) {
@@ -3351,7 +3832,8 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         handleExport,
         generateBothVersions,
         getCurrentRegions,  // ✅ 暴露getCurrentRegions函数
-        generateFinalImage  // ✅ 暴露生成最终图片函数
+        generateFinalImage,  // ✅ 暴露生成最终图片函数
+        handleDownload  // ✅ 暴露下载函数
       };
     }
     return () => {
@@ -3378,8 +3860,19 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         {/* 简化的顶部工具栏 - 只保留核心操作，disabled时隐藏 */}
         {!disabled && (
         <div className="editor-toolbar-minimal">
-          {/* 左侧：旋转和历史 */}
+          {/* 左侧：下载、旋转和历史 */}
           <div className="toolbar-left-group">
+            {/* 下载按钮 - 只在有翻译内容时显示 */}
+            {extraControls?.showDownload && (
+              <button onClick={handleDownload} className="action-button download-btn" title="下载翻译结果">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+              </button>
+            )}
+            {extraControls?.showDownload && <div className="toolbar-divider-v"></div>}
             {extraControls?.onRotate && (
               <button onClick={extraControls.onRotate} className="action-button" title="旋转90°">⟳</button>
             )}
@@ -3631,12 +4124,24 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
             {/* 操作区域 */}
             <div className="panel-section">
               <div className="panel-section-title">操作</div>
-              <button
-                onClick={createNewTextbox}
-                className="panel-btn-full secondary"
-              >
-                + 添加文本框
-              </button>
+              <div className="add-textbox-dropdown-container" ref={addTextDropdownRef}>
+                <button
+                  onClick={() => setShowAddTextDropdown(!showAddTextDropdown)}
+                  className="panel-btn-full secondary"
+                >
+                  + 添加文本框 ▾
+                </button>
+                {showAddTextDropdown && (
+                  <div className="add-textbox-dropdown">
+                    <button onClick={() => createNewTextbox(true)} className="dropdown-item">
+                      携带遮罩
+                    </button>
+                    <button onClick={() => createNewTextbox(false)} className="dropdown-item">
+                      不携带遮罩
+                    </button>
+                  </div>
+                )}
+              </div>
               <button
                 onClick={mergeSelectedObjects}
                 disabled={selectedObjects.length < 2 || !selectedObjects.every(obj => obj.type === 'textbox')}

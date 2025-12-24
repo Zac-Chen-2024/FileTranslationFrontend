@@ -94,6 +94,9 @@ export const ActionTypes = {
   // 确认对话框相关
   OPEN_CONFIRM_DIALOG: 'OPEN_CONFIRM_DIALOG',
   CLOSE_CONFIRM_DIALOG: 'CLOSE_CONFIRM_DIALOG',
+
+  // 占位材料相关
+  REMOVE_PLACEHOLDER_MATERIALS: 'REMOVE_PLACEHOLDER_MATERIALS',
 };
 
 // Reducer
@@ -297,7 +300,13 @@ const appReducer = (state, action) => {
           onCancel: null,
         }
       };
-      
+
+    case ActionTypes.REMOVE_PLACEHOLDER_MATERIALS:
+      return {
+        ...state,
+        materials: state.materials.filter(m => !action.payload.includes(m.id)),
+      };
+
     default:
       return state;
   }
@@ -449,9 +458,14 @@ export const AppProvider = ({ children }) => {
     openConfirmDialog: (config) => {
       dispatch({ type: ActionTypes.OPEN_CONFIRM_DIALOG, payload: config });
     },
-    
+
     closeConfirmDialog: () => {
       dispatch({ type: ActionTypes.CLOSE_CONFIRM_DIALOG });
+    },
+
+    // 占位材料
+    removePlaceholderMaterials: (ids) => {
+      dispatch({ type: ActionTypes.REMOVE_PLACEHOLDER_MATERIALS, payload: ids });
     },
   }), []);
 
@@ -581,6 +595,53 @@ export const AppProvider = ({ children }) => {
     }
   }, [state.currentClient?.cid, handleTranslationStarted, handleMaterialUpdated,
       handleTranslationCompleted, handleMaterialError, handleLLMStarted, handleLLMCompleted]);
+
+  // 🔧 定期轮询：当有材料在处理中时，每5秒刷新一次材料列表（防止WebSocket事件丢失）
+  useEffect(() => {
+    if (!state.currentClient?.cid) return;
+
+    const clientId = state.currentClient.cid;
+
+    // 检查是否有材料在处理中
+    const hasProcessingMaterials = () => {
+      const processingSteps = ['translating', 'baidu_translating', 'llm_translating', 'entity_recognizing', 'splitting'];
+      return state.materials.some(m =>
+        String(m.clientId) === String(clientId) &&
+        processingSteps.some(step =>
+          m.processingStep?.toLowerCase().includes(step) ||
+          m.status?.toLowerCase().includes(step) ||
+          m.status === '翻译中'
+        )
+      );
+    };
+
+    let pollInterval = null;
+
+    const startPolling = async () => {
+      if (!hasProcessingMaterials()) return;
+
+      try {
+        const { materialAPI } = await import('../services/api');
+        const response = await materialAPI.getMaterials(clientId);
+        if (response.success && response.materials) {
+          actions.setMaterials(response.materials);
+        }
+      } catch (error) {
+        console.warn('[Polling] 刷新材料列表失败:', error);
+      }
+    };
+
+    // 如果有处理中的材料，启动轮询
+    if (hasProcessingMaterials()) {
+      pollInterval = setInterval(startPolling, 5000); // 每5秒轮询一次
+    }
+
+    return () => {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+    };
+  }, [state.currentClient?.cid, state.materials, actions]);
 
   const value = {
     state,

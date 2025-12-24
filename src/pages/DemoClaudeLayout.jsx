@@ -29,6 +29,7 @@ const DemoClaudeLayout = () => {
   const [showExportConfirm, setShowExportConfirm] = useState(false);
   const [showAddClientModal, setShowAddClientModal] = useState(false);
   const [exportDocumentCount, setExportDocumentCount] = useState(0);
+  const [exportFiles, setExportFiles] = useState([]);
 
   // 当URL中有clientId时，加载客户信息
   useEffect(() => {
@@ -147,46 +148,30 @@ const DemoClaudeLayout = () => {
       file.name.split('.').pop().toLowerCase() === 'pdf'
     );
 
-    const getFileType = (filename) => {
-      const ext = filename.split('.').pop().toLowerCase();
-      if (['pdf'].includes(ext)) return 'pdf';
-      if (['jpg', 'jpeg', 'png', 'bmp', 'gif', 'tiff'].includes(ext)) return 'image';
-      return 'document';
-    };
-
-    const materialsToAdd = supportedFiles.map(file => ({
-      id: 'material_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
-      clientId: selectedClient.cid,
-      name: file.name,
-      type: getFileType(file.name),
-      status: '上传中',
-      confirmed: false,
-      file: file,
-      createdAt: new Date().toISOString()
-    }));
-
-    // 如果有PDF，总进度分两步：上传(50%) + 拆分(50%)
-    const totalSteps = hasPdf ? 2 : 1;
+    // 显示上传进度弹窗
     const fileCountText = supportedFiles.length === 1 ? '1个文件' : `${supportedFiles.length}个文件`;
-    actions.startUpload(materialsToAdd, `${fileCountText}上传中...`, totalSteps);
+    actions.startUpload(supportedFiles, `${fileCountText}上传中...`, hasPdf ? 2 : 1);
 
     try {
+      // 调用上传API
       const response = await materialAPI.uploadFiles(selectedClient.cid, supportedFiles);
 
-      if (response.materials) {
+      if (response.materials && response.materials.length > 0) {
+        // 上传成功，添加材料到列表
+        // 材料的 processingStep 会是 'splitting' 或 'translating'，画布会自动显示加载层
         actions.addMaterials(response.materials);
         actions.setUploadedMaterials(response.materials.map(m => m.id));
       }
 
       // 如果包含PDF，等待拆分完成
       if (hasPdf) {
-        // 上传完成，进度50%，开始拆分
         actions.updateUploadProgress(1, 'PDF拆分中...', false, true);
 
-        // 轮询等待PDF拆分完成（只检查，不更新材料状态）
+        // 等待PDF拆分稳定（连续3次结果相同）
         let attempts = 0;
-        const maxAttempts = 60; // 最多等待60秒
-        let finalMaterialList = null;
+        const maxAttempts = 120;
+        let lastPageCount = 0;
+        let stableCount = 0;
 
         while (attempts < maxAttempts) {
           await new Promise(resolve => setTimeout(resolve, 1000));
@@ -194,68 +179,61 @@ const DemoClaudeLayout = () => {
 
           try {
             const materialsResponse = await materialAPI.getMaterials(selectedClient.cid);
-            const materialList = materialsResponse.materials || materialsResponse || [];
+            const materialList = materialsResponse.materials || [];
 
-            // 检查是否有PDF页面（pdfSessionId不为空的材料）
+            // 检查PDF页面数量（不要在这里 setMaterials，避免覆盖）
             const pdfPages = materialList.filter(m => m.pdfSessionId);
+            const currentPageCount = pdfPages.length;
 
-            if (pdfPages.length > 0) {
-              // PDF拆分完成，保存最终列表
-              finalMaterialList = materialList;
-              break;
+            if (currentPageCount > 0) {
+              if (currentPageCount === lastPageCount) {
+                stableCount++;
+                if (stableCount >= 3) {
+                  // 拆分完成，现在才更新材料列表
+                  actions.setMaterials(materialList);
+                  break;
+                }
+              } else {
+                stableCount = 0;
+                lastPageCount = currentPageCount;
+              }
             }
           } catch (e) {
-            // 忽略轮询错误，继续等待
+            console.warn('轮询材料列表失败:', e);
           }
-
-          // 保持显示拆分中
-          actions.updateUploadProgress(1, 'PDF拆分中...', false, true);
         }
 
-        // 拆分完成或超时后，一次性更新所有状态
-        if (!finalMaterialList) {
-          const materialsResponse = await materialAPI.getMaterials(selectedClient.cid);
-          finalMaterialList = materialsResponse.materials || materialsResponse || [];
+        // 最终刷新一次材料列表（超时或未在循环中更新时）
+        if (stableCount < 3) {
+          const finalResponse = await materialAPI.getMaterials(selectedClient.cid);
+          actions.setMaterials(finalResponse.materials || []);
         }
 
-        // 先更新材料列表
-        actions.setMaterials(finalMaterialList);
+        actions.completeUpload();
 
-        const pdfPages = finalMaterialList.filter(m => m.pdfSessionId);
+        // 获取当前材料列表中的PDF页面
+        const currentMaterials = await materialAPI.getMaterials(selectedClient.cid);
+        const pdfPages = (currentMaterials.materials || []).filter(m => m.pdfSessionId);
+
         if (pdfPages.length > 0) {
-          // 进度100%
-          actions.updateUploadProgress(2, '完成', false, false);
-          actions.showNotification('上传成功', `成功上传 ${supportedFiles.length} 个文件`, 'success');
-
-          // 延迟选中第一个PDF页面，确保状态已更新
+          actions.showNotification('上传成功', `成功拆分 ${pdfPages.length} 页`, 'success');
+          // 自动选中第一页
           const firstPage = pdfPages.find(m => m.pdfPageNumber === 1);
           if (firstPage) {
-            setTimeout(() => {
-              actions.setCurrentMaterial(firstPage);
-            }, 100);
+            setTimeout(() => actions.setCurrentMaterial(firstPage), 100);
           }
         } else {
-          actions.updateUploadProgress(2, '完成', false, false);
-          actions.showNotification('上传成功', `文件已上传，PDF可能仍在处理中`, 'info');
+          actions.showNotification('上传成功', '文件已上传', 'info');
         }
 
       } else {
-        // 非PDF文件，直接完成 (totalSteps = 1)
-        actions.updateUploadProgress(1, '完成', false, false);
+        // 非PDF文件，直接完成
+        actions.completeUpload();
         actions.showNotification('上传成功', `成功上传 ${supportedFiles.length} 个文件`, 'success');
 
-        // 重新加载材料列表
-        const materialsResponse = await materialAPI.getMaterials(selectedClient.cid);
-        const materialList = materialsResponse.materials || materialsResponse || [];
-        actions.setMaterials(materialList);
-
-        // 上传完成后自动选中新上传的第一个材料
+        // 自动选中第一个上传的材料
         if (response.materials && response.materials.length > 0) {
-          const firstUploadedId = response.materials[0].id;
-          const uploadedMaterial = materialList.find(m => m.id === firstUploadedId);
-          if (uploadedMaterial) {
-            actions.setCurrentMaterial(uploadedMaterial);
-          }
+          actions.setCurrentMaterial(response.materials[0]);
         }
       }
 
@@ -281,21 +259,32 @@ const DemoClaudeLayout = () => {
       return;
     }
 
-    // 计算实际文档数量（PDF 按 session 计为 1 个文档）
+    // 计算实际文档数量（PDF 按 session 计为 1 个文档）并生成文件名列表
     const processedSessions = new Set();
     let documentCount = 0;
+    const fileList = [];
+
     confirmedMaterials.forEach(m => {
       if (m.pdfSessionId) {
         if (!processedSessions.has(m.pdfSessionId)) {
           processedSessions.add(m.pdfSessionId);
           documentCount++;
+          // PDF 文件名：去掉页码后缀
+          const pdfName = m.name?.replace(/ - 第\d+页$/, '') || m.originalFilename || `pdf_${m.pdfSessionId}`;
+          const baseName = pdfName.replace(/\.(pdf|PDF)$/, '');
+          fileList.push(`${baseName}_translated.pdf`);
         }
       } else {
         documentCount++;
+        // 图片文件名
+        const originalName = m.originalFilename || m.name || `material_${m.id}`;
+        const baseName = originalName.replace(/\.[^/.]+$/, '');
+        fileList.push(`${baseName}_translated.jpg`);
       }
     });
-    setExportDocumentCount(documentCount);
 
+    setExportDocumentCount(documentCount);
+    setExportFiles(fileList);
     setShowExportConfirm(true);
   };
 
@@ -422,6 +411,7 @@ const DemoClaudeLayout = () => {
         confirmedCount={exportDocumentCount}
         unconfirmedCount={materials.filter(m => m.clientId === clientId && !m.confirmed).length}
         clientName={selectedClient?.name || ''}
+        exportFiles={exportFiles}
       />
 
       <GlobalConfirmDialog />

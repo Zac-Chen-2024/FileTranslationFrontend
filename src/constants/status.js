@@ -16,6 +16,7 @@
 
 export const ProcessingStep = {
   // === 上传阶段 ===
+  UPLOADING: 'uploading',            // 上传中（前端临时状态）
   UPLOADED: 'uploaded',              // 已上传，等待处理
   SPLITTING: 'splitting',            // PDF拆分中
   SPLIT_COMPLETED: 'split_completed', // PDF拆分完成
@@ -43,6 +44,7 @@ export const ProcessingStep = {
 // ============================================================
 
 export const STATUS_DISPLAY = {
+  [ProcessingStep.UPLOADING]: '上传中',
   [ProcessingStep.UPLOADED]: '已上传',
   [ProcessingStep.SPLITTING]: '拆分中',
   [ProcessingStep.SPLIT_COMPLETED]: '拆分完成',
@@ -115,6 +117,7 @@ export const STATUS_COLORS = {
 
 // 处理中状态（显示loading）
 export const PROCESSING_STATES = new Set([
+  ProcessingStep.UPLOADING,
   ProcessingStep.SPLITTING,
   ProcessingStep.TRANSLATING,
   ProcessingStep.ENTITY_RECOGNIZING,

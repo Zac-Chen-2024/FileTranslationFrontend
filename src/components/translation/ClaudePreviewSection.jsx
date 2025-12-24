@@ -169,11 +169,16 @@ const ClaudePreviewSection = ({ isLoading: parentLoading = false, clientName = '
             (isCompleted(normalizeStatus(p.status)) || isConfirmable(normalizeStatus(p.status))) &&
             p.processingProgress >= 66
           );
-          const someTranslating = sessionPages.some(p => isProcessing(normalizeStatus(p.processingStep)));
+          const someSplitting = sessionPages.some(p => statusMatches(normalizeStatus(p.processingStep), ProcessingStep.SPLITTING));
+          const someTranslating = sessionPages.some(p =>
+            statusMatches(normalizeStatus(p.processingStep), ProcessingStep.TRANSLATING) ||
+            isProcessing(normalizeStatus(p.processingStep))
+          );
 
           setPdfSessionProgress({
             progress: avgProgress,
             allTranslated: allTranslated,
+            someSplitting: someSplitting,
             someTranslating: someTranslating
           });
 
@@ -181,6 +186,7 @@ const ClaudePreviewSection = ({ isLoading: parentLoading = false, clientName = '
             totalPages,
             avgProgress,
             allTranslated,
+            someSplitting,
             someTranslating,
             pageProgress: sessionPages.map(p => ({ id: p.id, progress: p.processingProgress, status: p.status }))
           });
@@ -1485,12 +1491,23 @@ const ClaudePreviewSection = ({ isLoading: parentLoading = false, clientName = '
       }
 
       try {
-        actions.updateMaterial(currentMaterial.id, {
-          confirmed: newConfirmedState,
-          status: newConfirmedState ? '已确认' : '翻译完成'
-          // 不要重置 editedImagePath, hasEditedVersion 等编辑相关的字段
-        });
-        console.log('本地状态更新成功');
+        // 如果是PDF材料，需要更新所有PDF页面的状态
+        if (currentMaterial.pdfSessionId && pdfPages.length > 0) {
+          pdfPages.forEach(page => {
+            actions.updateMaterial(page.id, {
+              confirmed: newConfirmedState,
+              status: newConfirmedState ? '已确认' : '翻译完成'
+            });
+          });
+          console.log(`本地状态更新成功 - 更新了 ${pdfPages.length} 个PDF页面`);
+        } else {
+          actions.updateMaterial(currentMaterial.id, {
+            confirmed: newConfirmedState,
+            status: newConfirmedState ? '已确认' : '翻译完成'
+            // 不要重置 editedImagePath, hasEditedVersion 等编辑相关的字段
+          });
+          console.log('本地状态更新成功');
+        }
       } catch (updateError) {
         console.error('更新本地状态失败:', updateError);
         throw updateError;
@@ -1666,36 +1683,45 @@ const ClaudePreviewSection = ({ isLoading: parentLoading = false, clientName = '
                     const normalizedStep = normalizeStatus(currentMaterial.processingStep);
 
                     // 计算是否显示加载遮罩
-                    // 注意：SPLITTING 和 SPLIT_COMPLETED 不显示遮罩，因为拆分很快且不阻塞预览
+                    // 只有正在处理中才显示，拆分完/上传完等待翻译的可以预览原图
                     const showLoading = llmLoading || (() => {
-                      // 排除拆分相关状态
-                      if (statusMatches(normalizedStep, [ProcessingStep.SPLITTING, ProcessingStep.SPLIT_COMPLETED])) {
+                      // 如果当前材料已经有翻译数据，不显示加载层
+                      if (currentMaterial.translationTextInfo) {
                         return false;
                       }
 
-                      // 🔧 修复：对于 PDF，检查整个 PDF session 的状态
-                      // 只要有任何页面正在翻译，就显示 loading
-                      if (currentMaterial.pdfSessionId && pdfSessionProgress?.someTranslating) {
+                      // 对于 PDF 文件，检查 session 是否有页面正在处理
+                      if (currentMaterial.pdfSessionId) {
+                        // 有页面正在拆分 → 显示
+                        if (pdfSessionProgress?.someSplitting) {
+                          return true;
+                        }
+                        // 有页面正在翻译 → 显示
+                        if (pdfSessionProgress?.someTranslating) {
+                          return true;
+                        }
+                        // 其他情况（拆分完等待翻译）→ 不显示，可以预览
+                        return false;
+                      }
+
+                      // 非 PDF 文件：只有正在翻译时才显示
+                      if (statusMatches(normalizedStep, ProcessingStep.TRANSLATING)) {
                         return true;
                       }
 
-                      const baseCondition =
-                        isProcessing(normalizedStep) ||
-                        (statusMatches(normalizedStep, ProcessingStep.TRANSLATED) && !currentMaterial.translationTextInfo) ||
-                        (statusMatches(normalizedStep, ProcessingStep.UPLOADED) && isProcessing(normalizeStatus(currentMaterial.status)));
-                      const excludeEntitySteps = !statusMatches(normalizedStep, [ProcessingStep.ENTITY_PENDING_CONFIRM, ProcessingStep.ENTITY_CONFIRMED]);
-                      return baseCondition && excludeEntitySteps;
+                      return false;
                     })();
 
                     // 计算加载文本
                     const getLoadingText = () => {
-                      if (statusMatches(normalizedStep, ProcessingStep.SPLITTING)) {
-                        return currentMaterial.pdfTotalPages
-                          ? `PDF拆分中... (第${currentMaterial.pdfPageNumber || 1}/${currentMaterial.pdfTotalPages}页)`
-                          : 'PDF拆分中...';
+                      // PDF 拆分中
+                      if (statusMatches(normalizedStep, ProcessingStep.SPLITTING) || pdfSessionProgress?.someSplitting) {
+                        return 'PDF拆分中...';
                       }
-                      if (statusMatches(normalizedStep, ProcessingStep.UPLOADED)) return '准备翻译...';
-                      if (statusMatches(normalizedStep, ProcessingStep.TRANSLATING) || (pdfSessionProgress && pdfSessionProgress.someTranslating)) return '翻译中...';
+                      // 翻译中
+                      if (statusMatches(normalizedStep, ProcessingStep.TRANSLATING) || pdfSessionProgress?.someTranslating) {
+                        return '翻译中...';
+                      }
                       if (statusMatches(normalizedStep, ProcessingStep.ENTITY_RECOGNIZING)) return '实体识别中...';
                       if (llmLoading) return '优化中...';
                       return '处理中...';
@@ -1803,6 +1829,10 @@ const ClaudePreviewSection = ({ isLoading: parentLoading = false, clientName = '
                       entityModalLoading={entityModalLoading}
                       // 扩展工具栏控制
                       extraControls={{
+                        // 下载
+                        showDownload: true,
+                        materialId: currentMaterial.id,
+                        materialName: currentMaterial.originalName || currentMaterial.filename || `material_${currentMaterial.id}`,
                         // 页面导航
                         showPageNav: pdfPages.length > 1,
                         currentPage: currentPageIndex + 1,
