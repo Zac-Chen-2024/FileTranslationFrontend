@@ -3515,11 +3515,36 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
     if (bgImage) {
       bgImage.set({ left: 0, top: 0 });
     }
+
+    // 获取图片尺寸用于边界钳制
+    const imgWidth = imageRef.current.width;
+    const imgHeight = imageRef.current.height;
+
+    // 保存原始位置以便正确恢复（因为可能会被钳制）
+    const originalPositions = new Map();
     canvas.getObjects().forEach(obj => {
-      obj.set({
-        left: obj.left - CANVAS_OVERFLOW_PADDING,
-        top: obj.top - CANVAS_OVERFLOW_PADDING
-      });
+      originalPositions.set(obj, { left: obj.left, top: obj.top });
+
+      // 计算新位置（去除溢出边距偏移）
+      let newLeft = obj.left - CANVAS_OVERFLOW_PADDING;
+      let newTop = obj.top - CANVAS_OVERFLOW_PADDING;
+
+      // 钳制坐标到图片边界内，避免对象超出被裁剪
+      // 确保对象左上角不超出图片左上角
+      newLeft = Math.max(0, newLeft);
+      newTop = Math.max(0, newTop);
+
+      // 确保对象不超出图片右下角（考虑对象尺寸）
+      const objWidth = obj.width * (obj.scaleX || 1);
+      const objHeight = obj.height * (obj.scaleY || 1);
+      if (newLeft + objWidth > imgWidth) {
+        newLeft = Math.max(0, imgWidth - objWidth);
+      }
+      if (newTop + objHeight > imgHeight) {
+        newTop = Math.max(0, imgHeight - objHeight);
+      }
+
+      obj.set({ left: newLeft, top: newTop });
       obj.setCoords(); // 更新边界框
     });
     canvas.renderAll();
@@ -3531,15 +3556,15 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       multiplier: 1
     });
 
-    // 恢复背景图片和所有对象位置
+    // 恢复背景图片和所有对象的原始位置
     if (bgImage) {
       bgImage.set({ left: CANVAS_OVERFLOW_PADDING, top: CANVAS_OVERFLOW_PADDING });
     }
     canvas.getObjects().forEach(obj => {
-      obj.set({
-        left: obj.left + CANVAS_OVERFLOW_PADDING,
-        top: obj.top + CANVAS_OVERFLOW_PADDING
-      });
+      const originalPos = originalPositions.get(obj);
+      if (originalPos) {
+        obj.set({ left: originalPos.left, top: originalPos.top });
+      }
       obj.setCoords(); // 更新边界框
     });
 
@@ -3613,11 +3638,35 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       if (bgImage) {
         bgImage.set({ left: 0, top: 0 });
       }
+
+      // 获取图片尺寸用于边界钳制
+      const imgWidth = imageRef.current.width;
+      const imgHeight = imageRef.current.height;
+
+      // 保存原始位置以便正确恢复（因为可能会被钳制）
+      const originalPositions = new Map();
       canvas.getObjects().forEach(obj => {
-        obj.set({
-          left: obj.left - CANVAS_OVERFLOW_PADDING,
-          top: obj.top - CANVAS_OVERFLOW_PADDING
-        });
+        originalPositions.set(obj, { left: obj.left, top: obj.top });
+
+        // 计算新位置（去除溢出边距偏移）
+        let newLeft = obj.left - CANVAS_OVERFLOW_PADDING;
+        let newTop = obj.top - CANVAS_OVERFLOW_PADDING;
+
+        // 钳制坐标到图片边界内，避免对象超出被裁剪
+        newLeft = Math.max(0, newLeft);
+        newTop = Math.max(0, newTop);
+
+        // 确保对象不超出图片右下角（考虑对象尺寸）
+        const objWidth = obj.width * (obj.scaleX || 1);
+        const objHeight = obj.height * (obj.scaleY || 1);
+        if (newLeft + objWidth > imgWidth) {
+          newLeft = Math.max(0, imgWidth - objWidth);
+        }
+        if (newTop + objHeight > imgHeight) {
+          newTop = Math.max(0, imgHeight - objHeight);
+        }
+
+        obj.set({ left: newLeft, top: newTop });
         obj.setCoords(); // 更新边界框
       });
       canvas.renderAll();
@@ -3641,15 +3690,15 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         multiplier: 1
       });
 
-      // 恢复背景图片和所有对象位置
+      // 恢复背景图片和所有对象的原始位置
       if (bgImage) {
         bgImage.set({ left: CANVAS_OVERFLOW_PADDING, top: CANVAS_OVERFLOW_PADDING });
       }
       canvas.getObjects().forEach(obj => {
-        obj.set({
-          left: obj.left + CANVAS_OVERFLOW_PADDING,
-          top: obj.top + CANVAS_OVERFLOW_PADDING
-        });
+        const originalPos = originalPositions.get(obj);
+        if (originalPos) {
+          obj.set({ left: originalPos.left, top: originalPos.top });
+        }
         obj.setCoords(); // 更新边界框
       });
 
@@ -3700,11 +3749,35 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       if (bgImage) {
         bgImage.set({ left: 0, top: 0 });
       }
+
+      // 获取图片尺寸用于边界钳制
+      const imgWidth = imageRef.current.width;
+      const imgHeight = imageRef.current.height;
+
+      // 保存原始位置以便正确恢复（因为可能会被钳制）
+      const originalPositions = new Map();
       canvas.getObjects().forEach(obj => {
-        obj.set({
-          left: obj.left - CANVAS_OVERFLOW_PADDING,
-          top: obj.top - CANVAS_OVERFLOW_PADDING
-        });
+        originalPositions.set(obj, { left: obj.left, top: obj.top });
+
+        // 计算新位置（去除溢出边距偏移）
+        let newLeft = obj.left - CANVAS_OVERFLOW_PADDING;
+        let newTop = obj.top - CANVAS_OVERFLOW_PADDING;
+
+        // 钳制坐标到图片边界内，避免对象超出被裁剪
+        newLeft = Math.max(0, newLeft);
+        newTop = Math.max(0, newTop);
+
+        // 确保对象不超出图片右下角（考虑对象尺寸）
+        const objWidth = obj.width * (obj.scaleX || 1);
+        const objHeight = obj.height * (obj.scaleY || 1);
+        if (newLeft + objWidth > imgWidth) {
+          newLeft = Math.max(0, imgWidth - objWidth);
+        }
+        if (newTop + objHeight > imgHeight) {
+          newTop = Math.max(0, imgHeight - objHeight);
+        }
+
+        obj.set({ left: newLeft, top: newTop });
         obj.setCoords(); // 更新边界框
       });
       canvas.renderAll();
@@ -3716,15 +3789,15 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         multiplier: 1
       });
 
-      // 恢复背景图片和所有对象位置
+      // 恢复背景图片和所有对象的原始位置
       if (bgImage) {
         bgImage.set({ left: CANVAS_OVERFLOW_PADDING, top: CANVAS_OVERFLOW_PADDING });
       }
       canvas.getObjects().forEach(obj => {
-        obj.set({
-          left: obj.left + CANVAS_OVERFLOW_PADDING,
-          top: obj.top + CANVAS_OVERFLOW_PADDING
-        });
+        const originalPos = originalPositions.get(obj);
+        if (originalPos) {
+          obj.set({ left: originalPos.left, top: originalPos.top });
+        }
         obj.setCoords(); // 更新边界框
       });
 
