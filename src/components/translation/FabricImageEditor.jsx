@@ -2574,56 +2574,19 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       return aY - bY; // 不同行按Y排序
     });
     
-    // 收集文本并计算边界（使用每个文本对应的原始区域）
+    // 收集文本并计算边界（使用文本框的实际位置，避免坐标系混乱）
     let lastY = null;
     sortedTexts.forEach(textObj => {
-      // 获取对应的原始区域
-      const regionIndex = textObj.regionIndex;
-      if (regionIndex !== undefined && regions[regionIndex]) {
-        const region = regions[regionIndex];
+      // 直接使用文本框的画布坐标（已包含 CANVAS_OVERFLOW_PADDING）
+      const regionMinX = textObj.left;
+      const regionMinY = textObj.top;
+      const regionMaxX = textObj.left + textObj.width * textObj.scaleX;
+      const regionMaxY = textObj.top + textObj.height * textObj.scaleY;
 
-        let regionMinX, regionMinY, regionMaxX, regionMaxY;
-
-        // 处理不同格式的region
-        if (region.x !== undefined && region.y !== undefined && region.width !== undefined && region.height !== undefined) {
-          // 保存的格式
-          regionMinX = region.x;
-          regionMinY = region.y;
-          regionMaxX = region.x + region.width;
-          regionMaxY = region.y + region.height;
-        } else if (region.points && region.points.length >= 4) {
-          // 原始格式
-          const points = region.points;
-          regionMinX = Math.min(...points.map(p => p.x));
-          regionMinY = Math.min(...points.map(p => p.y));
-          regionMaxX = Math.max(...points.map(p => p.x));
-          regionMaxY = Math.max(...points.map(p => p.y));
-        } else {
-          // 使用文本框自身的边界，考虑实际的边界框
-          const bounds = textObj.getBoundingRect();
-          regionMinX = bounds.left;
-          regionMinY = bounds.top;
-          regionMaxX = bounds.left + bounds.width;
-          regionMaxY = bounds.top + bounds.height;
-        }
-
-        minX = Math.min(minX, regionMinX);
-        minY = Math.min(minY, regionMinY);
-        maxX = Math.max(maxX, regionMaxX);
-        maxY = Math.max(maxY, regionMaxY);
-      } else {
-        // 没有region信息，使用文本框自身的边界，考虑实际的边界框
-        const bounds = textObj.getBoundingRect();
-        const regionMinX = bounds.left;
-        const regionMinY = bounds.top;
-        const regionMaxX = bounds.left + bounds.width;
-        const regionMaxY = bounds.top + bounds.height;
-
-        minX = Math.min(minX, regionMinX);
-        minY = Math.min(minY, regionMinY);
-        maxX = Math.max(maxX, regionMaxX);
-        maxY = Math.max(maxY, regionMaxY);
-      }
+      minX = Math.min(minX, regionMinX);
+      minY = Math.min(minY, regionMinY);
+      maxX = Math.max(maxX, regionMaxX);
+      maxY = Math.max(maxY, regionMaxY);
       
       // 每个区域独占一行（按你的要求修改）
       if (lastY !== null) {
@@ -2957,17 +2920,15 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
       }
     });
 
-    // 计算合并区域的边界
+    // 计算合并区域的边界（使用文本框的画布坐标，避免坐标系混乱）
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
     textboxes.forEach(textObj => {
-      // 始终使用文本框的实际边界框（考虑旋转、缩放、移动等所有变换）
-      // 不依赖 regions prop，因为它不会随 undo/redo 更新
-      const bounds = textObj.getBoundingRect();
-      const regionMinX = bounds.left;
-      const regionMinY = bounds.top;
-      const regionMaxX = bounds.left + bounds.width;
-      const regionMaxY = bounds.top + bounds.height;
+      // 直接使用文本框的画布坐标（已包含 CANVAS_OVERFLOW_PADDING）
+      const regionMinX = textObj.left;
+      const regionMinY = textObj.top;
+      const regionMaxX = textObj.left + textObj.width * textObj.scaleX;
+      const regionMaxY = textObj.top + textObj.height * textObj.scaleY;
 
       minX = Math.min(minX, regionMinX);
       minY = Math.min(minY, regionMinY);
@@ -3559,6 +3520,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         left: obj.left - CANVAS_OVERFLOW_PADDING,
         top: obj.top - CANVAS_OVERFLOW_PADDING
       });
+      obj.setCoords(); // 更新边界框
     });
     canvas.renderAll();
 
@@ -3578,6 +3540,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
         left: obj.left + CANVAS_OVERFLOW_PADDING,
         top: obj.top + CANVAS_OVERFLOW_PADDING
       });
+      obj.setCoords(); // 更新边界框
     });
 
     if (!includeText) {
@@ -3655,6 +3618,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           left: obj.left - CANVAS_OVERFLOW_PADDING,
           top: obj.top - CANVAS_OVERFLOW_PADDING
         });
+        obj.setCoords(); // 更新边界框
       });
       canvas.renderAll();
 
@@ -3686,6 +3650,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           left: obj.left + CANVAS_OVERFLOW_PADDING,
           top: obj.top + CANVAS_OVERFLOW_PADDING
         });
+        obj.setCoords(); // 更新边界框
       });
 
       // 恢复原始缩放和尺寸
@@ -3740,6 +3705,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           left: obj.left - CANVAS_OVERFLOW_PADDING,
           top: obj.top - CANVAS_OVERFLOW_PADDING
         });
+        obj.setCoords(); // 更新边界框
       });
       canvas.renderAll();
 
@@ -3759,6 +3725,7 @@ function FabricImageEditor({ imageSrc, regions, onExport, editorKey = 'default',
           left: obj.left + CANVAS_OVERFLOW_PADDING,
           top: obj.top + CANVAS_OVERFLOW_PADDING
         });
+        obj.setCoords(); // 更新边界框
       });
 
       // 恢复原始缩放和尺寸
